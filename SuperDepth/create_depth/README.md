@@ -8,13 +8,12 @@ The SuperDepth dataset includes RGB images, ground truth depth maps, ground trut
 
 The datasets used to train SuperDepth include:
 
-- [UrbanSyn](https://www.urbansyn.org)
-- [MUAD](https://muad-dataset.github.io/)
+- [Argoverse](https://www.argoverse.org/av1.html#stereo-link)
+- [GTAV](https://github.com/ostadabbas/Temporal-controlled-Frame-Swap-GTAV-TeFS-/tree/main)
 - [KITTI](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
-- [Argoverse 1.0](https://www.argoverse.org/av1.html#stereo-link)
 - [MUSES](https://muses.vision.ee.ethz.ch/)
-- [Boreas](https://www.boreas.utias.utoronto.ca/#/)
-- [DDAD](https://github.com/TRI-ML/DDAD#dataset-details)
+- [MUAD](https://muad-dataset.github.io/)
+- [UrbanSyn](https://www.urbansyn.org)
 
 ## common
-Contains helper classes to  create ground truth data for non-simulation-based LIDAR + monocular vision, as well as LIDAR + stereo vision datasets
+Contains helper classes used to create ground truth data

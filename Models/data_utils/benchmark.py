@@ -8,6 +8,7 @@ from pytorch_model_summary import summary
 import sys
 sys.path.append('..')
 from model_components.scene_seg_network import SceneSegNetwork
+from model_components.super_depth_network import SuperDepthNetwork
 
 
 def benchmark(model, input_data, dtype='fp32', nwarmup=50, nruns=1000):
@@ -47,8 +48,17 @@ def main():
     print(f'Using {device} for inference')
 
     # Instantiating Model and setting to evaluation mode
-    model = SceneSegNetwork()
-    print(summary(SceneSegNetwork(), torch.zeros((1, 3, 320, 640)), show_input=True))
+    model_name = 'SuperDepth'
+    model = 0
+    
+    if(model_name == 'SceneSeg'):
+        model = SceneSegNetwork()
+    elif (model_name == 'SuperDepth'):
+        model = SuperDepthNetwork()
+    else:
+        raise Exception("Model name not specified correctly, please check")
+    
+    print(summary(model, torch.zeros((1, 3, 320, 640)), show_input=True))
     model = model.to(device)
     model = model.eval()
 

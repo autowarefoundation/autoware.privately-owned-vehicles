@@ -4,6 +4,7 @@ import pathlib
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from argparse import ArgumentParser
 import json
 import sys
 sys.path.append('../../../')
@@ -11,6 +12,7 @@ from Models.data_utils.check_data import CheckData
 from SuperDepth.create_depth.common.lidar_depth_fill import LidarDepthFill
 from SuperDepth.create_depth.common.stereo_sparse_supervision import StereoSparseSupervision
 from SuperDepth.create_depth.common.height_map import HeightMap
+from SuperDepth.create_depth.common.depth_boundaries import DepthBoundaries
 
 def parseCalib(calib_files):
     
@@ -59,31 +61,6 @@ def createDepthMap(depth_data, focal_length, baseline):
 
     return depth_map      
 
-def findDepthBoundaries(depth_map):
-
-    # Getting size of depth map
-    size = depth_map.shape
-    height = size[0]
-    width = size[1]
-
-    # Initializing depth boundary mask
-    depth_boundaries = np.zeros_like(depth_map, dtype=np.uint8)
-
-    # Fiding depth boundaries
-    for i in range(1, height-1):
-        for j in range(1, width-1):
-
-            # Finding derivative
-            x_grad = depth_map[i-1,j] - depth_map[i+1, j]
-            y_grad = depth_map[i,j-1] - depth_map[i, j+1]
-            grad = abs(x_grad) + abs(y_grad)
-            
-            # Derivative threshold accounting for gap in depth map
-            if(grad > 8 and depth_map[i-1, j] != 0):
-                depth_boundaries[i,j] = 255
-
-    return depth_boundaries 
-
 def cropData(image_left, depth_map, depth_boundaries, height_map, sparse_supervision):
 
     # Getting size of depth map
@@ -102,9 +79,15 @@ def cropData(image_left, depth_map, depth_boundaries, height_map, sparse_supervi
 
 def main():
     
-    # Filepaths for data loading and saving
-    root_data_path = '/mnt/media/Argoverse/'
-    root_save_path = '/mnt/media/SuperDepth/Argoverse'
+    # Argument parser for data root path and save path
+    parser = ArgumentParser()
+    parser.add_argument("-r", "--root", dest="root_data_path", help="path to root folder with input ground truth labels and images")
+    parser.add_argument("-s", "--save", dest="root_save_path", help="path to folder where processed data will be saved")
+    args = parser.parse_args()
+
+    # Filepaths for data loading and savind
+    root_data_path = args.root_data_path
+    root_save_path = args.root_save_path
 
     # Paths to read ground truth depth and input images from training data
     depth_filepath = root_data_path + 'disparity_maps_v1.1/'
@@ -171,7 +154,9 @@ def main():
             depth_map_fill_only = lidar_depth_fill.getDepthMapFillOnly()
             
             # Calculating depth boundaries
-            depth_boundaries = findDepthBoundaries(depth_map_fill_only)
+            boundary_threshold = 10
+            depthBoundaries = DepthBoundaries(depth_map_fill_only, boundary_threshold)
+            depth_boundaries = depthBoundaries.getDepthBoundaries()
 
             # Height map
             heightMap = HeightMap(depth_map, max_height, min_height, 
@@ -210,7 +195,7 @@ def main():
             boundary_mask.save(boundary_save_path, "PNG")
 
             # Height map plot for data auditing purposes
-            height_plot_save_path = root_save_path + '/height_plot/' + str(index) + '.png'
+            height_plot_save_path = root_save_path + '/height_plot/' + str(counter) + '.png'
             plt.imsave(height_plot_save_path, height_map, cmap='inferno_r')
             
             counter += 1

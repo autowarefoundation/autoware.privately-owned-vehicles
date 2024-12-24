@@ -4,12 +4,15 @@ import pathlib
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from argparse import ArgumentParser
 import json
 import sys
 sys.path.append('../../../')
 from Models.data_utils.check_data import CheckData
 from SuperDepth.create_depth.common.lidar_depth_fill import LidarDepthFill
 from SuperDepth.create_depth.common.height_map import HeightMap
+from SuperDepth.create_depth.common.depth_boundaries import DepthBoundaries
+from SuperDepth.create_depth.common.depth_sparse_supervision import DepthSparseSupervision
 
 def parseCalib(calib_filepath):
     
@@ -52,7 +55,7 @@ def filter_by_image_boundaries(pcd_lidar, uv_img_cords, h, w):
     uv_img_cords_filtered = uv_img_cords[:, valid_indices]
     return pcd_lidar, uv_img_cords_filtered
 
-def filter_and_project_pcd_to_image(pcd, sensor2rgb, K_rgb, target_shape=(1920, 1080), min_distance=1.0, max_distance=None):
+def filter_and_project_pcd_to_image(pcd, sensor2rgb, K_rgb, target_shape=(1920, 1080)):
 
     point_cloud_xyz = pcd[:, :3]
     w, h = target_shape
@@ -101,73 +104,7 @@ def create_image_from_point_cloud(uv_img_cords_filtered, filtered_pcd_points, ta
 
     return image
 
-def findDepthBoundaries(depth_map):
-
-    # Getting size of depth map
-    size = depth_map.shape
-    height = size[0]
-    width = size[1]
-
-    # Initializing depth boundary mask
-    depth_boundaries = np.zeros_like(depth_map, dtype=np.uint8)
-
-    # Fiding depth boundaries
-    for i in range(1, height-1):
-        for j in range(1, width-1):
-
-            # Finding derivative
-            x_grad = depth_map[i-1,j] - depth_map[i+1, j]
-            y_grad = depth_map[i,j-1] - depth_map[i, j+1]
-            grad = abs(x_grad) + abs(y_grad)
-            
-            # Derivative threshold accounting for gap in depth map
-            if(grad > 8 and depth_map[i-1, j] != 0):
-                depth_boundaries[i,j] = 255
-
-    return depth_boundaries 
-
-def createSparseSupervision(image, height_map, max_height, min_height):
-
-    # Getting size of height map
-    size = height_map.shape
-    height = size[0]
-    width = size[1]
-
-    # Initializing depth boundary mask
-    sparse_supervision = np.zeros_like(height_map)
-
-    # Getting pixel access for image
-    px = image.load()
-
-    # Fiding image gradients
-    for i in range(1, width-1):
-        for j in range(1, height-1):
-
-            # Finding image derivative - using green colour channel
-            x_grad = px[i-1,j][1] - px[i+1, j][1]
-            y_grad = px[i,j-1][1] - px[i, j+1][1]
-            grad = abs(x_grad) + abs(y_grad)
-
-            # Derivative threshold to find likely stereo candidates
-            if(grad > 25):
-                sparse_supervision[j,i] = height_map[j,i]
-            else:
-                sparse_supervision[j,i] = max_height
-
-            # Max height threshold
-            if(height_map[j,i] == max_height):
-                sparse_supervision[j,i] = max_height
-    
-    # Clipping height values for dataset
-    sparse_supervision = sparse_supervision.clip(min = min_height, max = max_height)
-    return sparse_supervision
-
 def cropData(image_left, depth_map, depth_boundaries, height_map, sparse_supervision):
-
-    # Getting size of depth map
-    size = depth_map.shape
-    height = size[0]
-    width = size[1]
 
     # Cropping out those parts of data for which depth is unavailable
     image_left = image_left.crop((500, 300, 1300, 700))
@@ -180,9 +117,15 @@ def cropData(image_left, depth_map, depth_boundaries, height_map, sparse_supervi
 
 def main():
     
-    # Filepaths for data loading and saving
-    root_data_path = '/mnt/media/MUSES/'
-    root_save_path = '/mnt/media/SuperDepth/MUSES/'
+    # Argument parser for data root path and save path
+    parser = ArgumentParser()
+    parser.add_argument("-r", "--root", dest="root_data_path", help="path to root folder with input ground truth labels and images")
+    parser.add_argument("-s", "--save", dest="root_save_path", help="path to folder where processed data will be saved")
+    args = parser.parse_args()
+
+    # Filepaths for data loading and savind
+    root_data_path = args.root_data_path
+    root_save_path = args.root_save_path
 
     # Paths to read ground truth depth and input images from training data
     depth_filepath = root_data_path + 'lidar/'
@@ -235,7 +178,9 @@ def main():
             depth_map_fill_only = lidar_depth_fill.getDepthMapFillOnly()
             
             # Calculating depth boundaries
-            depth_boundaries = findDepthBoundaries(depth_map_fill_only)
+            boundary_threshold = 8
+            depthBoundaries = DepthBoundaries(depth_map_fill_only, boundary_threshold)
+            depth_boundaries = depthBoundaries.getDepthBoundaries()
 
             # Height map
             heightMap = HeightMap(depth_map, max_height, min_height, 
@@ -243,7 +188,9 @@ def main():
             height_map = heightMap.getHeightMap()
 
             # Sparse Supervision
-            sparse_supervision = createSparseSupervision(image, height_map, max_height, min_height)
+            supervision_threshold = 25
+            depthSparseSupervision = DepthSparseSupervision(image, height_map, max_height, min_height, supervision_threshold)
+            sparse_supervision = depthSparseSupervision.getSparseSupervision()
 
              # Crop side regions where depth data is missing
             image, depth_map, depth_boundaries, height_map, sparse_supervision= \

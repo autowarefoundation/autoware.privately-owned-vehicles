@@ -4,7 +4,7 @@ import numpy as np
 from typing import Literal
 from PIL import Image
 
-class LoadData():
+class LoadDataSceneSeg():
     def __init__(self, labels_filepath, images_filepath, \
         dataset: Literal['ACDC', 'BDD100K', 'IDDAW', 'MUSES', 'MAPILLARY', 'COMMA10K']):
 

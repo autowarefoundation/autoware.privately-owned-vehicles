@@ -28,7 +28,7 @@ class SceneSegNetworkInfer():
 
         if(len(checkpoint_path) > 0):
             self.model.load_state_dict(torch.load \
-                (checkpoint_path, weights_only=True))
+                (checkpoint_path, weights_only=True, map_location=self.device))
         else:
             raise ValueError('No path to checkpiont file provided in class initialization')
         

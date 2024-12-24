@@ -14,6 +14,9 @@ However, during inference, we only use the outputs from the **`Foreground Object
 ## Watch the explainer video
 Please click the video link to play - [***Video link***](https://drive.google.com/file/d/1riGlT3Ct-O1Y2C0DqxemwWS233dJrY7F/view?usp=sharing)
 
+## Demo, Training, Inference, Visualization
+Please see the [*Models*](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main/Models) folder to access the pre-trained network weights for SceneSeg as well as scripts for network training, inference and visualization of network predictions.
+
 ## Performance Results
 SceneSeg was trained on a diverse dataset comprised of multiple open-source datasets, including ACDC, MUSES, IDDAW, Mapillary Vistas and the Comma10K datset. These datasets provide challenging training data covering a wide range of countries, road types, lighting conditions and weather conditions. The BDD100K dataset was not used during training and served as a broad and diverse test set.
 

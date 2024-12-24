@@ -4,6 +4,8 @@
 import pathlib
 import cv2
 from PIL import Image
+import matplotlib.pyplot as plt
+from argparse import ArgumentParser
 import numpy as np
 import os
 os.environ["OPENCV_IO_ENABLE_OPENEXR"]="1"
@@ -11,7 +13,8 @@ import sys
 sys.path.append('../../../')
 from Models.data_utils.check_data import CheckData
 from SuperDepth.create_depth.common.height_map import HeightMap
-
+from SuperDepth.create_depth.common.depth_boundaries import DepthBoundaries
+from SuperDepth.create_depth.common.depth_sparse_supervision import DepthSparseSupervision
 
 def createDepthMap(depth_data):
 
@@ -34,73 +37,17 @@ def createDepthMap(depth_data):
 
     return depth_map
 
-def findDepthBoundaries(depth_map):
-
-    # Getting size of depth map
-    size = depth_map.shape
-    height = size[0]
-    width = size[1]
-
-    # Initializing depth boundary mask
-    depth_boundaries = np.zeros_like(depth_map, dtype=np.uint8)
-
-    # Fiding depth boundaries
-    for i in range(1, height-1):
-        for j in range(1, width-1):
-
-            # Finding derivative
-            x_grad = depth_map[i-1,j] - depth_map[i+1, j]
-            y_grad = depth_map[i,j-1] - depth_map[i, j+1]
-            grad = abs(x_grad) + abs(y_grad)
-            
-            # Derivative threshold
-            if(grad > 10):
-                depth_boundaries[i,j] = 255
-
-    return depth_boundaries
-
-def createSparseSupervision(image, height_map, max_height, min_height):
-
-    # Getting size of height map
-    size = height_map.shape
-    height = size[0]
-    width = size[1]
-
-    # Initializing depth boundary mask
-    sparse_supervision = np.zeros_like(height_map)
-
-    # Getting pixel access for image
-    px = image.load()
-
-    # Fiding image gradients
-    for i in range(1, width-1):
-        for j in range(1, height-1):
-
-            # Finding image derivative - using green colour channel
-            x_grad = px[i-1,j][1] - px[i+1, j][1]
-            y_grad = px[i,j-1][1] - px[i, j+1][1]
-            grad = abs(x_grad) + abs(y_grad)
-
-            # Derivative threshold to find likely stereo candidates
-            if(grad > 25):
-                sparse_supervision[j,i] = height_map[j,i]
-            else:
-                sparse_supervision[j,i] = max_height
-
-            # Max height threshold
-            if(height_map[j,i] == max_height):
-                sparse_supervision[j,i] = max_height
-    
-    # Clipping height values for dataset
-    sparse_supervision = sparse_supervision.clip(min = min_height, max = max_height)
-    return sparse_supervision
-
-
 def main():
 
+    # Argument parser for data root path and save path
+    parser = ArgumentParser()
+    parser.add_argument("-r", "--root", dest="root_data_path", help="path to root folder with input ground truth labels and images")
+    parser.add_argument("-s", "--save", dest="root_save_path", help="path to folder where processed data will be saved")
+    args = parser.parse_args()
+
     # Filepaths for data loading and savind
-    root_data_path = '/home/zain/Autoware/Privately_Owned_Vehicles/training_data/SuperDepth/MUAD/'
-    root_save_path = '/mnt/media/SuperDepth/MUAD'
+    root_data_path = args.root_data_path
+    root_save_path = args.root_save_path
 
     # Paths to read ground truth depth and input images from training data
     depth_filepath = root_data_path + 'depth/'
@@ -143,11 +90,21 @@ def main():
             
             # Create metric depth map and height map
             depth_map = createDepthMap(depth_data)
-            depth_boundaries = findDepthBoundaries(depth_map)
+
+            # Depth boundaries
+            boundary_threshold = 10
+            depthBoundaries = DepthBoundaries(depth_map, boundary_threshold)
+            depth_boundaries = depthBoundaries.getDepthBoundaries()
+
+            # Height map
             heightMap = HeightMap(depth_map, max_height, min_height, 
                  camera_height, focal_length, cy)
             height_map = heightMap.getHeightMap()
-            sparse_supervision = createSparseSupervision(image, height_map, max_height, min_height)
+
+            # Sparse supervision
+            supervision_threshold = 25
+            depthSparseSupervision = DepthSparseSupervision(image, height_map, max_height, min_height, supervision_threshold)
+            sparse_supervision = depthSparseSupervision.getSparseSupervision()
             
             # Save files
             # RGB Image as PNG
@@ -170,6 +127,10 @@ def main():
             boundary_save_path = root_save_path + '/boundary/' + str(index) + '.png'
             boundary_mask = Image.fromarray(depth_boundaries)
             boundary_mask.save(boundary_save_path, "PNG")
+
+            # Height map plot for data auditing purposes
+            height_plot_save_path = root_save_path + '/height_plot/' + str(index) + '.png'
+            plt.imsave(height_plot_save_path, height_map, cmap='inferno_r')
         
         print('----- Processing complete -----') 
     

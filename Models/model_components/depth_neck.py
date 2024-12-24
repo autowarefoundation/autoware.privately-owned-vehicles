@@ -23,14 +23,13 @@ class DepthNeck(nn.Module):
         self.decode_layer_4 = nn.Conv2d(512, 512, 3, 1, 1)
         self.decode_layer_5 = nn.Conv2d(512, 256, 3, 1, 1)
 
-    def forward(self, context, features, depth_supervision_features):
+    def forward(self, context, features):
 
         # Decoder upsample block 1
         # Upsample
-        context = context + depth_supervision_features[5]
         d0 = self.upsample_layer_0(context)
         # Add layer from Encoder
-        d0 = d0 + self.skip_link_layer_0(features[3]) + depth_supervision_features[4]
+        d0 = d0 + self.skip_link_layer_0(features[3])
         # Double Convolution
         d1 = self.decode_layer_0 (d0)
         d1 = self.GeLU(d1)
@@ -41,7 +40,7 @@ class DepthNeck(nn.Module):
         # Upsample
         d3 = self.upsample_layer_1(d2)
         # Expand and add layer from Encoder
-        d3 = d3 + self.skip_link_layer_1(features[2]) + depth_supervision_features[3]
+        d3 = d3 + self.skip_link_layer_1(features[2])
         # Double convolution
         d3 = self.decode_layer_2(d3)
         d3 = self.GeLU(d3)
@@ -52,7 +51,7 @@ class DepthNeck(nn.Module):
         # Upsample
         d5 = self.upsample_layer_2(d5)
          # Expand and add layer from Encoder
-        d5 = d5 + self.skip_link_layer_2(features[1]) + depth_supervision_features[2]
+        d5 = d5 + self.skip_link_layer_2(features[1])
         # Double convolution
         d5 = self.decode_layer_4(d5)
         d5 = self.GeLU(d5)

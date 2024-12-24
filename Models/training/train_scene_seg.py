@@ -7,7 +7,7 @@ from scene_seg_trainer import SceneSegTrainer
 from argparse import ArgumentParser
 import sys
 sys.path.append('..')
-from data_utils.load_data import LoadData
+from data_utils.load_data_scene_seg import LoadDataSceneSeg
 
 
 def main():
@@ -46,23 +46,23 @@ def main():
 
 
     # ACDC - Data Loading
-    acdc_Dataset = LoadData(acdc_labels_filepath, acdc_images_filepath, 'ACDC')
+    acdc_Dataset = LoadDataSceneSeg(acdc_labels_filepath, acdc_images_filepath, 'ACDC')
     acdc_num_train_samples, acdc_num_val_samples = acdc_Dataset.getItemCount()
 
     # IDDAW - Data Loading
-    iddaw_Dataset = LoadData(iddaw_labels_fileapath, iddaw_images_fileapath, 'IDDAW')
+    iddaw_Dataset = LoadDataSceneSeg(iddaw_labels_fileapath, iddaw_images_fileapath, 'IDDAW')
     iddaw_num_train_samples, iddaw_num_val_samples = iddaw_Dataset.getItemCount()
 
     # MUSES - Data Loading
-    muses_Dataset = LoadData(muses_labels_fileapath, muses_images_fileapath, 'MUSES')
+    muses_Dataset = LoadDataSceneSeg(muses_labels_fileapath, muses_images_fileapath, 'MUSES')
     muses_num_train_samples, muses_num_val_samples = muses_Dataset.getItemCount()
 
     # Mapillary - Data Loading
-    mapillary_Dataset = LoadData(mapillary_labels_fileapath, mapillary_images_fileapath, 'MAPILLARY')
+    mapillary_Dataset = LoadDataSceneSeg(mapillary_labels_fileapath, mapillary_images_fileapath, 'MAPILLARY')
     mapillary_num_train_samples, mapillary_num_val_samples = mapillary_Dataset.getItemCount()
 
     # comma10k - Data Loading
-    comma10k_Dataset = LoadData(comma10k_labels_fileapath, comma10k_images_fileapath, 'COMMA10K')
+    comma10k_Dataset = LoadDataSceneSeg(comma10k_labels_fileapath, comma10k_images_fileapath, 'COMMA10K')
     comma10k_num_train_samples, comma10k_num_val_samples = comma10k_Dataset.getItemCount()
 
     # Total number of training samples
