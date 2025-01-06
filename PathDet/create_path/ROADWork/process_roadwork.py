@@ -15,17 +15,54 @@ Generate output structure
 import numpy as np
 import argparse
 import os
+import glob
 import json
 import logging
-import glob
 from PIL import Image, ImageDraw
-from datetime import datetime
 
+# Create Log files directory
+log_filename = 'logs/roadwork_date_processing.log'
+os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+
+# Creating and configuring the logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Creating Logging format
+formatter = logging.Formatter(
+    "[%(asctime)s: %(name)s] %(levelname)s\t%(message)s")
+
+# Creating file handler and setting the logging formats
+file_handler = logging.FileHandler(log_filename, mode='a')
+file_handler.setFormatter(formatter)
+
+# Creating console handler with logging format
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+
+# Adding handlers into the logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+def create_output_subdirs(output_dir):
+    """
+    Create subdirectories for the output directory
+    """
+    subdirs_list = ["image", "segmentation", "visualization"]
+    output_subdirs = []
+
+    for subdir in subdirs_list:
+        subdir_path = os.path.join(output_dir, subdir)
+        check_directory_exists(subdir_path)
+        output_subdirs.append(subdir_path)
+    
+    return output_subdirs
+    
 def check_directory_exists(directory_path: str):
     """Check if a directory exists; if not, create it."""
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
-        print(f"Directory '{directory_path}' created.")
+        logger.info(f"Directory created: {directory_path} !")
     else:
         print(f"Directory '{directory_path}' already exists.")
 
@@ -47,7 +84,7 @@ def get_trajectory(json_data, id):
     
     return trajectory
 
-def draw_line_trajectory(image_path, trajectory, output_path):
+def draw_trajectory_line(image_path, trajectory, output_path):
     """
     Draw Trajectory on the image
     """
@@ -67,7 +104,7 @@ def draw_line_trajectory(image_path, trajectory, output_path):
     
     img.save(output_path)
 
-def draw_point_trajectory(image_path, trajectory, output_path):
+def draw_trajectory_points(image_path, trajectory, output_path):
     """
     Draw Trajectory on the image
     """
@@ -81,6 +118,32 @@ def draw_point_trajectory(image_path, trajectory, output_path):
         draw.ellipse([x-radius, y-radius, x+radius, y+radius], fill=point_color)
     
     img.save(output_path)
+
+def create_drivable_path_json(output_dir, json_data):
+    pass
+
+def create_trajectory_mask(image_path, trajectory, output_dir,  lane_width = 5):
+    """
+    Create binary mask for the drivable path using the trajectory points
+    """
+    mask = Image.new("L", (img_width, img_height), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.line(drivable_renormed, fill = 255, width = lane_w)
+    mask.save(os.path.join(mask_dir, save_name))
+
+def convert_jpg2png(image_path, output_dir):
+    """
+    Convert JPG image to PNG image
+    """
+    with Image.open(image_path) as img:
+        # Get the Image ID and concat with PNG extention
+        new_img = f"{get_id(image_path)}.png"
+        
+        # Copy raw img and put it in raw dir.
+        img.save(os.path.join(output_dir, new_img))
+        
+        # Log the result
+        logger.info(f"Converted JPG to PNG image: {new_img}")
 
 def get_id(image_path):
     """
@@ -97,9 +160,11 @@ def main(args):
     json_file = args.annotation
     image_dir = args.images_dir
     output_dir = args.output_dir
+    draw_mode = args.draw_mode
 
+    #### STEP 01: Check and Create Output Directories
     # Check Output directory exists
-    check_directory_exists(output_dir)
+    create_output_subdirs(output_dir)
 
 
     # Read JSON file and create JSON data (list of dictionaries)
@@ -125,25 +190,32 @@ if __name__ == "__main__":
         description = "Process ROADWork dataset - PathDet groundtruth generation"
     )
     parser.add_argument(
-        "--images-dir",
+        "--image-dir",
         "-i", 
         type = str,
         required=True,
         help = "ROADWork Image Datasets directory"
     )
     parser.add_argument(
-        "--annotation",
+        "--annotation-dir",
         "-a", 
         type = str,
         required=True,
-        help = "ROADWork Annotation File Path"
+        help = "ROADWork Trajectory File directory"
     )
     parser.add_argument(
         "--output-dir",
         "-o",
         type = str,
-        default="output_dir",
+        default="output",
         help = "Output directory"
+    )
+    parser.add_argument(
+        "--draw-mode",
+        "-m",
+        type = str,
+        default="line",
+        help = "Draw mode: line or point"
     )
     args = parser.parse_args()
 
