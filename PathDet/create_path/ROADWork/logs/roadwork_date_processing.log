@@ -1,3 +1,14 @@
 [2025-01-08 13:03:44,888: __main__] INFO	Directory created: /home/docjag/tmp/output/image !
 [2025-01-08 13:03:44,888: __main__] INFO	Directory created: /home/docjag/tmp/output/segmentation !
 [2025-01-08 13:03:44,888: __main__] INFO	Directory created: /home/docjag/tmp/output/visualization !
+[2025-01-08 15:06:44,261: __main__] INFO	Converted JPG to PNG image: minneapolis_7b1341474fb249cfaf76877d3fdfab27_000002_08790_0070.png
+[2025-01-08 15:39:59,980: __main__] INFO	Directory created: /home/docjag/tmp/output/image/image !
+[2025-01-08 15:40:00,652: __main__] INFO	Converted JPG to PNG image: minneapolis_7b1341474fb249cfaf76877d3fdfab27_000002_08790_0070.png
+[2025-01-08 15:41:57,847: __main__] INFO	Directory created: /home/docjag/tmp/output/image !
+[2025-01-08 15:41:57,847: __main__] INFO	Directory created: /home/docjag/tmp/output/visualization !
+[2025-01-08 15:41:57,847: __main__] INFO	Directory created: /home/docjag/tmp/output/segmentation !
+[2025-01-08 15:41:58,630: __main__] INFO	Converted JPG to PNG image: minneapolis_7b1341474fb249cfaf76877d3fdfab27_000002_08790_0070.png
+[2025-01-08 15:43:56,819: __main__] INFO	Converted JPG to PNG image: minneapolis_7b1341474fb249cfaf76877d3fdfab27_000002_08790_0070.png
+[2025-01-08 15:44:44,996: __main__] INFO	Converted JPG to PNG image: minneapolis_7b1341474fb249cfaf76877d3fdfab27_000002_08790_0070.png
+[2025-01-08 15:45:07,545: __main__] INFO	Converted JPG to PNG image: minneapolis_7b1341474fb249cfaf76877d3fdfab27_000002_08790_0070.png
+[2025-01-08 15:45:29,749: __main__] INFO	Converted JPG to PNG image: minneapolis_7b1341474fb249cfaf76877d3fdfab27_000002_08790_0070.png
