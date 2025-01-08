@@ -74,17 +74,12 @@ def normalize_coords(trajectory, img_shape):
     img_width, img_height = img_shape
     return [(x / img_width, y / img_height) for x, y in trajectory]
 
-def get_trajectory(json_data, id):
+def process_trajectory(trajectory):
     """
     Returns list of trajectory points as tuple
     """
-    for j in json_data:
-        if j['id'] == id:
-            break
-    trajectory = [(i['x'], i['y']) for i in j['trajectory']]
-    print(trajectory)
     
-    return trajectory
+    return [(i['x'], i['y']) for i in trajectory]
 
 def merge_json_files(json_dir):
     """
@@ -101,8 +96,8 @@ def merge_json_files(json_dir):
 
 def draw_trajectory_line_points(image_path, trajectory, output_dir):
     # Split the trajectory into x and y coordinates
-    x_coords = np.array([point[0] for point in trajectory[0:]])
-    y_coords = np.array([point[1] for point in trajectory[0:]])
+    x_coords = np.array([point[0] for point in trajectory])
+    y_coords = np.array([point[1] for point in trajectory])
 
     # Perform cubic spline interpolation
     cs_x = CubicSpline(np.arange(len(x_coords)), x_coords, bc_type="natural")
@@ -113,11 +108,10 @@ def draw_trajectory_line_points(image_path, trajectory, output_dir):
     new_y = cs_y(new_x)  # Get y coordinates using the cubic spline
 
     # Load your image where the trajectory should be drawn
-    image_path = 'test_image.jpg'  # Replace with your image path
-    image = Image.open(image_path)
-
-    # Create a Draw object to draw on the image
-    draw = ImageDraw.Draw(image)
+    with Image.open(image_path) as img:
+        # Create a Draw object to draw on the image
+        draw = ImageDraw.Draw(img)
+   
 
     # Draw the interpolated trajectory on the image
     for i in range(len(new_x) - 1):
@@ -130,7 +124,7 @@ def draw_trajectory_line_points(image_path, trajectory, output_dir):
         draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill='blue', outline='blue')  # Draw original points
 
     # Save the modified image with the overlay
-    image.save()
+    img.save()
 
 def draw_trajectory_line(image_path, trajectory, output_path):
     """
@@ -201,20 +195,11 @@ def convert_jpg2png(image_path, output_dir):
         # Log the result
         logger.info(f"Converted JPG to PNG image: {new_img}")
 
-def get_id(image_path):
-    """
-    Return the image name without extention as ID
-    """
-    # Extract only the image name
-    tmp = os.path.basename(image_path)
-    # Remove the image file extention and return only the name as ID
-    tmp = tmp.split('.')[0]
-    return tmp
 
 def main(args):
 
     json_dir = args.annotation_dir
-    image_dir = args.images_dir
+    image_dir = args.image_dir
     output_dir = args.output_dir
     draw_mode = args.draw_mode
 
@@ -228,12 +213,26 @@ def main(args):
 
     #### STEP 03: Read all JSON files and create JSON data (list of dictionaries)
     json_data = merge_json_files(json_dir)
+    print(len(json_data))
 
-    #### STEP 04: Create Drivable Path JSON
+    #### STEP 04: Parse JSON data and create drivable path JSON file
+    #### STEP 04(a): Read Image
+    #### STEP 04(b): Read Trajectory and process the trajectory points
+    #### STEP 04(c): Normalize the trajectory points
+    #### STEP 04(d): Create drivable path JSON file
+    #### STEP 04(e): Draw Trajectory on the image
+    #### STEP 04(f): Create Trajectory Mask
     for i in json_data:
-        print(i["id"])
-        print(i["image"])
-        print(i["trajectory"])
+        id = i["id"]
+        img_path = i["image"]
+        
+        # Fetche the trajectories and process them as tuples
+        trajectory = process_trajectory(i["trajectory"])
+
+        # Normalize the trajectory points
+        normalized_trajectory = normalize_coords(trajectory, Image.open(img_path).size)
+
+
 
 
 if __name__ == "__main__":
