@@ -31,7 +31,7 @@ from PIL import Image, ImageDraw
 from scipy.interpolate import CubicSpline
 
 # Create Log files directory
-log_filename = 'logs/roadwork_data_processing.log'
+log_filename = '/tmp/logs/roadwork_data_processing.log'
 os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
 # Creating and configuring the logger
@@ -103,7 +103,7 @@ def merge_json_files(json_dir):
     
     return merged_data
 
-def draw_trajectory_line(image_path, image_id, trajectory, output_subdirs):
+def draw_trajectory(image_path, image_id, trajectory, output_subdirs):
     """
     Draw the trajectory line both on the image and the mask, and save
     """
@@ -146,7 +146,7 @@ def draw_trajectory_line(image_path, image_id, trajectory, output_subdirs):
 
         # # Optional: Draw original points in blue
         # for x, y in zip(x_coords, y_coords):
-        #     mask_draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill='red', outline='blue')  # Draw original points
+        #     mask_draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill='red', outline='blue')
 
         ##### OVERLAY IMAGE #####
         # Save or show the modified image with the overlay
@@ -186,25 +186,6 @@ def create_drivable_path_json(json_dir, traj_data, output_dir):
     with open(out_file_path, "w") as fh:
         json.dump(json_data, fh, indent=4)
         logger.info(f"{out_file_name} successfully generated!")
-
-def create_trajectory_mask(image_shape, mask_name, trajectory, output_dir,  lane_width = 5):
-    """
-    Create binary mask for the drivable path using the trajectory points
-    """
-    # Extract the image width and height
-    img_width, img_height = image_shape
-
-    # Create a new image with black background
-    mask = Image.new("L", (img_width, img_height), 0)
-    
-    # Create a draw object
-    mask_draw = ImageDraw.Draw(mask)
-    
-    # Draw the drivable path
-    mask_draw.line(trajectory, fill = 255, width = lane_width)
-    
-    # Save the mask in output directory
-    mask.save(os.path.join(output_dir, mask_name))
 
 def convert_jpg2png(image_id, image_path, output_subdir):
     """
@@ -257,7 +238,7 @@ def main(args):
         trajectory = process_trajectory(i["trajectory"])
 
         ### STEP 03(c): Create Trajectory Overlay and Mask, and save
-        draw_trajectory_line(image_path, image_id, trajectory, output_subdirs)
+        draw_trajectory(image_path, image_id, trajectory, output_subdirs)
 
         # Get Image shape
         image_shape = get_image_shape(image_path)
