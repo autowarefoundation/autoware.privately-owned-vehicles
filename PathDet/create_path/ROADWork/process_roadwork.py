@@ -3,6 +3,15 @@
 @Date: 12/16/2024
 @Description: Process ROADWork dataset for PathDet groundtruth generation
 
+* STEP 01: Create subdirectories for the output directory
+* STEP 02: Read all JSON files and create a combined JSON data (list of dictionaries)
+* STEP 03: Parse JSON data and create drivable path JSON file and Trajecory Images (RGB and Binary)
+    * STEP 03(a): Convert JPG to PNG format and store in output directory
+    * STEP 03(b): Read Trajectory and process the trajectory points as tuples
+    * STEP 03(c): Create Trajectory Overlay and Mask, and save
+    * STEP 03(d): Normalize the trajectory points
+    * STEP 03(e): Create drivable path JSON file
+
 Generate output structure
     --output_dir
         |----image
@@ -22,7 +31,7 @@ from PIL import Image, ImageDraw
 from scipy.interpolate import CubicSpline
 
 # Create Log files directory
-log_filename = 'logs/roadwork_date_processing.log'
+log_filename = 'logs/roadwork_data_processing.log'
 os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
 # Creating and configuring the logger
@@ -151,8 +160,32 @@ def draw_trajectory_line(image_path, image_id, trajectory, output_subdirs):
         # Log the result for trajectory line mask
         logger.info(f"Trajectory Mask generated in: {output_subdirs[2]}")
         
-def create_drivable_path_json(output_dir, json_data):
-    pass
+def create_drivable_path_json(json_dir, traj_data, output_dir):
+    """
+    Generate JSON file for the drivable path trajectory
+    """
+    
+    # The file name is fixed; therefore it is hard coded
+    # Output file name
+    out_file_name = "drivable_path.json"
+    out_file_path = os.path.join(output_dir, out_file_name)
+
+    # Get the annotation files name and their parent directories
+    parent_dirs = "/".join(json_dir.split('/')[-2:])
+    json_files = [f"{parent_dirs}/{f}" for f in os.listdir(json_dir) if f.endswith('.json')]
+
+    # Process the trajectory data - traj_data is a list of dictionaries
+    traj_dict = { k: v for i in traj_data for k, v in i.items()}
+
+    # Create JSON Data Structure
+    json_data = {
+        "files": json_files,
+        "data": traj_dict
+    }
+
+    with open(out_file_path, "w") as fh:
+        json.dump(json_data, fh, indent=4)
+        logger.info(f"{out_file_name} successfully generated!")
 
 def create_trajectory_mask(image_shape, mask_name, trajectory, output_dir,  lane_width = 5):
     """
@@ -199,8 +232,7 @@ def main(args):
     json_dir = args.annotation_dir
     image_dir = args.image_dir
     output_dir = args.output_dir
-    draw_mode = args.draw_mode
-
+    
     #### STEP 01: Create subdirectories for the output directory
     output_subdirs = create_output_subdirs(output_dir)
     print(output_subdirs)
@@ -209,37 +241,41 @@ def main(args):
     json_data = merge_json_files(json_dir)
     print(len(json_data))
 
-    ### STEP 04: Parse JSON data and create drivable path JSON file
-    ### STEP 04(a): Convert JPG to PNG format
-    ### STEP 04(b): Read Trajectory and process the trajectory points
-    ### STEP 04(c): Draw Trajectory line on the image and save
-    ### STEP 04(d): Create Trajectory Mask and save
-    ### STEP 04(e): Normalize the trajectory points
-    ### STEP 04(f): Create drivable path JSON file
+    traj_list = []
 
+    ### STEP 04: Parse JSON data and create drivable path JSON file
+    
     for i in json_data:
+        # Extract image ID and image path
         image_id = i["id"]
         image_path = os.path.join(image_dir, i["image"])
-        print(image_path)
 
-        # Convert JPG to PNG and store in output directory
+        ### STEP 03(a): Convert JPG to PNG format and store in output directory
         convert_jpg2png(image_id, image_path, output_subdirs[0])
         
-        # Fetch and process the trajectory points as tuples
+        ### STEP 03(b): Read Trajectory and process the trajectory points as tuples
         trajectory = process_trajectory(i["trajectory"])
 
-        # Draw Trajectory line on the image and save
+        ### STEP 03(c): Create Trajectory Overlay and Mask, and save
         draw_trajectory_line(image_path, image_id, trajectory, output_subdirs)
 
         # Get Image shape
         image_shape = get_image_shape(image_path)
 
-        # Normalize the trajectory points
+        ### STEP 03(d): Normalize the trajectory points
         norm_trajectory = normalize_coords(trajectory, image_shape)
 
         # Create drivable path JSON file
+        meta_dict = {
+            "drivable_path": norm_trajectory,
+            "image_width": image_shape[0],
+            "image_height": image_shape[1]
+        }
 
-        break
+        traj_list.append({image_id: meta_dict})
+
+    ### STEP 03(e): Create drivable path JSON file
+    create_drivable_path_json(json_dir, traj_list, output_dir)
 
 
 
@@ -268,13 +304,6 @@ if __name__ == "__main__":
         type = str,
         default="output",
         help = "Output directory"
-    )
-    parser.add_argument(
-        "--draw-mode",
-        "-m",
-        type = str,
-        default="line",
-        help = "Draw mode: line, point, both"
     )
     args = parser.parse_args()
 
