@@ -97,7 +97,7 @@ def merge_json_files(json_dir):
     """
     merged_data = []
 
-    for json_file in glob.glob(f"{json_dir}/*.json"):
+    for json_file in glob.glob(f"{json_dir}/**/*.json"):
         with open(json_file, "r") as fh:
             merged_data += json.load(fh)
     
@@ -165,14 +165,18 @@ def create_drivable_path_json(json_dir, traj_data, output_dir):
     Generate JSON file for the drivable path trajectory
     """
     
-    # The file name is fixed; therefore it is hard coded
+    # The file name is `Hard Coded` as the name is fixed
     # Output file name
     out_file_name = "drivable_path.json"
     out_file_path = os.path.join(output_dir, out_file_name)
 
-    # Get the annotation files name and their parent directories
-    parent_dirs = "/".join(json_dir.split('/')[-2:])
-    json_files = [f"{parent_dirs}/{f}" for f in os.listdir(json_dir) if f.endswith('.json')]
+    
+    # parent_dirs = "/".join(json_dir.split('/')[-2:])
+    # json_files = [f"{parent_dirs}/{f}" for f in os.listdir(json_dir) if f.endswith('.json')]
+
+    # Extract the annotation files name and their parent directories
+    json_files = ["/".join(i.split('/')[-3:]) for i in glob.glob(f"{json_dir}/**/*.json")]
+
 
     # Process the trajectory data - traj_data is a list of dictionaries
     traj_dict = { k: v for i in traj_data for k, v in i.items()}
@@ -208,6 +212,24 @@ def get_image_shape(image_path):
     with Image.open(image_path) as img:
         return img.size
 
+def generate_jsonID(indx, data_size):
+    """
+    Generate JSON ID from 00000 to 99999. The number of digits is 
+    less or equal to 5 if the data size is less than 100000. Otherwise,
+    the number of digits is equal to the number of digits in the data size.
+    """
+
+    # Get the number of digits in the data size
+    digits = len(str(data_size))
+
+    if digits > 5:
+        zfill_num = digits
+
+    else:
+        zfill_num = 5
+
+    return str(indx).zfill(zfill_num)
+
 def main(args):
 
     json_dir = args.annotation_dir
@@ -220,22 +242,29 @@ def main(args):
 
     #### STEP 02: Read all JSON files and create JSON data (list of dictionaries)
     json_data = merge_json_files(json_dir)
-    print(len(json_data))
+    
+    # Get the size of the Dataset
+    data_size = len(json_data)
+    print(data_size)
 
+    ## STEP 04: Parse JSON data and create drivable path JSON file
+    
+    # List of all trajectory ponts
     traj_list = []
 
-    ### STEP 04: Parse JSON data and create drivable path JSON file
-    
-    for i in json_data:
+    for indx, val in enumerate(json_data):
         # Extract image ID and image path
-        image_id = i["id"]
-        image_path = os.path.join(image_dir, i["image"])
+        image_id = val["id"]
+        image_path = os.path.join(image_dir, val["image"])
+
+        # Generate JSON ID
+        json_id = generate_jsonID(indx, data_size)
 
         ### STEP 03(a): Convert JPG to PNG format and store in output directory
         convert_jpg2png(image_id, image_path, output_subdirs[0])
         
         ### STEP 03(b): Read Trajectory and process the trajectory points as tuples
-        trajectory = process_trajectory(i["trajectory"])
+        trajectory = process_trajectory(val["trajectory"])
 
         ### STEP 03(c): Create Trajectory Overlay and Mask, and save
         draw_trajectory(image_path, image_id, trajectory, output_subdirs)
@@ -253,7 +282,8 @@ def main(args):
             "image_height": image_shape[1]
         }
 
-        traj_list.append({image_id: meta_dict})
+        traj_list.append({json_id: meta_dict})
+        break
 
     ### STEP 03(e): Create drivable path JSON file
     create_drivable_path_json(json_dir, traj_list, output_dir)
@@ -277,7 +307,10 @@ if __name__ == "__main__":
         "-a", 
         type = str,
         required=True,
-        help = "ROADWork Trajectory File directory"
+        help = """
+        ROADWork Trajectory Annotations Parent directory. 
+        Do not include subdirectories or files
+        """
     )
     parser.add_argument(
         "--output-dir",
