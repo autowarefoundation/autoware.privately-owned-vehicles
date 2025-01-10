@@ -1,5 +1,16 @@
 ## ROADWork Dataset Curation
 
+### Dataset Overview
+* Number of Trajectory Images: 5430 (with Temporal Downsampling of 10)
+* Number of Cities: 18
+* Image Format: .jpg
+* Image Frame Rates: 5 FPS
+* Image Capture: iPhone 14 Pro Max paired with a Bluetooth remote trigger
+* Images captured from two sources: 
+    * Robotics Institute, Carnegie Mellon University
+    * Michelin Mobility Intelligence (MMI) (formerly RoadBotics) Open Dataset.
+* Dataset link: [ROADWork Dataset](https://kilthub.cmu.edu/articles/dataset/ROADWork_Data/26093197)
+
 ### Dataset Curateion Workflow
 Processing ROADWork dataset for generating drivable path trajectory, we have used the following steps:
 
@@ -15,17 +26,6 @@ Processing ROADWork dataset for generating drivable path trajectory, we have use
     * **STEP 03(c):** Create Trajectory `Overlay` and `Mask`, and save
     * **STEP 03(d):** `Normalize` the trajectory points
     * **STEP 03(e):** Create drivable path `JSON` file
-
-### Dataset Overview
-* Number of Trajectory Images: 5430 (with Temporal Downsampling of 10)
-* Number of Cities: 18
-* Image Format: .jpg
-* Image Frame Rates: 5 FPS
-* Image Capture: iPhone 14 Pro Max paired with a Bluetooth remote trigger
-* Images captured from two sources: 
-    * Robotics Institute, Carnegie Mellon University
-    * Michelin Mobility Intelligence (MMI) (formerly RoadBotics) Open Dataset.
-* Dataset link: [ROADWork Dataset](https://kilthub.cmu.edu/articles/dataset/ROADWork_Data/26093197)
 
 ### Usage:
 ```bash
