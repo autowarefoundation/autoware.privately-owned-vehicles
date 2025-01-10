@@ -309,7 +309,7 @@ if __name__ == "__main__":
         required=True,
         help = """
         ROADWork Trajectory Annotations Parent directory. 
-        Do not include subdirectories or files
+        Do not include subdirectories or files.
         """
     )
     parser.add_argument(

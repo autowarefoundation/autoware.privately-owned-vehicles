@@ -3,18 +3,18 @@
 ### Dataset Curateion Workflow
 Processing ROADWork dataset for generating drivable path trajectory, we have used the following steps:
 
-* STEP 01: Create subdirectories for the following outputs:
+* **STEP 01:** Create subdirectories for the following outputs:
     1. `raw PNG images`
     2. `trajectory path visualization`
     3. `trajectory line masks`
-* STEP 02: Read all `JSON` files and create a combined `JSON` data (list of dictionaries)
-* STEP 03: Parse `JSON` data and create drivable path `JSON` file and Trajecory `Images` (RGB and Binary)
-    * STEP 03(a): Crop and Rescale the image to `2:1` Aspect Ratio (Remove Car Bonnets from Image)
-    * STEP 03(a): Convert `JPG` to `PNG` format and store in output directory
-    * STEP 03(b): Read Trajectory and process the trajectory points as tuples
-    * STEP 03(c): Create Trajectory `Overlay` and `Mask`, and save
-    * STEP 03(d): `Normalize` the trajectory points
-    * STEP 03(e): Create drivable path `JSON` file
+* **STEP 02:** Read all `JSON` files and create a combined `JSON` data (list of dictionaries)
+* **STEP 03:** Parse `JSON` data and create drivable path `JSON` file and Trajecory `Images` (RGB and Binary)
+    * **STEP 03(a):** Crop and Rescale the image to `2:1` Aspect Ratio (Remove Car Bonnets from Image)
+    * **STEP 03(a):** Convert `JPG` to `PNG` format and store in output directory
+    * **STEP 03(b):** Read Trajectory and process the trajectory points as tuples
+    * **STEP 03(c):** Create Trajectory `Overlay` and `Mask`, and save
+    * **STEP 03(d):** `Normalize` the trajectory points
+    * **STEP 03(e):** Create drivable path `JSON` file
 
 ### Dataset Overview
 * Number of Trajectory Images: 5430 (with Temporal Downsampling of 10)
@@ -34,16 +34,16 @@ usage: process_roadwork.py [-h] --image-dir IMAGE_DIR --annotation-dir ANNOTATIO
 Process ROADWork dataset - PathDet groundtruth generation
 
 options:
-  -h                                Show this help message and exit
+  -h                                    Show this help message and exit
   --help
 
-  --image-dir IMAGE_DIR             ROADWork Image Datasets directory
+  --image-dir IMAGE_DIR                 ROADWork Image Parent directory
   -i IMAGE_DIR
 
-  --annotation-dir ANNOTATION_DIR   ROADWork Trajectory File directory 
-  -a ANNOTATION_DIR
+  --annotation-dir ANNOTATION_DIR       ROADWork Trajectory Annotations Parent directory. 
+  -a ANNOTATION_DIR                     Do not include subdirectories or files.
   
-  --output-dir OUTPUT_DIR           Output directory 
+  --output-dir OUTPUT_DIR               Output directory 
   -o OUTPUT_DIR
 
 ```
