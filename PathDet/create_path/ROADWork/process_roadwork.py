@@ -6,11 +6,12 @@
 * STEP 01: Create subdirectories for the output directory
 * STEP 02: Read all JSON files and create a combined JSON data (list of dictionaries)
 * STEP 03: Parse JSON data and create drivable path JSON file and Trajecory Images (RGB and Binary)
-    * STEP 03(a): Convert JPG to PNG format and store in output directory
-    * STEP 03(b): Read Trajectory and process the trajectory points as tuples
-    * STEP 03(c): Create Trajectory Overlay and Mask, and save
-    * STEP 03(d): `Normalize` the trajectory points
-    * STEP 03(e): Build `Data Structure` for final `JSON` file
+    * STEP 03(a): Read Trajectory and process the trajectory points as tuples and integer
+    * STEP 03(b): Create Trajectory Overlay
+    * STEP 03(c): Crop the image to aspect ratio 2:1 and convert from JPG to PNG format and store in output directory
+    * STEP 03(d): Create Cropped Image Mask using STEP 03(b) - 03(c)    
+    * STEP 03(e): `Normalize` the trajectory points
+    * STEP 03(f): Build `Data Structure` for final `JSON` file
 * STEP 04: Create drivable path JSON file
 
 Generate output structure
