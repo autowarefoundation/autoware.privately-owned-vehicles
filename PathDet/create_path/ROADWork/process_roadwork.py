@@ -362,7 +362,6 @@ def main(args):
         }
 
         traj_list.append({json_id: meta_dict})
-        break
 
     ### STEP 04: Create drivable path JSON file
     create_drivable_path_json(json_dir, traj_list, output_dir)
