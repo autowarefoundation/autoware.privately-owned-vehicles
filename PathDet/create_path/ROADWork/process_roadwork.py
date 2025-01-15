@@ -4,13 +4,13 @@
 @Description: Process ROADWork dataset for PathDet groundtruth generation
 
 * STEP 01: Create subdirectories for the output directory
-* STEP 02: Read all JSON files and create a combined JSON data (list of dictionaries)
-* STEP 03: Parse JSON data and create drivable path JSON file and Trajecory Images (RGB and Binary)
-    * STEP 03(a): Read Trajectory and process the trajectory points as tuples and integer
-    * STEP 03(b): Create Trajectory Overlay
-    * STEP 03(c): Crop the image to aspect ratio 2:1 and convert from JPG to PNG format and store in output directory
-    * STEP 03(d): Create Cropped Image Mask using STEP 03(b) - 03(c)    
-    * STEP 03(e): `Normalize` the trajectory points
+* STEP 02: Read all `JSON` files and create a combined `JSON` data (list of dictionaries)
+* STEP 03: Parse `JSON` data and create drivable path `JSON` file and `Trajecory Images` (`RGB` and `Binary`)
+    * STEP 03(a): Process the `Trajectory Points` as tuples
+    * STEP 03(b): Crop the original image to aspect ratio `2:1` and convert from `JPG` to `PNG` format and store in output directory
+    * STEP 03(c): Create `Trajectory Overlay` and crop it to aspect ratio `2:1` and save the cropped image in `PNG` format
+    * STEP 03(d): Create `Cropped Trajectory Binary Mask` with aspect ratio `2:1` and save the cropped mask in `PNG` format
+    * STEP 03(e): Normalize the `Trajectory Points`
     * STEP 03(f): Build `Data Structure` for final `JSON` file
 * STEP 04: Create drivable path JSON file
 
@@ -82,7 +82,7 @@ def check_directory_exists(directory_path: str):
         os.makedirs(directory_path)
         logger.info(f"Directory created: {directory_path}")
     else:
-        print(f"Directory '{directory_path}' already exists.")
+        logger.info(f"Directory '{directory_path}' already exists.")
 
 
 def normalize_coords(trajectory, img_shape):
@@ -115,7 +115,7 @@ def merge_json_files(json_dir):
     return merged_data
 
 
-def draw_trajectory_line(image, trajectory):
+def draw_trajectory_line(image, trajectory, color="yellow"):
     """Draw the trajectory line"""
 
     # Convert trajectory to a NumPy array
@@ -134,8 +134,13 @@ def draw_trajectory_line(image, trajectory):
     # Convert the smoothed points to the required format for polylines
     points = np.vstack((x_smooth, y_smooth)).T.astype(np.int32).reshape((-1, 1, 2))
 
-    # Draw the polylines on the image
-    cv2.polylines(image, [points], isClosed=False, color=(255, 0, 0), thickness=2)
+    # Setup Line parameters
+    line_color = (0, 255, 255) if color == "yellow" else (255, 255, 255)
+    line_thickness = 2
+
+    cv2.polylines(
+        image, [points], isClosed=False, color=line_color, thickness=line_thickness
+    )
 
     return image
 
@@ -213,7 +218,7 @@ def show_image(image, title="Image"):
     cv2.destroyAllWindows()
 
 
-def create_image(image_id, image, output_subdir):
+def save_image(image_id, image, output_subdir):
     """Save the image in PNG format"""
 
     # Create new image file path
@@ -262,14 +267,14 @@ def main(args):
 
     subdirs_name = ["image", "visualization", "segmentation"]
     output_subdirs = create_output_subdirs(subdirs_name, output_dir)
-    print(output_subdirs)
 
-    #### STEP 02: Read all JSON files and create JSON data (list of dictionaries)
+    #### STEP 02: Read and Merge all JSON files and create JSON data
     json_data = merge_json_files(json_dir)
 
     # Get the size of the Dataset
     data_size = len(json_data)
-    print(data_size)
+    logger.info(f"Dataset Size: {data_size}")
+    logger.info(f"Output subdirectories: {subdirs_name}")
 
     ## STEP 03: Parse JSON data and create drivable path JSON file
     # List of all trajectory ponts
@@ -282,40 +287,64 @@ def main(args):
 
         # Read Image
         image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-        logger.info("")
+        logger.info(f"Image Name: {image_id}.jpg")
+        logger.info(f"Image Shape: {image.shape}")
 
-        ### STEP 03(a): Read Trajectory and process the trajectory points
-        ### as tuples and integer
+        ### STEP 03(a): Process the Trajectory points as tuples
         trajectory = process_trajectory(val["trajectory"])
 
+        ### STEP 03(b): Crop the original image to aspect ratio 2:1 and
+        ### convert from JPG to PNG format and store in output directory
+
+        # Crop Image to aspect ratio 2:1
         cropped_png_image = crop_to_aspect_ratio(image, trajectory)
-        create_image(image_id, cropped_png_image, output_subdirs["image"])
 
-        ### STEP 03(b): Create Trajectory Overlay
-        image = draw_trajectory_line(image, trajectory)
+        # Assertion: Check the cropped image
+        assert cropped_png_image is not None, "cropped_png_image should not be None"
 
-        ### STEP 03(c): Crop the image to aspect ratio 2:1 and convert from
-        ### JPG to PNG format and store in output directory
+        # Save the Cropped Image in PNG format
+        save_image(image_id, cropped_png_image, output_subdirs["image"])
+
+        ### STEP 03(c): Create Trajectory Overlay and crop it to aspect ratio 2:1 and
+        ### save the cropped image in `PNG` format
+        image = draw_trajectory_line(image, trajectory, color="yellow")
+
+        # Crop the Trajectory Overlay to aspect ratio 2:1
         cropped_traj_image = crop_to_aspect_ratio(image, trajectory)
 
         # Save the trajectory overlay image in PNG format
-        create_image(image_id, cropped_traj_image, output_subdirs["visualization"])
+        save_image(image_id, cropped_traj_image, output_subdirs["visualization"])
 
-        # Display the cropped image
-        if display == "yes":
-            show_image(cropped_traj_image, title="Cropped Image")
+        ### STEP 03(d): Create Cropped Trajectory Binary Mask with aspect ratio 2:1
+        ### and save the cropped mask in `PNG` format
 
-        ### STEP 03(d): Create Cropped Image Mask using STEP 03(b) - 03(c)
-        # Create Mask
+        # Create Binary Mask with the shape (width & height) of original image
         mask = create_mask(image.shape)
         logger.info(f"Mask Created with shape: {mask.shape}")
 
         # Create Trajectory Mask
-        mask = draw_trajectory_line(mask, trajectory)
+        mask = draw_trajectory_line(mask, trajectory, color="white")
 
-        # Crop Trajectory mask
+        # Crop Trajectory Mask
         cropped_mask = crop_to_aspect_ratio(mask, trajectory)
-        create_image(image_id, cropped_mask, output_subdirs["segmentation"])
+
+        # Assertion: Check the cropped mask
+        assert cropped_mask is not None, "cropped_mask should not be None"
+
+        # Save the Trajectory Mask in PNG format
+        save_image(image_id, cropped_mask, output_subdirs["segmentation"])
+
+        # Assertion: Check if the dimensions match
+        assert cropped_png_image.shape[:2] == cropped_mask.shape, (
+            f"Dimension mismatch: cropped_png_image has shape {cropped_png_image.shape[:2]} "
+            f"while cropped_mask has shape {cropped_mask.shape}."
+        )
+
+        # Display the cropped images (RGB or Binary Mask)
+        if display == "rgb":
+            show_image(cropped_traj_image, title="Cropped Image(aspect ratio 2:1)")
+        elif display == "binary":
+            show_image(cropped_mask, title="Cropped Binary Mask(aspect ratio 2:1)")
 
         ### STEP 03(e): Normalize the trajectory points
         norm_trajectory = normalize_coords(trajectory, cropped_png_image.shape)
@@ -323,6 +352,7 @@ def main(args):
         ### STEP 03(f): Build `Data Structure` for final `JSON` file
         # Generate JSON ID
         json_id = generate_jsonID(indx, data_size)
+        logger.info(f"Generated JSON ID: {json_id}")
 
         # Create drivable path JSON file
         meta_dict = {
@@ -350,8 +380,7 @@ if __name__ == "__main__":
         required=True,
         help="""
         ROADWork Image Datasets directory. 
-        DO NOT include subdirectories or files.
-        """,
+        DO NOT include subdirectories or files.""",
     )
     parser.add_argument(
         "--annotation-dir",
@@ -360,8 +389,7 @@ if __name__ == "__main__":
         required=True,
         help="""
         ROADWork Trajectory Annotations Parent directory.
-        Do not include subdirectories or files.
-        """,
+        Do not include subdirectories or files.""",
     )
     parser.add_argument(
         "--output-dir",
@@ -374,8 +402,10 @@ if __name__ == "__main__":
         "--display",
         "-d",
         type=str,
-        default="yes",
-        help="Display the cropped image. Enter: [yes/no]",
+        default="none",
+        help="""
+        Display the cropped image. Enter `rgb` for RGB image, `binary` for Binary Mask 
+        and `none` for not to display any image. Enter: [rgb/binary/none]""",
     )
     args = parser.parse_args()
 
