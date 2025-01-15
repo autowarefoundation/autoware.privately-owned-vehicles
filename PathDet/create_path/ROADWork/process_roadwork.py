@@ -58,17 +58,20 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
 
-def create_output_subdirs(output_dir):
+def create_output_subdirs(subdirs_list, output_dir):
     """
     Create subdirectories for the output directory
+    Returns a dictionary having subdirectory paths
     """
-    subdirs_list = ["image", "visualization", "segmentation"]
-    output_subdirs = []
+    output_subdirs = {}
 
     for subdir in subdirs_list:
         subdir_path = os.path.join(output_dir, subdir)
+
+        # Check or Create directory
         check_directory_exists(subdir_path)
-        output_subdirs.append(subdir_path)
+
+        output_subdirs[subdir] = subdir_path
 
     return output_subdirs
 
@@ -86,7 +89,7 @@ def normalize_coords(trajectory, img_shape):
     """
     Normalize the coordinates of trajectory points.
     """
-    img_width, img_height = img_shape
+    img_width, img_height = img_shape[0], img_shape[1]
     return [(x / img_width, y / img_height) for x, y in trajectory]
 
 
@@ -134,11 +137,6 @@ def draw_trajectory_line(image, trajectory):
     # Draw the polylines on the image
     cv2.polylines(image, [points], isClosed=False, color=(255, 0, 0), thickness=2)
 
-    # Show the image
-    # cv2.imshow("Trajectory Overlay", image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
     return image
 
 
@@ -181,7 +179,7 @@ def crop_to_aspect_ratio(image, trajectory):
     """Draw crop lines on image"""
 
     # Get the image dimensions
-    img_height, img_width, _ = image.shape
+    img_height, img_width = image.shape[0], image.shape[1]
 
     # New y coordinates
     y_top, y_bottom = get_top_crop_points(img_height, trajectory)
@@ -199,7 +197,9 @@ def crop_to_aspect_ratio(image, trajectory):
     cropped_image = image[y_top:y_bottom, x_left:x_right]
 
     # Log the result
-    logger.info(f"Successfully Converted to Aspect Ratio 2:1")
+    logger.info(
+        f"Successfully Converted to Aspect Ratio 2:1 with shape: {cropped_image.shape}"
+    )
 
     return cropped_image
 
@@ -229,7 +229,7 @@ def create_image(image_id, image, output_subdir):
 
 def create_mask(image_shape):
     # Set the width and height
-    width, height = image_shape
+    width, height = image_shape[0], image_shape[1]
 
     # Create a binary mask
     mask = np.zeros((width, height), dtype=np.uint8)
@@ -260,7 +260,8 @@ def main(args):
 
     #### STEP 01: Create subdirectories for the output directory
 
-    output_subdirs = create_output_subdirs(output_dir)
+    subdirs_name = ["image", "visualization", "segmentation"]
+    output_subdirs = create_output_subdirs(subdirs_name, output_dir)
     print(output_subdirs)
 
     #### STEP 02: Read all JSON files and create JSON data (list of dictionaries)
@@ -281,33 +282,43 @@ def main(args):
 
         # Read Image
         image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        logger.info("")
 
         ### STEP 03(a): Read Trajectory and process the trajectory points
         ### as tuples and integer
         trajectory = process_trajectory(val["trajectory"])
+
+        cropped_png_image = crop_to_aspect_ratio(image, trajectory)
+        create_image(image_id, cropped_png_image, output_subdirs["image"])
 
         ### STEP 03(b): Create Trajectory Overlay
         image = draw_trajectory_line(image, trajectory)
 
         ### STEP 03(c): Crop the image to aspect ratio 2:1 and convert from
         ### JPG to PNG format and store in output directory
-        cropped_image = crop_to_aspect_ratio(image, trajectory)
+        cropped_traj_image = crop_to_aspect_ratio(image, trajectory)
 
-        # Save the image in PNG format
-        create_image(image_id, cropped_image, output_subdirs[0])
+        # Save the trajectory overlay image in PNG format
+        create_image(image_id, cropped_traj_image, output_subdirs["visualization"])
 
         # Display the cropped image
         if display == "yes":
-            show_image(cropped_image, title="Cropped Image")
+            show_image(cropped_traj_image, title="Cropped Image")
 
         ### STEP 03(d): Create Cropped Image Mask using STEP 03(b) - 03(c)
-        mask = create_mask(cropped_image.shape)
+        # Create Mask
+        mask = create_mask(image.shape)
+        logger.info(f"Mask Created with shape: {mask.shape}")
+
+        # Create Trajectory Mask
         mask = draw_trajectory_line(mask, trajectory)
+
+        # Crop Trajectory mask
         cropped_mask = crop_to_aspect_ratio(mask, trajectory)
-        create_image(image_id, cropped_mask, output_subdirs[2])
+        create_image(image_id, cropped_mask, output_subdirs["segmentation"])
 
         ### STEP 03(e): Normalize the trajectory points
-        norm_trajectory = normalize_coords(trajectory, image.shape)
+        norm_trajectory = normalize_coords(trajectory, cropped_png_image.shape)
 
         ### STEP 03(f): Build `Data Structure` for final `JSON` file
         # Generate JSON ID
