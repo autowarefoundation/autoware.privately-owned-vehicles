@@ -1,18 +1,14 @@
-from .backbone import Backbone
-from .scene_context import SceneContext
 from .depth_neck import DepthNeck
 from .super_depth_head import SuperDepthHead
+from .super_depth_upstream import SuperDepthUpstream
 import torch.nn as nn
 
 class SuperDepthNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, pretrained):
         super(SuperDepthNetwork, self).__init__()
-        
-        # Encoder
-        self.Backbone = Backbone()
 
-        # Context
-        self.SceneContext = SceneContext()
+        # Upstream blocks
+        self.SuperDepthUpstream = SuperDepthUpstream(pretrained)
 
         # Neck
         self.DepthNeck = DepthNeck()
@@ -22,9 +18,7 @@ class SuperDepthNetwork(nn.Module):
     
 
     def forward(self, image):
-        features = self.Backbone(image)
-        deep_features = features[4]
-        context = self.SceneContext(deep_features)
+        features, context = self.SuperDepthUpstream(image)
         neck = self.DepthNeck(context, features)
         prediction = self.SuperDepthHead(neck, features)
         return prediction

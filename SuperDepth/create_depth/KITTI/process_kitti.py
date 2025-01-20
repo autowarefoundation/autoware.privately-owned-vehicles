@@ -120,6 +120,11 @@ def main():
             lidarDepthFill = LidarDepthFill(sparse_depth_map)
             depth_map = lidarDepthFill.getDepthMap()
             depth_map_fill_only = lidarDepthFill.getDepthMapFillOnly()
+
+            # Validity mask
+            valid = np.zeros_like(depth_map_fill_only)
+            valid[np.where(depth_map_fill_only != 0)] = 1
+            validity_mask = Image.fromarray(np.uint8(valid*255))
             
             # Calculating depth boundaries
             boundary_threshold = 7
@@ -161,6 +166,10 @@ def main():
             boundary_save_path = root_save_path + '/boundary/' + str(counter) + '.png'
             boundary_mask = Image.fromarray(depth_boundaries)
             boundary_mask.save(boundary_save_path, "PNG")
+
+            # Validity mask as black and white PNG
+            validity_save_path = root_save_path + '/valid/' + str(counter) + '.png'
+            validity_mask.save(validity_save_path, "PNG")
 
             # Height map plot for data auditing purposes
             height_plot_save_path = root_save_path + '/height_plot/' + str(counter) + '.png'

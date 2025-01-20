@@ -1,11 +1,17 @@
 import albumentations as A
+from typing import Literal
 import random
 
 class Augmentations():
-    def __init__(self, input_image, ground_truth, is_train):
+    def __init__(self, input_image, ground_truth, is_train, data_type: Literal['SEGMENTATION', 'DEPTH']):
         self.is_train = is_train
         self.image = input_image
         self.ground_truth = ground_truth
+
+        self.data_type = data_type
+
+        if(self.data_type != 'SEGMENTATION' and self.data_type != 'DEPTH'):
+            raise ValueError('Dataset type is not correctly specified')
 
         transform_shape = A.Compose(
             [
@@ -30,12 +36,26 @@ class Augmentations():
                 A.ToGray(num_output_channels=3, method='weighted_average', p=0.1)           
             ]
         )
+    
         
-        self.adjust_shape = transform_shape(image=self.image, \
-            masks = self.ground_truth)
-        
-        self.augmented_image = self.adjust_shape["image"]
-        self.augmented_data = self.adjust_shape["masks"]
+        self.augmented_data = ground_truth
+        self.augmented_image = input_image
+
+        if (self.data_type == 'SEGMENTATION'):
+
+            self.adjust_shape = transform_shape(image=self.image, \
+                masks = self.ground_truth)
+            
+            self.augmented_data = self.adjust_shape["masks"]
+            self.augmented_image = self.adjust_shape["image"]
+
+        elif(self.data_type == 'DEPTH'):
+
+            self.adjust_shape = transform_shape(image=self.image, \
+                mask = self.ground_truth)
+            
+            self.augmented_data = self.adjust_shape["mask"]
+            self.augmented_image = self.adjust_shape["image"]
 
         if (random.random() >= 0.25 and self.is_train):
             

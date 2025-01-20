@@ -1,5 +1,4 @@
 #! /usr/bin/env python3
-import torch
 import torch.nn as nn
 
 class SuperDepthHead(nn.Module):
@@ -17,9 +16,8 @@ class SuperDepthHead(nn.Module):
         self.upsample_layer_4 = nn.ConvTranspose2d(128, 128, 2, 2)
         self.decode_layer_8 = nn.Conv2d(128, 128, 3, 1, 1)
         self.decode_layer_9 = nn.Conv2d(128, 64, 3, 1, 1)
-        self.decode_layer_10 = nn.Conv2d(64, 3, 1, 1, 1)
-        self.decode_layer_11 = nn.Conv2d(64, 3, 1, 1, 1)
-        self.decode_layer_12 = nn.Conv2d(64, 3, 1, 1, 1)
+        self.decode_layer_10 = nn.Conv2d(64, 1, 3, 1, 1)
+        self.decode_layer_11 = nn.Conv2d(64, 1, 3, 1, 1)
 
     def forward(self, neck, features):
 
@@ -43,14 +41,9 @@ class SuperDepthHead(nn.Module):
         d9 = self.decode_layer_9(d8)
         d10 = self.GeLU(d9)
 
-        # Prediction Output Upper Branch
+        # Output
         output_upper = self.decode_layer_10(d10)
-
-        # Prediction Output Lower Branch
         output_lower = self.decode_layer_11(d10)
-
-        # Final Prediction
         prediction = output_upper - output_lower
-
 
         return prediction

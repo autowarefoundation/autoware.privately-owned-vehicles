@@ -82,7 +82,7 @@ def main():
       vis_obj = cv2.resize(vis_obj, (1280, 720))
       image_vis_obj = cv2.addWeighted(vis_obj, alpha, frame, 1 - alpha, 0)
 
-      if(args.v):
+      if(args.vis):
         cv2.imshow('Prediction Objects', image_vis_obj)
         cv2.waitKey(10)
 

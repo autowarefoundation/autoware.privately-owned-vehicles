@@ -4,6 +4,7 @@
 import torch
 import time
 import numpy as np
+from argparse import ArgumentParser
 from pytorch_model_summary import summary
 import sys
 sys.path.append('..')
@@ -43,18 +44,25 @@ def benchmark(model, input_data, dtype='fp32', nwarmup=50, nruns=1000):
     print('Average batch time: %.2f ms'%(np.mean(timings)*1000))
 
 def main():
+
+    # Argument parser for data root path and save path
+    parser = ArgumentParser()
+    parser.add_argument("-n", "--name", dest="network_name", help="specify the name of the network which will be benchmarked")
+    args = parser.parse_args()
+    model_name = args.network_name
+
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using {device} for inference')
 
     # Instantiating Model and setting to evaluation mode
-    model_name = 'SuperDepth'
     model = 0
     
     if(model_name == 'SceneSeg'):
         model = SceneSegNetwork()
     elif (model_name == 'SuperDepth'):
-        model = SuperDepthNetwork()
+        sceneSegNetwork = SceneSegNetwork()
+        model = SuperDepthNetwork(sceneSegNetwork)
     else:
         raise Exception("Model name not specified correctly, please check")
     

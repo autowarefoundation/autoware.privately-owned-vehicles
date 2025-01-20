@@ -96,7 +96,7 @@ class SceneSegTrainer():
 
         if(is_train):
             # Augmenting Image
-            aug_train = Augmentations(self.image, self.gt, True)
+            aug_train = Augmentations(self.image, self.gt, True, data_type='SEGMENTATION')
             self.image, self.augmented = aug_train.getAugmentedData()
             
             # Ground Truth with probabiliites for each class in separate channels
@@ -104,7 +104,7 @@ class SceneSegTrainer():
                         self.augmented[3]), axis=2)
         else:
             # Augmenting Image
-            aug_val = Augmentations(self.image_val, self.gt_val, False)
+            aug_val = Augmentations(self.image_val, self.gt_val, False, data_type='SEGMENTATION')
             self.image_val, self.augmented_val = aug_val.getAugmentedData()
 
             # Ground Truth with probabiliites for each class in separate channels
