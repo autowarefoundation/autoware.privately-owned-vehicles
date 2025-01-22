@@ -26,12 +26,13 @@ Generate output structure
 import os
 import glob
 import json
+import math
 import logging
 import argparse
+from tqdm import tqdm
 
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 # Create Log files directory
@@ -50,12 +51,12 @@ file_handler = logging.FileHandler(log_filename, mode="a")
 file_handler.setFormatter(formatter)
 
 # Creating console handler with logging format
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
+# console_handler = logging.StreamHandler()
+# console_handler.setFormatter(formatter)
 
 # Adding handlers into the logger
 logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+# logger.addHandler(console_handler)
 
 
 def create_output_subdirs(subdirs_list, output_dir):
@@ -85,20 +86,7 @@ def check_directory_exists(directory_path: str):
         logger.info(f"Directory '{directory_path}' already exists.")
 
 
-def normalize_coords(trajectory, img_shape):
-    """
-    Normalize the coordinates of trajectory points.
-    """
-    img_width, img_height = img_shape[0], img_shape[1]
-    return [(x / img_width, y / img_height) for x, y in trajectory]
-
-
-def process_trajectory(trajectory):
-    """
-    Returns list of trajectory points as tuple
-    """
-
-    return [(i["x"], i["y"]) for i in trajectory]
+#### JSON FILE HELPER FUNCTIONS ####
 
 
 def merge_json_files(json_dir):
@@ -113,6 +101,212 @@ def merge_json_files(json_dir):
             merged_data += json.load(fh)
 
     return merged_data
+
+
+def generate_jsonID(indx, data_size):
+    """
+    Generate JSON ID from 00000 to 99999. The number of digits is
+    less or equal to 5 if the data size is less than 100000. Otherwise,
+    the number of digits is equal to the number of digits in the data size.
+    """
+
+    # Get the number of digits in the data size
+    digits = len(str(data_size))
+    zfill_num = max(digits, 5)
+
+    return str(indx).zfill(zfill_num)
+
+
+def create_drivable_path_json(json_dir, traj_data, output_dir):
+    """
+    Generate JSON file for the drivable path trajectory
+    """
+
+    # The file name is `Hard Coded` as the name is fixed
+    # Output file name
+    out_file_name = "drivable_path.json"
+    out_file_path = os.path.join(output_dir, out_file_name)
+
+    # Extract the annotation files name and their parent directories
+    json_files = [
+        "/".join(i.split("/")[-3:]) for i in glob.glob(f"{json_dir}/**/*.json")
+    ]
+
+    # Process the trajectory data - traj_data is a list of dictionaries
+    traj_dict = {k: v for i in traj_data for k, v in i.items()}
+
+    # Create JSON Data Structure
+    json_data = {"files": json_files, "data": traj_dict}
+
+    with open(out_file_path, "w") as fh:
+        json.dump(json_data, fh, indent=4)
+        logger.info(f"{out_file_name} successfully generated!")
+
+
+#### TRAJECTORY CALCULATION HELPER FUNCTIONS ####
+
+
+def opt_round(x):
+    """
+    Optimized Round up Numbers like 45.4999 to 46 as
+    45.499 is rounded up to 45.5 which can be converted
+    to integer value 46
+    """
+    # Round up to 1 decimal point, ex
+    # 4.49 to 4.5, 4.445 to 4.5, etc
+    y = round(x, 1)
+
+    return math.ceil(y) if y - int(y) > 0.5 else math.floor(y)
+
+
+def process_trajectory(trajectory):
+    """
+    Returns list of trajectory points as tuple
+    """
+
+    return [(opt_round(i["x"]), opt_round(i["y"])) for i in trajectory]
+
+
+def get_traj_peak_point(trajectory):
+    """Get the peak point of the trajectory"""
+    return min(trajectory, key=lambda point: point[1])
+
+
+def get_traj_base_point(trajectory, img_height):
+
+    # Minimum pixels to crop from the bottom
+    # As the car bonnet is within the 90-pixel window
+    crop_pixels = 90
+
+    # Filter out the trajectory points which are below the crop pixels
+    trajectory = [point for point in trajectory if img_height - point[1] >= crop_pixels]
+
+    return max(trajectory, key=lambda point: point[1])
+
+
+def get_vertical_crop_points(image_height, trajectory):
+    """Get Vertical crop points"""
+
+    # Get the base point
+    _, y_bottom = get_traj_base_point(trajectory, image_height)
+
+    # Calculate  y-offset
+    y_offset = image_height - y_bottom
+
+    return (y_offset, y_bottom)
+
+
+def get_horizontal_crop_points(image_width, y_top, y_bottom):
+    """Get Horizontal crop points. It depends on the vertical crop points"""
+
+    # Calculate the cropped width
+    cropped_height = y_bottom - y_top
+
+    # Calculate the cropped width with aspect ratio 2:1
+    cropped_width = cropped_height * 2
+
+    # Calculate the x offset for each side (left and right)
+    x_offset = (image_width - cropped_width) // 2
+
+    # New x coordinate
+    x_right = image_width - x_offset
+
+    return (x_offset, x_right)
+
+
+def get_offset_values(image_shape, trajectory):
+    """Calculate the offset values for the image"""
+    img_height, img_width = image_shape[0], image_shape[1]
+
+    # Get the vertical crop points
+    y_offset, y_bottom = get_vertical_crop_points(img_height, trajectory)
+
+    # Get the horizontal crop points
+    x_offset, _ = get_horizontal_crop_points(img_width, y_offset, y_bottom)
+
+    return (x_offset, y_offset)
+
+
+def crop_to_aspect_ratio(image, trajectory):
+    """Crop the image to aspect ratio 2:1"""
+
+    # Get the image dimensions
+    img_height, img_width = image.shape[0], image.shape[1]
+
+    # New y coordinates
+    y_top, y_bottom = get_vertical_crop_points(img_height, trajectory)
+
+    ### Pixel Cropping for 2:1 Aspect Ratio
+    # Cropping pixels from left and right for aspect ratio 2:1
+    x_left, x_right = get_horizontal_crop_points(img_width, y_top, y_bottom)
+
+    # Crop the image to aspect ratio 2:1
+    cropped_image = image[y_top:y_bottom, x_left:x_right]
+
+    # Log the result
+    logger.info(
+        f"Successfully Converted to Aspect Ratio 2:1 with shape: {cropped_image.shape}"
+    )
+
+    return cropped_image
+
+
+def normalize_coords(trajectory, image_shape, crop_shape):
+    """Normalize the Trajectory coordinates"""
+
+    # Calculate Vertical and horizontal offset (pixels crops)
+    x_offset, y_offset = get_offset_values(image_shape, trajectory)
+    logger.info(f"x_offset: {x_offset} y_offset: {y_offset}")
+
+    # Get the cropped width and height
+    crop_height, crop_width, _ = crop_shape
+
+    # Normalize the trajectory points
+    tmp = [
+        ((x - x_offset) / crop_width, (y - y_offset) / crop_height)
+        for x, y in trajectory
+    ]
+
+    # Filter out the points which are outside the range [0, 1]
+    norm_traj = [(x, y) for x, y in tmp if (0 <= x <= 1) and (0 <= y <= 1)]
+
+    return norm_traj
+
+
+#### IMAGE CREATION & VISUALIZATION HELPER FUNCTIONS ####
+
+
+def create_mask(image_shape):
+    # Set the width and height
+    width, height = image_shape[0], image_shape[1]
+
+    # Create a binary mask
+    mask = np.zeros((width, height), dtype=np.uint8)
+
+    return mask
+
+
+def save_image(image_id, image, output_subdir):
+    """Save the image in PNG format"""
+
+    # Create new image file path
+    new_img = f"{image_id}.png"
+    new_img_path = os.path.join(output_subdir, new_img)
+
+    # Save the image in PNG format
+    cv2.imwrite(new_img_path, image)
+
+    # Log the result
+    logger.info(f"Converted JPG to PNG image: {new_img}")
+
+
+def show_image(image, title="Image"):
+    """Display the image"""
+
+    # Display the image
+    cv2.imshow(title, image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 def draw_trajectory_line(image, trajectory, color="yellow"):
@@ -145,117 +339,6 @@ def draw_trajectory_line(image, trajectory, color="yellow"):
     return image
 
 
-def create_drivable_path_json(json_dir, traj_data, output_dir):
-    """
-    Generate JSON file for the drivable path trajectory
-    """
-
-    # The file name is `Hard Coded` as the name is fixed
-    # Output file name
-    out_file_name = "drivable_path.json"
-    out_file_path = os.path.join(output_dir, out_file_name)
-
-    # Extract the annotation files name and their parent directories
-    json_files = [
-        "/".join(i.split("/")[-3:]) for i in glob.glob(f"{json_dir}/**/*.json")
-    ]
-
-    # Process the trajectory data - traj_data is a list of dictionaries
-    traj_dict = {k: v for i in traj_data for k, v in i.items()}
-
-    # Create JSON Data Structure
-    json_data = {"files": json_files, "data": traj_dict}
-
-    with open(out_file_path, "w") as fh:
-        json.dump(json_data, fh, indent=4)
-        logger.info(f"{out_file_name} successfully generated!")
-
-
-def get_top_crop_points(image_height, trajectory):
-
-    base_point = max(trajectory, key=lambda item: item[1])
-    y_bottom = int(base_point[1])
-    y_top = image_height - y_bottom
-
-    return (y_top, y_bottom)
-
-
-def crop_to_aspect_ratio(image, trajectory):
-    """Draw crop lines on image"""
-
-    # Get the image dimensions
-    img_height, img_width = image.shape[0], image.shape[1]
-
-    # New y coordinates
-    y_top, y_bottom = get_top_crop_points(img_height, trajectory)
-
-    ### Pixel Cropping for 2:1 Aspect Ratio
-    # Cropping pixels from left and right for aspect ratio 2:1
-    corrected_height = y_bottom - y_top
-    corrected_width = corrected_height * 2
-    corrected_pixels = (img_width - corrected_width) // 2
-
-    # New x coordinates
-    x_left = corrected_pixels
-    x_right = img_width - corrected_pixels
-
-    cropped_image = image[y_top:y_bottom, x_left:x_right]
-
-    # Log the result
-    logger.info(
-        f"Successfully Converted to Aspect Ratio 2:1 with shape: {cropped_image.shape}"
-    )
-
-    return cropped_image
-
-
-def show_image(image, title="Image"):
-    """Display the image"""
-
-    # Display the image
-    cv2.imshow(title, image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-
-def save_image(image_id, image, output_subdir):
-    """Save the image in PNG format"""
-
-    # Create new image file path
-    new_img = f"{image_id}.png"
-    new_img_path = os.path.join(output_subdir, new_img)
-
-    # Save the image in PNG format
-    cv2.imwrite(new_img_path, image)
-
-    # Log the result
-    logger.info(f"Converted JPG to PNG image: {new_img}")
-
-
-def create_mask(image_shape):
-    # Set the width and height
-    width, height = image_shape[0], image_shape[1]
-
-    # Create a binary mask
-    mask = np.zeros((width, height), dtype=np.uint8)
-
-    return mask
-
-
-def generate_jsonID(indx, data_size):
-    """
-    Generate JSON ID from 00000 to 99999. The number of digits is
-    less or equal to 5 if the data size is less than 100000. Otherwise,
-    the number of digits is equal to the number of digits in the data size.
-    """
-
-    # Get the number of digits in the data size
-    digits = len(str(data_size))
-    zfill_num = max(digits, 5)
-
-    return str(indx).zfill(zfill_num)
-
-
 def main(args):
 
     json_dir = args.annotation_dir
@@ -280,10 +363,17 @@ def main(args):
     # List of all trajectory ponts
     traj_list = []
 
-    for indx, val in enumerate(json_data):
+    # Counter for JSON ID
+    indx = 0
+
+    for val in tqdm(json_data, total=len(json_data)):
         # Extract image ID and image path
         image_id = val["id"]
         image_path = os.path.join(image_dir, val["image"])
+
+        # # TODO: Remove this line
+        # if image_id != "san_antonio_52f675ce4c644caf886c83a304827ba4_000003_08970_0080":
+        #     continue
 
         # Read Image
         image = cv2.imread(image_path, cv2.IMREAD_COLOR)
@@ -292,6 +382,11 @@ def main(args):
 
         ### STEP 03(a): Process the Trajectory points as tuples
         trajectory = process_trajectory(val["trajectory"])
+
+        # Check Empty Trajectory Path
+        if not trajectory:
+            logger.info(f"Invalid Trajectory path: {indx} {image_id}")
+            continue
 
         ### STEP 03(b): Crop the original image to aspect ratio 2:1 and
         ### convert from JPG to PNG format and store in output directory
@@ -310,10 +405,10 @@ def main(args):
         image = draw_trajectory_line(image, trajectory, color="yellow")
 
         # Crop the Trajectory Overlay to aspect ratio 2:1
-        cropped_traj_image = crop_to_aspect_ratio(image, trajectory)
+        crop_traj_image = crop_to_aspect_ratio(image, trajectory)
 
         # Save the trajectory overlay image in PNG format
-        save_image(image_id, cropped_traj_image, output_subdirs["visualization"])
+        save_image(image_id, crop_traj_image, output_subdirs["visualization"])
 
         ### STEP 03(d): Create Cropped Trajectory Binary Mask with aspect ratio 2:1
         ### and save the cropped mask in `PNG` format
@@ -342,12 +437,22 @@ def main(args):
 
         # Display the cropped images (RGB or Binary Mask)
         if display == "rgb":
-            show_image(cropped_traj_image, title="Cropped Image(aspect ratio 2:1)")
+            show_image(crop_traj_image, title="Cropped Image(aspect ratio 2:1)")
         elif display == "binary":
             show_image(cropped_mask, title="Cropped Binary Mask(aspect ratio 2:1)")
 
         ### STEP 03(e): Normalize the trajectory points
-        norm_trajectory = normalize_coords(trajectory, cropped_png_image.shape)
+        crop_shape = crop_traj_image.shape
+        norm_trajectory = normalize_coords(
+            trajectory,
+            image.shape,
+            crop_shape,
+        )
+
+        # Check Empty Trajectory paths
+        if not norm_trajectory:
+            logger.info(f"Invalid Trajectory path: {indx} {image_id}")
+            continue
 
         ### STEP 03(f): Build `Data Structure` for final `JSON` file
         # Generate JSON ID
@@ -356,12 +461,16 @@ def main(args):
 
         # Create drivable path JSON file
         meta_dict = {
+            "image_id": image_id,
             "drivable_path": norm_trajectory,
             "image_width": image.shape[0],
             "image_height": image.shape[1],
         }
 
         traj_list.append({json_id: meta_dict})
+
+        # Increment the index
+        indx += 1
 
     ### STEP 04: Create drivable path JSON file
     create_drivable_path_json(json_dir, traj_list, output_dir)
