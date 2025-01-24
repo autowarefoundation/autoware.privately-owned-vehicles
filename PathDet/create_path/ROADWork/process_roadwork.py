@@ -283,6 +283,8 @@ def create_mask(image_shape):
     # Create a binary mask
     mask = np.zeros((width, height), dtype=np.uint8)
 
+    logger.info(f"Mask Created with shape: {mask.shape}")
+
     return mask
 
 
@@ -344,7 +346,6 @@ def main(args):
     json_dir = args.annotation_dir
     image_dir = args.image_dir
     output_dir = args.output_dir
-    display = args.display
 
     #### STEP 01: Create subdirectories for the output directory
 
@@ -371,10 +372,6 @@ def main(args):
         image_id = val["id"]
         image_path = os.path.join(image_dir, val["image"])
 
-        # # TODO: Remove this line
-        # if image_id != "san_antonio_52f675ce4c644caf886c83a304827ba4_000003_08970_0080":
-        #     continue
-
         # Read Image
         image = cv2.imread(image_path, cv2.IMREAD_COLOR)
         logger.info(f"Image Name: {image_id}.jpg")
@@ -388,34 +385,41 @@ def main(args):
             logger.info(f"Invalid Trajectory path: {indx} {image_id}")
             continue
 
-        ### STEP 03(b): Crop the original image to aspect ratio 2:1 and
-        ### convert from JPG to PNG format and store in output directory
+        ### STEP 03(b): Crop the original image to aspect ratio 2:1
 
         # Crop Image to aspect ratio 2:1
         cropped_png_image = crop_to_aspect_ratio(image, trajectory)
 
+        ### ASSERTIONS ###
+
         # Assertion: Check the cropped image
         assert cropped_png_image is not None, "cropped_png_image should not be None"
 
-        # Save the Cropped Image in PNG format
-        save_image(image_id, cropped_png_image, output_subdirs["image"])
+        # Assertion: Validate the cropped image dimensions
+        assert cropped_png_image.shape[0] < image.shape[0], (
+            f"Cropped Height should not greater than Original one. "
+            f"Original image height: {image.shape[0]}, "
+            f"Cropped image height: {cropped_png_image.shape[0]}."
+        )
 
-        ### STEP 03(c): Create Trajectory Overlay and crop it to aspect ratio 2:1 and
-        ### save the cropped image in `PNG` format
+        assert cropped_png_image.shape[1] < image.shape[1], (
+            f"Cropped Width should not greater than Original one. "
+            f"Original image width: {image.shape[1]}, "
+            f"Cropped image width: {cropped_png_image.shape[1]}."
+        )
+
+        ### STEP 03(c): Create Trajectory Overlay and crop it to aspect ratio 2:1
+
+        # Create Trajectory Overlay
         image = draw_trajectory_line(image, trajectory, color="yellow")
 
         # Crop the Trajectory Overlay to aspect ratio 2:1
         crop_traj_image = crop_to_aspect_ratio(image, trajectory)
 
-        # Save the trajectory overlay image in PNG format
-        save_image(image_id, crop_traj_image, output_subdirs["visualization"])
-
         ### STEP 03(d): Create Cropped Trajectory Binary Mask with aspect ratio 2:1
-        ### and save the cropped mask in `PNG` format
 
         # Create Binary Mask with the shape (width & height) of original image
         mask = create_mask(image.shape)
-        logger.info(f"Mask Created with shape: {mask.shape}")
 
         # Create Trajectory Mask
         mask = draw_trajectory_line(mask, trajectory, color="white")
@@ -423,23 +427,16 @@ def main(args):
         # Crop Trajectory Mask
         cropped_mask = crop_to_aspect_ratio(mask, trajectory)
 
+        ### ASSERTIONS ###
+
         # Assertion: Check the cropped mask
         assert cropped_mask is not None, "cropped_mask should not be None"
-
-        # Save the Trajectory Mask in PNG format
-        save_image(image_id, cropped_mask, output_subdirs["segmentation"])
 
         # Assertion: Check if the dimensions match
         assert cropped_png_image.shape[:2] == cropped_mask.shape, (
             f"Dimension mismatch: cropped_png_image has shape {cropped_png_image.shape[:2]} "
             f"while cropped_mask has shape {cropped_mask.shape}."
         )
-
-        # Display the cropped images (RGB or Binary Mask)
-        if display == "rgb":
-            show_image(crop_traj_image, title="Cropped Image(aspect ratio 2:1)")
-        elif display == "binary":
-            show_image(cropped_mask, title="Cropped Binary Mask(aspect ratio 2:1)")
 
         ### STEP 03(e): Normalize the trajectory points
         crop_shape = crop_traj_image.shape
@@ -451,8 +448,19 @@ def main(args):
 
         # Check Empty Trajectory paths
         if not norm_trajectory:
-            logger.info(f"Invalid Trajectory path: {indx} {image_id}")
+            logger.info(f"INVALID Trajectory path: {indx} {image_id}")
             continue
+
+        ### STEP 03(F): Save all images (original, cropped, and overlay) in the output directory
+
+        # Save the Cropped Image in PNG format
+        save_image(image_id, cropped_png_image, output_subdirs["image"])
+
+        # Save the cropped trajectory overlay image in PNG format (visualization)
+        save_image(image_id, crop_traj_image, output_subdirs["visualization"])
+
+        # Save the cropped trajectory binary mask in PNG format (segmentation) - binary mask
+        save_image(image_id, cropped_mask, output_subdirs["segmentation"])
 
         ### STEP 03(f): Build `Data Structure` for final `JSON` file
         # Generate JSON ID
@@ -469,7 +477,7 @@ def main(args):
 
         traj_list.append({json_id: meta_dict})
 
-        # Increment the index
+        # Increment the index for JSON ID
         indx += 1
 
     ### STEP 04: Create drivable path JSON file
@@ -505,15 +513,6 @@ if __name__ == "__main__":
         type=str,
         default="output",
         help="Output directory for image, segmentation, and visualization",
-    )
-    parser.add_argument(
-        "--display",
-        "-d",
-        type=str,
-        default="none",
-        help="""
-        Display the cropped image. Enter `rgb` for RGB image, `binary` for Binary Mask 
-        and `none` for not to display any image. Enter: [rgb/binary/none]""",
     )
     args = parser.parse_args()
 
