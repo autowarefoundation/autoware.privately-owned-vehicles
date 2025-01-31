@@ -7,11 +7,12 @@
 * STEP 02: Read all `JSON` files and create a combined `JSON` data (list of dictionaries)
 * STEP 03: Parse `JSON` data and create drivable path `JSON` file and `Trajecory Images` (`RGB` and `Binary`)
     * STEP 03(a): Process the `Trajectory Points` as tuples
-    * STEP 03(b): Crop the original image to aspect ratio `2:1` and convert from `JPG` to `PNG` format and store in output directory
-    * STEP 03(c): Create `Trajectory Overlay` and crop it to aspect ratio `2:1` and save the cropped image in `PNG` format
-    * STEP 03(d): Create `Cropped Trajectory Binary Mask` with aspect ratio `2:1` and save the cropped mask in `PNG` format
-    * STEP 03(e): Normalize the `Trajectory Points`
-    * STEP 03(f): Build `Data Structure` for final `JSON` file
+    * STEP 03(b): Crop the original image to aspect ratio `2:1` and convert from `JPG` to `PNG` format
+    * STEP 03(c): Normalize the `Trajectory Points` and filter out the points outside the range [0, 1]
+    * STEP 03(d): Create `Trajectory Overlay` and crop it to aspect ratio `2:1`
+    * STEP 03(e): Create `Cropped Trajectory Binary Mask` with aspect ratio `2:1`
+    * STEP 03(f): Save all images (original, cropped, and overlay) in the output directory
+    * STEP 03(g): Build `Data Structure` for final `JSON` file
 * STEP 04: Create drivable path JSON file
 
 Generate output structure
@@ -50,13 +51,8 @@ formatter = logging.Formatter("[%(asctime)s: %(name)s] %(levelname)s\t%(message)
 file_handler = logging.FileHandler(log_filename, mode="a")
 file_handler.setFormatter(formatter)
 
-# Creating console handler with logging format
-# console_handler = logging.StreamHandler()
-# console_handler.setFormatter(formatter)
-
 # Adding handlers into the logger
 logger.addHandler(file_handler)
-# logger.addHandler(console_handler)
 
 
 def create_output_subdirs(subdirs_list, output_dir):
@@ -81,9 +77,9 @@ def check_directory_exists(directory_path: str):
     """Check if a directory exists; if not, create it."""
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
-        logger.info(f"Directory created: {directory_path}")
+        logger.info("Directory created: %s", directory_path)
     else:
-        logger.info(f"Directory '{directory_path}' already exists.")
+        logger.info("Directory %s already exists.", directory_path)
 
 
 #### JSON FILE HELPER FUNCTIONS ####
@@ -117,7 +113,7 @@ def generate_jsonID(indx, data_size):
     return str(indx).zfill(zfill_num)
 
 
-def create_drivable_path_json(json_dir, traj_data, output_dir):
+def create_drivable_path_json(traj_data, output_dir):
     """
     Generate JSON file for the drivable path trajectory
     """
@@ -127,20 +123,17 @@ def create_drivable_path_json(json_dir, traj_data, output_dir):
     out_file_name = "drivable_path.json"
     out_file_path = os.path.join(output_dir, out_file_name)
 
-    # Extract the annotation files name and their parent directories
-    json_files = [
-        "/".join(i.split("/")[-3:]) for i in glob.glob(f"{json_dir}/**/*.json")
-    ]
-
     # Process the trajectory data - traj_data is a list of dictionaries
     traj_dict = {k: v for i in traj_data for k, v in i.items()}
 
     # Create JSON Data Structure
-    json_data = {"files": json_files, "data": traj_dict}
+    json_data = {"data": traj_dict}
 
     with open(out_file_path, "w") as fh:
         json.dump(json_data, fh, indent=4)
-        logger.info(f"{out_file_name} successfully generated!")
+
+    # Log the result
+    logger.info("%s successfully generated!", out_file_name)
 
 
 #### TRAJECTORY CALCULATION HELPER FUNCTIONS ####
@@ -245,7 +238,7 @@ def crop_to_aspect_ratio(image, trajectory):
 
     # Log the result
     logger.info(
-        f"Successfully Converted to Aspect Ratio 2:1 with shape: {cropped_image.shape}"
+        "Successfully Converted to Aspect Ratio 2:1 with shape: %s", cropped_image.shape
     )
 
     return cropped_image
@@ -256,7 +249,9 @@ def normalize_coords(trajectory, image_shape, crop_shape):
 
     # Calculate Vertical and horizontal offset (pixels crops)
     x_offset, y_offset = get_offset_values(image_shape, trajectory)
-    logger.info(f"x_offset: {x_offset} y_offset: {y_offset}")
+
+    # Log the offset values
+    logger.info("x_offset: %d y_offset: %d", x_offset, y_offset)
 
     # Get the cropped width and height
     crop_height, crop_width, _ = crop_shape
@@ -283,7 +278,7 @@ def create_mask(image_shape):
     # Create a binary mask
     mask = np.zeros((width, height), dtype=np.uint8)
 
-    logger.info(f"Mask Created with shape: {mask.shape}")
+    logger.info("Mask Created with shape: %s", mask.shape)
 
     return mask
 
@@ -299,16 +294,7 @@ def save_image(image_id, image, output_subdir):
     cv2.imwrite(new_img_path, image)
 
     # Log the result
-    logger.info(f"Converted JPG to PNG image: {new_img}")
-
-
-def show_image(image, title="Image"):
-    """Display the image"""
-
-    # Display the image
-    cv2.imshow(title, image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    logger.info("Converted JPG to PNG image: %s", new_img)
 
 
 def draw_trajectory_line(image, trajectory, color="yellow"):
@@ -357,8 +343,10 @@ def main(args):
 
     # Get the size of the Dataset
     data_size = len(json_data)
-    logger.info(f"Dataset Size: {data_size}")
-    logger.info(f"Output subdirectories: {subdirs_name}")
+
+    # Log the result
+    logger.info("Dataset Size: %d", data_size)
+    logger.info("Output subdirectories: %s", subdirs_name)
 
     ## STEP 03: Parse JSON data and create drivable path JSON file
     # List of all trajectory ponts
@@ -374,15 +362,17 @@ def main(args):
 
         # Read Image
         image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-        logger.info(f"Image Name: {image_id}.jpg")
-        logger.info(f"Image Shape: {image.shape}")
+
+        # log the result
+        logger.info("Image Name: %s", image_id)
+        logger.info("Image Shape: %s", image.shape)
 
         ### STEP 03(a): Process the Trajectory points as tuples
         trajectory = process_trajectory(val["trajectory"])
 
-        # Check Empty Trajectory Path
+        # VALIDATION: Check Empty Trajectory Path
         if not trajectory:
-            logger.info(f"Invalid Trajectory path: {indx} {image_id}")
+            logger.info("Invalid Trajectory path: %d %s", indx, image_id)
             continue
 
         ### STEP 03(b): Crop the original image to aspect ratio 2:1
@@ -391,7 +381,6 @@ def main(args):
         cropped_png_image = crop_to_aspect_ratio(image, trajectory)
 
         ### ASSERTIONS ###
-
         # Assertion: Check the cropped image
         assert cropped_png_image is not None, "cropped_png_image should not be None"
 
@@ -408,7 +397,20 @@ def main(args):
             f"Cropped image width: {cropped_png_image.shape[1]}."
         )
 
-        ### STEP 03(c): Create Trajectory Overlay and crop it to aspect ratio 2:1
+        ### STEP 03(c): Normalize the trajectory points
+        crop_shape = cropped_png_image.shape
+        norm_trajectory = normalize_coords(
+            trajectory,
+            image.shape,
+            crop_shape,
+        )
+
+        # VALIDATION: Check Empty Trajectory paths
+        if not norm_trajectory:
+            logger.info("INVALID Trajectory path: %d %s", indx, image_id)
+            continue
+
+        ### STEP 03(d): Create Trajectory Overlay and crop it to aspect ratio 2:1
 
         # Create Trajectory Overlay
         image = draw_trajectory_line(image, trajectory, color="yellow")
@@ -416,7 +418,7 @@ def main(args):
         # Crop the Trajectory Overlay to aspect ratio 2:1
         crop_traj_image = crop_to_aspect_ratio(image, trajectory)
 
-        ### STEP 03(d): Create Cropped Trajectory Binary Mask with aspect ratio 2:1
+        ### STEP 03(e): Create Cropped Trajectory Binary Mask with aspect ratio 2:1
 
         # Create Binary Mask with the shape (width & height) of original image
         mask = create_mask(image.shape)
@@ -438,20 +440,7 @@ def main(args):
             f"while cropped_mask has shape {cropped_mask.shape}."
         )
 
-        ### STEP 03(e): Normalize the trajectory points
-        crop_shape = crop_traj_image.shape
-        norm_trajectory = normalize_coords(
-            trajectory,
-            image.shape,
-            crop_shape,
-        )
-
-        # Check Empty Trajectory paths
-        if not norm_trajectory:
-            logger.info(f"INVALID Trajectory path: {indx} {image_id}")
-            continue
-
-        ### STEP 03(F): Save all images (original, cropped, and overlay) in the output directory
+        ### STEP 03(f): Save all images (original, cropped, and overlay) in the output directory
 
         # Save the Cropped Image in PNG format
         save_image(image_id, cropped_png_image, output_subdirs["image"])
@@ -462,14 +451,15 @@ def main(args):
         # Save the cropped trajectory binary mask in PNG format (segmentation) - binary mask
         save_image(image_id, cropped_mask, output_subdirs["segmentation"])
 
-        ### STEP 03(f): Build `Data Structure` for final `JSON` file
+        ### STEP 03(g): Build `Data Structure` for final `JSON` file
         # Generate JSON ID
         json_id = generate_jsonID(indx, data_size)
-        logger.info(f"Generated JSON ID: {json_id}")
+
+        # Log the result
+        logger.info("Generated JSON ID: %s", json_id)
 
         # Create drivable path JSON file
         meta_dict = {
-            "image_id": image_id,
             "drivable_path": norm_trajectory,
             "image_width": image.shape[0],
             "image_height": image.shape[1],
@@ -481,7 +471,7 @@ def main(args):
         indx += 1
 
     ### STEP 04: Create drivable path JSON file
-    create_drivable_path_json(json_dir, traj_list, output_dir)
+    create_drivable_path_json(traj_list, output_dir)
 
 
 if __name__ == "__main__":

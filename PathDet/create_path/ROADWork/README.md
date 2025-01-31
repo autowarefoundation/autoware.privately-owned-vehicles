@@ -15,18 +15,20 @@
 Processing ROADWork dataset for generating drivable path trajectory, we have used the following steps:
 
 * **STEP 01:** Create subdirectories for the following outputs:
-    1. `raw PNG images`
-    2. `trajectory path visualization`
-    3. `trajectory line masks`
+    1. `Original Images in PNG format`
+    2. `Trajectory path Overlay in PNG format`
+    3. `Trajectory path Binary Mask`
+
 * **STEP 02:** Read all `JSON` files and create a combined `JSON` data (list of dictionaries)
-* **STEP 03:** Parse `JSON` data and create drivable path `JSON` file and Trajecory `Images` (RGB and Binary)
-    * STEP 03(a): Process the `Trajectory Points` as tuples
-    * STEP 03(b): Crop the original image to aspect ratio `2:1` and convert from `JPG` to `PNG` format and store in output directory
-    * STEP 03(c): Create `Trajectory Overlay` and crop it to aspect ratio `2:1` and save the cropped image in `PNG` format
-    * STEP 03(d): Create `Cropped Trajectory Binary Mask` with aspect ratio `2:1` and save the cropped mask in `PNG` format
-    * STEP 03(e): Normalize the `Trajectory Points`
-    * STEP 03(f): Build `Data Structure` for final `JSON` file
-* STEP 04: Create drivable path `JSON` file
+* **STEP 03:** Parse `JSON` data and create drivable path `JSON` file and Trajectory `Images` (RGB and Binary)
+    * **STEP 03(a):** Process the `Trajectory Points` as tuples
+    * **STEP 03(b):** Crop the original image to aspect ratio `2:1` and convert from `JPG` to `PNG` format
+    * **STEP 03(c):** Normalize the `Trajectory Points` and filter out the points outside the range [0, 1]
+    * **STEP 03(d):** Create `Trajectory Overlay` and crop it to aspect ratio `2:1`
+    * **STEP 03(e):** Create `Cropped Trajectory Binary Mask` with aspect ratio `2:1`
+    * **STEP 03(f):** Save all images (original, cropped, and overlay) in the output directory
+    * **STEP 03(g):** Build `Data Structure` for final `JSON` file
+* **STEP 04:** Create drivable path `JSON` file
 
 
 ### Usage:
@@ -43,8 +45,6 @@ options:
                         ROADWork Trajectory Annotations Parent directory. Do not include subdirectories or files.
   --output-dir OUTPUT_DIR, -o OUTPUT_DIR
                         Output directory for image, segmentation, and visualization
-  --display DISPLAY, -d DISPLAY
-                        Display the cropped image. Enter `rgb` for RGB image, `binary` for Binary Mask and `none` for not to display any image. Enter: [rgb/binary/none]
 
 ```
 
