@@ -461,8 +461,8 @@ def main(args):
         # Create drivable path JSON file
         meta_dict = {
             "drivable_path": norm_trajectory,
-            "image_width": image.shape[0],
-            "image_height": image.shape[1],
+            "image_width": crop_shape[0],
+            "image_height": crop_shape[1],
         }
 
         traj_list.append({json_id: meta_dict})
