@@ -165,23 +165,26 @@ def get_traj_peak_point(trajectory):
     return min(trajectory, key=lambda point: point[1])
 
 
-def get_traj_base_point(trajectory, img_height):
-
-    # Minimum pixels to crop from the bottom
-    # As the car bonnet is within the 90-pixel window
-    crop_pixels = 90
+def get_traj_base_point(trajectory, img_height, crop_size=90):
+    """
+    Minimum pixels to crop from the bottom
+    As the car bonnet is within the 90-pixel window
+    except some images for Charlotte dataset
+    """
 
     # Filter out the trajectory points which are below the crop pixels
-    trajectory = [point for point in trajectory if img_height - point[1] >= crop_pixels]
+    trajectory = [point for point in trajectory if img_height - point[1] >= crop_size]
+    # print(trajectory)
 
     return max(trajectory, key=lambda point: point[1])
 
 
-def get_vertical_crop_points(image_height, trajectory):
+def get_vertical_crop_points(image_height, trajectory, crop_size=90):
     """Get Vertical crop points"""
 
     # Get the base point
-    _, y_bottom = get_traj_base_point(trajectory, image_height)
+    _, y_bottom = get_traj_base_point(trajectory, image_height, crop_size)
+    # y_bottom = 1000
 
     # Calculate  y-offset
     y_offset = image_height - y_bottom
@@ -207,12 +210,12 @@ def get_horizontal_crop_points(image_width, y_top, y_bottom):
     return (x_offset, x_right)
 
 
-def get_offset_values(image_shape, trajectory):
+def get_offset_values(image_shape, trajectory, crop_size=90):
     """Calculate the offset values for the image"""
     img_height, img_width = image_shape[0], image_shape[1]
 
     # Get the vertical crop points
-    y_offset, y_bottom = get_vertical_crop_points(img_height, trajectory)
+    y_offset, y_bottom = get_vertical_crop_points(img_height, trajectory, crop_size)
 
     # Get the horizontal crop points
     x_offset, _ = get_horizontal_crop_points(img_width, y_offset, y_bottom)
@@ -220,14 +223,14 @@ def get_offset_values(image_shape, trajectory):
     return (x_offset, y_offset)
 
 
-def crop_to_aspect_ratio(img, trajectory):
+def crop_to_aspect_ratio(img, trajectory, crop_size=90):
     """Crop the image to aspect ratio 2:1"""
 
     # Get the image dimensions
     img_height, img_width = img.shape[0], img.shape[1]
 
     # New y coordinates
-    y_top, y_bottom = get_vertical_crop_points(img_height, trajectory)
+    y_top, y_bottom = get_vertical_crop_points(img_height, trajectory, crop_size)
 
     ### Pixel Cropping for 2:1 Aspect Ratio
     # Cropping pixels from left and right for aspect ratio 2:1
@@ -266,6 +269,29 @@ def normalize_coords(trajectory, image_shape, crop_shape):
     norm_traj = [(x, y) for x, y in tmp if (0 <= x <= 1) and (0 <= y <= 1)]
 
     return norm_traj
+
+
+#### CHARLOTTE IMAGE HELPER FUNCTIONS ####
+def check_charlotte_image(image_id):
+    """Check if the image is from Charlotte dataset"""
+
+    filter_list = [
+        "charlotte_9dba2f64629f4296975300813cac6955_000000_16650_0070",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_21840_0060",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_21600_0080",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_20940_0050",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_20940_0060",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_20940_0070",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_08010_0050",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_08010_0060",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_08010_0070",
+        "charlotte_9dba2f64629f4296975300813cac6955_000001_08010_0080",
+    ]
+
+    if image_id in filter_list:
+        return True
+
+    return False
 
 
 #### IMAGE CREATION & VISUALIZATION HELPER FUNCTIONS ####
@@ -352,6 +378,7 @@ def main(args):
 
     json_dir = args.annotation_dir
     image_dir = args.image_dir
+    crop_size = int(args.crop_size)
     output_dir = args.output_dir
 
     #### STEP 01: Create subdirectories for the output directory
@@ -388,6 +415,13 @@ def main(args):
         logger.info("Image Name: %s", image_id)
         logger.info("Image Shape: %s", image.shape)
 
+        # Check Charlotte Image
+        if check_charlotte_image(image_id):
+            crop_size = 180
+            logger.info("%s with crop size %d", image_id, crop_size)
+        else:
+            crop_size = 90
+
         ### STEP 03(a): Process the Trajectory points as tuples
         trajectory = process_trajectory(val["trajectory"])
 
@@ -399,7 +433,7 @@ def main(args):
         ### STEP 03(b): Crop the original image to aspect ratio 2:1
 
         # Crop Image to aspect ratio 2:1
-        cropped_png_image = crop_to_aspect_ratio(image, trajectory)
+        cropped_png_image = crop_to_aspect_ratio(image, trajectory, crop_size)
         # show_image(cropped_png_image, title="Cropped Image")
 
         ### ASSERTIONS ###
@@ -440,7 +474,7 @@ def main(args):
         traj_image = draw_trajectory_line(traj_image, trajectory, color="yellow")
 
         # Crop the Trajectory Overlay to aspect ratio 2:1
-        cropped_traj_image = crop_to_aspect_ratio(traj_image, trajectory)
+        cropped_traj_image = crop_to_aspect_ratio(traj_image, trajectory, crop_size)
 
         ### STEP 03(e): Create Cropped Trajectory Binary Mask with aspect ratio 2:1
 
@@ -451,7 +485,7 @@ def main(args):
         mask = draw_trajectory_line(mask, trajectory, color="white")
 
         # Crop Trajectory Mask
-        cropped_mask = crop_to_aspect_ratio(mask, trajectory)
+        cropped_mask = crop_to_aspect_ratio(mask, trajectory, crop_size)
 
         ### ASSERTIONS ###
 
@@ -521,6 +555,13 @@ if __name__ == "__main__":
         help="""
         ROADWork Trajectory Annotations Parent directory.
         Do not include subdirectories or files.""",
+    )
+    parser.add_argument(
+        "--crop-size",
+        "-c",
+        type=int,
+        default=90,
+        help="Minimum pixels to crop from the bottom",
     )
     parser.add_argument(
         "--output-dir",
