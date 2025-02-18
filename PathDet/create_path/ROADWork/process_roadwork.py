@@ -136,6 +136,29 @@ def create_drivable_path_json(traj_data, output_dir):
     logger.info("%s successfully generated!", out_file_name)
 
 
+def map_imageID_to_jsonID(image_map, output_dir):
+    """
+    Generate JSON file for mapping image ID to JSON ID
+    """
+
+    # The file name is `Hard Coded` as the name is fixed
+    # Output file name
+    out_file_name = "map_image_ID.json"
+    out_file_path = os.path.join(output_dir, out_file_name)
+
+    # Process the list of dictionaries to a single dictionary
+    imageID_dict = {k: v for i in image_map for k, v in i.items()}
+
+    # Create JSON Data Structure
+    json_data = {"data": imageID_dict}
+
+    with open(out_file_path, "w") as fh:
+        json.dump(json_data, fh, indent=4)
+
+    # Log the result
+    logger.info("%s successfully generated!", out_file_name)
+
+
 #### TRAJECTORY CALCULATION HELPER FUNCTIONS ####
 
 
@@ -400,10 +423,19 @@ def main(args):
     # List of all trajectory ponts
     traj_list = []
 
+    # List to store a map of JSON ID to Image ID
+    image_map = []
+
     # Counter for JSON ID
     indx = 0
 
-    for val in tqdm(json_data, total=len(json_data)):
+    for val in tqdm(
+        json_data,
+        total=len(json_data),
+        position=0,
+        ncols=100,
+        desc="Processing ROADWork Dataset",
+    ):
         # Extract image ID and image path
         image_id = val["id"]
         image_path = os.path.join(image_dir, val["image"])
@@ -526,11 +558,18 @@ def main(args):
         # Append the dictionary to the list
         traj_list.append({json_id: meta_dict})
 
+        # Append the JSON ID and Image ID to the list
+        image_map.append({image_id: json_id})
+        tqdm.write(f"Processed {json_id} {image_id}")
+
         # Increment the index for JSON ID
         indx += 1
 
     ### STEP 04: Create drivable path JSON file
     create_drivable_path_json(traj_list, output_dir)
+
+    ### Optional: Create JSON file for mapping image ID to JSON ID
+    map_imageID_to_jsonID(image_map, output_dir)
 
 
 if __name__ == "__main__":
