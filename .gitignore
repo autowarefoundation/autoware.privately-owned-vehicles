@@ -1,0 +1,11 @@
+EgoLanes/create_lane/BDD100K/tmp.txt
+
+EgoLanes/create_lane/BDD100K/output
+EgoLanes/create_lane/BDD100K/process_bdd100k copy.py
+EgoLanes/create_lane/BDD100K/process_bdd100k copy.py
+EgoLanes/create_lane/BDD100K/process_bdd100k_without_merge.py
+EgoLanes/create_lane/BDD100K/process_bdd100k_without_merge_without_crop.py
+EgoLanes/create_lane/BDD100K/annotate_lanes.py
+EgoLanes/create_lane/BDD100K/tmp.py
+.vscode
+.vscode/launch.json

@@ -1,0 +1,46 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python Debugger: Current File with Arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "args": "${command:pickArgs}"
+    },
+    {
+      "name": "Debug BDD100K Processing Script",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/EgoLanes/create_lane/BDD100K/process_bdd100k.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--labels_dir",
+        "/Users/aadarshkt/Desktop/Self_Driving/Autoware/bdd100k_lane_labels_trainval/labels",
+        "--image_dir",
+        "/Users/aadarshkt/Desktop/Self_Driving/bdd100k_train/images/100k/",
+        "--output_dir",
+        "${workspaceFolder}/EgoLanes/create_lane/BDD100K/output"
+      ]
+    },
+    {
+      "name": "Without merge debug BDD100K Processing Script ",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/EgoLanes/create_lane/BDD100K/process_bdd100k_without_merge.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--labels_dir",
+        "/Users/aadarshkt/Desktop/Self_Driving/Autoware/bdd100k_lane_labels_trainval/labels",
+        "--image_dir",
+        "/Users/aadarshkt/Desktop/Self_Driving/bdd100k_train/images/100k/",
+        "--output_dir",
+        "${workspaceFolder}/EgoLanes/create_lane/BDD100K/output"
+      ]
+    }
+  ]
+}
