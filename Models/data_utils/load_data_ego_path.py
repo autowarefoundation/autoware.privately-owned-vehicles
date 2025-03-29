@@ -1,13 +1,18 @@
 #! /usr/bin/env python3
 
-import json
 import os
-import shutil
+import json
 import pathlib
 import numpy as np
-from PIL import Image, ImageDraw
+import sys
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), 
+    '..',
+    '..'
+)))
+from PIL import Image
 from typing import Literal, get_args
-from check_data import CheckData
+from Models.data_utils.check_data import CheckData
 
 VALID_DATASET_LITERALS = Literal[
     "BDD100K", 
@@ -18,10 +23,6 @@ VALID_DATASET_LITERALS = Literal[
     "TUSIMPLE"
 ]
 VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
-COMMA2K19_DIMS = {
-    "WIDTH" : 1048,
-    "HEIGHT" : 524
-}
 
 
 class LoadDataEgoPath():
@@ -46,21 +47,6 @@ class LoadDataEgoPath():
         # Load JSON labels, address the diffs of format across datasets
         with open(self.label_filepath, "r") as f:
             self.labels = json.load(f)
-        if "data" in self.labels:                   # Some has "data" parent key
-            self.labels = self.labels["data"]       # Make sure it gets the "data" part
-        # Some even stores ego path data like this:
-        # data : [
-        #   {
-        #       "00001" : ...
-        #   }
-        # ]
-        # So convert it back to dict to be compatible with the rest
-        if type(self.labels) is list:
-            self.labels = {
-                frame_code : content
-                for smaller_dict in self.labels
-                for frame_code, content in smaller_dict.items()
-            }
 
         self.images = sorted([
             f for f in pathlib.Path(self.image_dirpath).glob("*.png")
@@ -87,18 +73,12 @@ class LoadDataEgoPath():
 
         if (checkData.getCheck()):
             for set_idx, frame_id in enumerate(self.labels):
+
+                # Check if there might be frame ID mismatch - happened to CULane before, just to make sure
                 frame_id_from_img_path = str(self.images[set_idx]).split("/")[-1].replace(".png", "")
                 if (frame_id == frame_id_from_img_path):
 
-                    if (self.dataset_name == "COMMA2K19"):
-                        self.labels[frame_id]["drivable_path"] = [
-                            (
-                                point[0] / COMMA2K19_DIMS["WIDTH"], 
-                                point[1] / COMMA2K19_DIMS["HEIGHT"]
-                            ) for point in self.labels[frame_id]["drivable_path"]
-                        ]
-
-                    if (set_idx % 10 == 0):     # Hard-coded 10% as val set
+                    if (set_idx % 10 == 0):
                         # Slap it to Val
                         self.val_images.append(str(self.images[set_idx]))
                         self.val_labels.append(self.labels[frame_id])
@@ -112,75 +92,53 @@ class LoadDataEgoPath():
                     raise ValueError(f"Mismatch data detected in {self.dataset_name}!")
 
         print(f"Dataset {self.dataset_name} loaded with {self.N_trains} trains and {self.N_vals} vals.")
-        print(f"Val/Total = {(self.N_vals / (self.N_trains + self.N_vals))}")
+        print(f"Val/Total = {(self.N_vals / (self.N_trains + self.N_vals)):03f}")
 
     # Get sizes of Train/Val sets
     def getItemCount(self):
         return self.N_trains, self.N_vals
-
-    # ================= Get item at index ith, returning img and EgoPath ================= #
     
-    # For train
-    def getItemTrain(self, index):
-        img_train = Image.open(str(self.train_images[index])).convert("RGB")
-        label_train = self.train_labels[index]["drivable_path"]
-        # Address the issue currently occurs in CurveLanes
-        label_train = [[x, y] for [x, y] in label_train if y < 1.0]
+    # Point/lane auto audit
+    def dataAudit(self, label: list):
+        # Convert all points into sublists in case they are tuples - yeah it DOES happens
+        if (type(label[0]) == tuple):
+            label = [[x, y] for [x, y] in label]
+
+        # Trimming points whose y > 1.0
+        fixed_label = label.copy()
+        fixed_label = [
+            point for point in fixed_label
+            if point[1] <= 1.0
+        ]
+
+        # Make sure points are bottom-up
+        start_y, end_y = fixed_label[0][1], fixed_label[-1][1]
+        if (end_y > start_y):       # Top-to-bottom annotation, must reverse
+            fixed_label.reverse()
+
+        # Slightly decrease y if y == 1.0
+        for i, point in enumerate(fixed_label):
+            if (point[1] == 1.0):
+                fixed_label[i][1] = 0.9999
+
+        # Comma2k19's jumpy point (but can be happening to others as well)
+        for i in range(1, len(fixed_label)):
+            if (fixed_label[i][1] > fixed_label[i - 1][1]):
+                fixed_label = fixed_label[0 : i]
+                break
+
+        return fixed_label
+    
+    # Get item at index ith, returning img and EgoPath
+    def getItem(self, index, is_train: bool):
+        if (is_train):
+            img = Image.open(str(self.train_images[index])).convert("RGB")
+            label = self.train_labels[index]["drivable_path"]
+        else:
+            img = Image.open(str(self.val_images[index])).convert("RGB")
+            label = self.val_labels[index]["drivable_path"]
+
+        # Point/line auto audit
+        label = self.dataAudit(label)
         
-        return np.array(img_train), label_train
-    
-    # For val
-    def getItemVal(self, index):
-        img_val = Image.open(str(self.val_images[index])).convert("RGB")
-        label_val = self.val_labels[index]["drivable_path"]
-        # Address the issue currently occurs in CurveLanes
-        label_val = [[x, y] for [x, y] in label_val if y < 1.0]
-        
-        return np.array(img_val), label_val
-    
-    def sampleItemsAudit(
-            self, 
-            set_type: Literal["train", "val"], 
-            vis_output_dir: str,
-            n_samples: int = 100
-    ):
-        print(f"Sampling first {n_samples} images from {set_type} set for audit...")
-
-        if os.path.exists(vis_output_dir):
-            print(f"Output path exists. Deleting.")
-            shutil.rmtree(vis_output_dir)
-        os.makedirs(vis_output_dir)
-
-        for i in range(n_samples):
-
-            # Fetch numpy image and ego path
-            if set_type == "train":
-                np_img, ego_path = self.getItemTrain(i)
-            elif set_type == "val":
-                np_img, ego_path = self.getItemVal(i)
-            else:
-                raise ValueError(f"sampleItemAudit() does not recognize set type {set_type}")
-            
-            # Convert back to image
-            img = Image.fromarray(np_img)
-
-            # Draw specs
-            draw = ImageDraw.Draw(img)
-            lane_color = (255, 255, 0)
-            lane_w = 5
-            img_width, img_height = img.size
-            frame_name = str(i).zfill(5) + ".png"
-
-            # Renormalize
-            ego_path = [
-                (float(point[0] * img_width), float(point[1] * img_height)) 
-                for point in ego_path
-            ]
-
-            # Now draw
-            draw.line(ego_path, fill = lane_color, width = lane_w)
-
-            # Then, save
-            img.save(os.path.join(vis_output_dir, frame_name))
-
-        print(f"Sampling all done, saved at {vis_output_dir}")
+        return np.array(img), label
