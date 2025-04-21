@@ -1,15 +1,10 @@
 
 import torch
-from torchvision import transforms
-from torch import nn, optim
-from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 import cv2
 from PIL import Image
 import sys
 sys.path.append('..')
-from model_components.scene_seg_network import SceneSegNetwork
-from model_components.scene_3d_network import Scene3DNetwork
 from data_utils.augmentations import Augmentations
 
 class EgoPathTrainer():
