@@ -279,7 +279,7 @@ def main():
                             )
 
                             # Run val and calculate metrics
-                            endpoint_loss, gradient_loss, total_loss = trainer.valudate(
+                            endpoint_loss, gradient_loss, total_loss = trainer.validate(
                                 image_val,
                                 label_val
                             )
