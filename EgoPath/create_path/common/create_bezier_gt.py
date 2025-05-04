@@ -13,6 +13,22 @@ from Models.data_utils.load_data_ego_path import (
     VALID_DATASET_LITERALS
 )
 
+# Evaluate the x, y coords of a bezier point list at a given t-param value
+def evaluate_bezier(self, bezier, t):
+
+        # Throw an error if parameter t is out of boudns
+        if not (0 < t < 1):
+            raise ValueError("Please ensure t parameter is in the range [0, 1]")
+        
+        # Evaluate cubic bezier curve for value of t in range [0, 1]
+        x = ((1-t)**3)*bezier[0][0] + 3*((1-t)**2)*t*bezier[0][2] \
+            + 3*(1-t)*(t**2)*bezier[0][4] + (t**3)*bezier[0][6]
+        
+        y = ((1-t)**3)*bezier[0][1] + 3*((1-t)**2)*t*bezier[0][3] \
+            + 3*(1-t)*(t**2)*bezier[0][5] + (t**3)*bezier[0][7]
+        
+        return x, y
+
 
 if (__name__ == "__main__"):
 
@@ -65,9 +81,7 @@ if (__name__ == "__main__"):
 
             for i in range(N_samples):
 
-                img, bezier_curve, is_valid = this_dataloader.getItem(i, is_train)
-                bezier_curve = list(zip(
-                    bezier_curve[0 : : 2],
-                    bezier_curve[1 : : 2]
-                ))
-                print(bezier_curve)
+                img, bezier_points, is_valid = this_dataloader.getItem(i, is_train)
+                
+                for step in range(2, 11):
+                    t = step / 10
