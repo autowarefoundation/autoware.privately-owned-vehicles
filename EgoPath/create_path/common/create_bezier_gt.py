@@ -1,11 +1,5 @@
-import torch
-from torchvision import transforms
-from torch import nn, optim
-from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
-import cv2
 from PIL import Image
-import numpy as np
 import argparse
 import os
 import sys
@@ -22,7 +16,7 @@ from Models.data_utils.load_data_ego_path import (
 
 if (__name__ == "__main__"):
 
-    # == Input args ==
+    # ================ Input args ================
 
     parser = argparse.ArgumentParser(
         description = "Process CurveLanes dataset - PathDet groundtruth generation"
@@ -39,7 +33,41 @@ if (__name__ == "__main__"):
     # Parse dirs
     dataset_dir = args.dataset_dir
 
-    # == Preprocess ==
+    IMAGES_DIR = "image"
+    JSON_PATH = "drivable_path.json"
+    BEZIER_DIR = "bezier-visualization"
+    BEZSON_PATH = "bezier_path.json"
 
-    list_subdirs = ["image", "segmentation", "visualization"]
-    json_path = "drivable_path.json"
+    # ================ Main process through all 6 ================
+
+    for dataset in VALID_DATASET_LIST:
+
+        this_dataloader = LoadDataEgoPath(
+            labels_filepath = os.path.join(dataset_dir, dataset, JSON_PATH),
+            images_filepath = os.path.join(dataset_dir, dataset, IMAGES_DIR),
+            dataset = dataset
+        )
+
+        # Merge back tran and val splits
+        # this_all_images = (this_dataloader.train_images + this_dataloader.val_images).sort()
+        # this_all_labels = (this_dataloader.train_labels + this_dataloader.val_labels).sort()
+
+        # Bezier gen
+        for is_train in [True, False]:
+
+            if (is_train):
+                split = "train"
+                N_samples = this_dataloader.N_trains
+            else:
+                split = "val"
+                N_samples = this_dataloader.N_vals
+            print(f"\tCurrent processing {split} split")
+
+            for i in range(N_samples):
+
+                img, bezier_curve, is_valid = this_dataloader.getItem(i, is_train)
+                bezier_curve = list(zip(
+                    bezier_curve[0 : : 2],
+                    bezier_curve[1 : : 2]
+                ))
+                print(bezier_curve)
