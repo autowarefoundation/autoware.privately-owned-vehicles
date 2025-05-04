@@ -59,7 +59,7 @@ if (__name__ == "__main__"):
 
     # ================ Main process through all 6 ================
 
-    for dataset in ["TUSIMPLE"]:
+    for dataset in VALID_DATASET_LIST:
 
         this_dataloader = LoadDataEgoPath(
             labels_filepath = os.path.join(dataset_dir, dataset, JSON_PATHNAME),
