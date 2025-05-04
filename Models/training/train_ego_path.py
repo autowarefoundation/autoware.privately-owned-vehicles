@@ -29,8 +29,11 @@ def main():
     parser.add_argument("-s", "--model_save_root_path", dest="model_save_root_path", \
         help="root path where pytorch checkpoint file should be saved")
     
-    parser.add_argument("-t", "--test_images_save_root_path", dest="test_images_save_root_path", \
-        help="root path where test images should be saved")
+    parser.add_argument(
+        "-t", "--test_images_save_root_path", 
+        dest = "test_images_save_root_path",
+        required = False, default = None,
+        help = "root path where test images should be saved")
 
 
     args = parser.parse_args()
@@ -68,11 +71,14 @@ def main():
     tusimple_images_filepath = root + 'TUSIMPLE/image/'
 
     # TEST
-    test_images_filepath = root + 'TEST/'
-    test_images_list = sorted([
-            f for f in pathlib.Path(test_images_filepath).glob("*.png")
-        ])
-    test_images_save_root_path = args.test_images_save_root_path
+    if (args.test_images_save_root_path):
+        test_images_filepath = root + 'TEST/'
+        test_images_list = sorted([
+                f for f in pathlib.Path(test_images_filepath).glob("*.png")
+            ])
+        test_images_save_root_path = args.test_images_save_root_path
+    else:
+        test_images_save_root_path = None
 
     # TEST
     #### to do ####
@@ -464,16 +470,17 @@ def main():
                     trainer.set_eval_mode()
 
                     # Running test
-                    print('----- Running Testing -----')
-                    for i in range(0, len(test_images_list)):
-                        
-                        test_image_save_path = os.path.join(
-                            test_images_save_root_path,
-                            f"iter_{log_count+1}_epoch_{epoch}_step_{count+1}_{i}.png"
-                        )
+                    if (test_images_save_root_path):
+                        print('----- Running Testing -----')
+                        for i in range(0, len(test_images_list)):
+                            
+                            test_image_save_path = os.path.join(
+                                test_images_save_root_path,
+                                f"iter_{log_count+1}_epoch_{epoch}_step_{count+1}_{i}.png"
+                            )
 
-                        test_image_path = str(test_images_list[i])
-                        trainer.test(test_image_path, test_image_save_path)
+                            test_image_path = str(test_images_list[i])
+                            trainer.test(test_image_path, test_image_save_path)
 
                     # Validation metrics for each dataset
                     val_bdd100k_running = 0
