@@ -1,15 +1,47 @@
 #!/usr/bin/env python3
 """
-ONNX Model Benchmarking Utility
+ONNX and PyTorch Model Benchmarking Utility with mIoU Calculation
 
-This utility compares the performance of FP32 and INT8 quantized ONNX models.
-It provides comprehensive benchmarking metrics including:
-- Inference speed
-- Model size
-- Memory usage
-- Output accuracy differences
-Usage:
-    python benchmark_onnx_models.py -f /path/to/fp32_model.onnx -q /path/to/int8_model.onnx -d /path/to/dataset --save_outputs
+This utility provides a framework for comparing the performance and accuracy of
+PyTorch FP32, ONNX FP32, and ONNX INT8 segmentation models.
+
+Key Features:
+- Benchmarks inference speed for different model types.
+- Calculates model size (for ONNX models).
+- Evaluates output accuracy using mean Intersection over Union (mIoU), ensuring
+  consistency with the SceneSegTrainer's validation methodology.
+  Both overall mIoU and per-class IoU scores are reported.
+- Supports multiple datasets (ACDC, IDDAW, MUSES, BDD100K, etc.).
+- Model-centric evaluation: each model processes all selected samples before moving
+  to the next model, optimizing for model warmup and consistent performance measurement.
+- Leverages components from the SceneSeg project (SceneSegTrainer, LoadDataSceneSeg)
+  for PyTorch model handling and data loading, promoting code reuse and consistency.
+- Saves combined visualizations (Original Image | Ground Truth | Prediction) for a
+  configurable number of samples per dataset, aiding in qualitative assessment.
+
+Workflow:
+1. Parses command-line arguments for model paths, dataset root, and other parameters.
+2. Initializes BenchmarkConfig with these settings.
+3. Loads dataset samples using BenchmarkDatasetLoader, which internally uses LoadDataSceneSeg.
+4. Initializes model handlers (PyTorchModel, ONNXModel) for each specified model.
+   - PyTorchModel uses SceneSegTrainer for loading and its validate() method for IoU.
+   - ONNXModel uses onnxruntime and mirrors SceneSegTrainer's IoU calculation logic.
+5. The Benchmarker orchestrates the evaluation:
+   - Performs warmup runs for each model.
+   - For each model, processes all benchmark samples, collecting inference times and IoU scores.
+   - If enabled, combined visualizations are saved for a few samples per dataset.
+6. Aggregates results (mIoU, per-class IoUs, average inference times) per dataset and overall.
+7. Generates and prints a comprehensive report comparing all benchmarked models.
+
+Usage Example:
+    python benchmark_onnx_models.py \
+        --pytorch_model_path /path/to/your_pytorch_model.pth \
+        --fp32_model_path /path/to/your_fp32_model.onnx \
+        --int8_model_path /path/to/your_int8_model.onnx \
+        --dataset_root /path/to/your/SceneSeg_datasets_root/ \
+        --num_samples_per_dataset 10 \
+        --visualizations_per_dataset 2 \
+        --save_outputs
 """
 
 import os
@@ -18,729 +50,1074 @@ import logging
 import argparse
 import numpy as np
 import onnxruntime
-import psutil
 import platform
 import cv2
-from glob import glob
 import random
-import matplotlib.pyplot as plt
-from datetime import datetime
-import traceback
+from datetime import datetime   
+import sys
+from PIL import Image
+from collections import defaultdict
+from typing import List, Tuple, Dict, Any, Optional
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+################################################################################
+# Import Progress Bar Utility
+################################################################################
+try:
+    from tqdm import tqdm
+except ImportError:
+    print("tqdm not found. Please install it for progress bars: pip install tqdm", file=sys.stderr)
+    def tqdm(iterable, *args, **kwargs): return iterable
+
+################################################################################
+# PyTorch and Project Specific Imports
+################################################################################
+try:
+    import torch
+    from torchvision import transforms as T # Alias to avoid conflict if any
+    # Adjust path to import SceneSegNetwork and LoadDataSceneSeg
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root_models = os.path.abspath(os.path.join(script_dir, '..', '..'))
+    if project_root_models not in sys.path:
+        sys.path.append(project_root_models)
+    
+    # Ensure project root is in path for sibling directory imports
+    from data_utils.load_data_scene_seg import LoadDataSceneSeg 
+    from training.scene_seg_trainer import SceneSegTrainer  # For PyTorch model processing
+   
+    PYTORCH_AVAILABLE = True
+except ImportError as e:
+    print(f"CRITICAL: PyTorch or project modules (SceneSegNetwork, LoadDataSceneSeg, SceneSegTrainer) not found. Error: {e}. PyTorch benchmarking will be unavailable.", file=sys.stderr)
+    PYTORCH_AVAILABLE = False
+    SceneSegNetwork = None 
+    LoadDataSceneSeg = None
+    SceneSegTrainer = None
+    torch = None
+    T = None
+
+################################################################################
+# Logging Configuration
+################################################################################
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def get_model_info(model_path):
-    """
-    Extract metadata from an ONNX model.
-    
-    Args:
-        model_path: Path to the ONNX model file
-        
-    Returns:
-        Dictionary containing model information (size, inputs, outputs, etc.)
-    """
-    info = {}
-    
-    if not os.path.exists(model_path):
-        logger.error(f"Model file not found: {model_path}")
-        return None
-        
-    # Get file size
-    file_size_bytes = os.path.getsize(model_path)
-    file_size_mb = file_size_bytes / (1024 * 1024)
-    info['size_bytes'] = file_size_bytes
-    info['size_mb'] = file_size_mb
-    
-    # Get model metadata
-    try:
-        session = onnxruntime.InferenceSession(model_path)
-        inputs = session.get_inputs()
-        outputs = session.get_outputs()
-        
-        info['input_names'] = [input.name for input in inputs]
-        info['input_shapes'] = [input.shape for input in inputs]
-        info['output_names'] = [output.name for output in outputs]
-        
-        # Extract input shape from model
-        input_shape = inputs[0].shape
-        # ONNX input shape is typically [batch_size, channels, height, width]
-        if len(input_shape) == 4:
-            info['height'] = input_shape[2] if isinstance(input_shape[2], int) else None
-            info['width'] = input_shape[3] if isinstance(input_shape[3], int) else None
-        
-        info['providers'] = session.get_providers()
-        
-    except Exception as e:
-        logger.error(f"Error getting model info: {str(e)}")
-        return None
-        
-    return info
+################################################################################
+# Common Definitions
+################################################################################
+CLASS_NAMES: List[str] = ["Background", "Foreground", "Road"] # Ensure this order matches model outputs and GT
 
-def load_calibration_images(calibration_data_dir, num_images=10):
-    """
-    Load sample images from calibration dataset for benchmarking.
-    
-    Args:
-        calibration_data_dir: Root directory containing dataset folders
-        num_images: Number of images to load for benchmarking
-        
-    Returns:
-        List of image paths for benchmarking
-    """
-    # List of standard segmentation datasets
-    datasets = ['ACDC', 'BDD100K', 'comma10k', 'IDDAW', 'Mapillary_Vistas', 'MUSES']
-    
-    all_images = []
-    
-    # Collect images from each dataset
-    for dataset in datasets:
-        # Handle nested structure: dataset/dataset/images/
-        dataset_path = os.path.join(calibration_data_dir, dataset, dataset, 'images')
-        if not os.path.exists(dataset_path):
-            continue
-            
-        # Get all images from the dataset
-        dataset_images = glob(os.path.join(dataset_path, "*.jpg")) + \
-                       glob(os.path.join(dataset_path, "*.png"))
-        
-        if dataset_images:
-            all_images.extend(dataset_images)
-    
-    if not all_images:
-        logger.error(f"No images found in calibration directory: {calibration_data_dir}")
-        return None
-    
-    # Randomly select images for benchmarking
-    selected_images = random.sample(all_images, min(num_images, len(all_images)))
-    logger.info(f"Selected {len(selected_images)} images for benchmarking")
-    
-    return selected_images
+################################################################################
+# Configuration Class
+################################################################################
+@dataclass
+class BenchmarkConfig:
+    """Configuration for the benchmarking process.
 
-def preprocess_image(img_path, input_shape):
+    Attributes:
+        pytorch_model_path: Path to the PyTorch (.pth) model checkpoint.
+        fp32_model_path: Path to the FP32 ONNX model.
+        int8_model_path: Path to the INT8 ONNX model.
+        dataset_root: Root directory of the segmentation datasets.
+        num_samples_per_dataset: Maximum number of samples to process from each dataset.
+        warmup_runs: Number of warmup inference runs before actual benchmarking.
+        save_outputs: Whether to save output visualizations.
+        output_dir_base: Base directory for saving benchmark results and visualizations.
+        pytorch_target_hw: Target (Height, Width) for PyTorch model preprocessing and GT resizing.
+                           If None, SceneSegTrainer's default might be used or a script default.
+        onnx_target_hw: Target (Height, Width) for ONNX model preprocessing and GT resizing.
+                        If None, it's derived from the FP32 ONNX model's input metadata.
+        visualizations_per_dataset: Number of combined visualizations (Image|GT|Prediction)
+                                    to save per dataset and per model.
     """
-    Preprocess an image for model inference.
-    
-    Processing steps:
-    1. Resize to model input dimensions
-    2. Convert BGR to RGB
-    3. Normalize using ImageNet mean and std
-    4. Convert HWC to CHW format (channels first)
-    5. Add batch dimension
-    
-    Args:
-        img_path: Path to the image file
-        input_shape: Tuple of (height, width)
-        
-    Returns:
-        Preprocessed image tensor
-    """
-    try:
-        # Read image
-        img = cv2.imread(img_path)
-        if img is None:
-            logger.warning(f"Failed to read image: {img_path}")
-            return None
-            
-        # Convert from BGR to RGB and resize
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.resize(img, (input_shape[1], input_shape[0]))
-        
-        # Normalize with ImageNet mean and std
-        norm_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 1, 3)
-        norm_std = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 1, 3)
-        
-        img = img.astype(np.float32) / 255.0
-        img = (img - norm_mean) / norm_std
-        
-        # HWC to CHW format (channels first for ONNX)
-        img = img.transpose(2, 0, 1)
-        
-        # Add batch dimension
-        img = np.expand_dims(img, axis=0)
-        
-        # Ensure float32 precision
-        img = img.astype(np.float32)
-        
-        return img
-        
-    except Exception as e:
-        logger.error(f"Error preprocessing image {img_path}: {str(e)}")
-        return None
+    pytorch_model_path: Optional[str] = None
+    fp32_model_path: Optional[str] = None
+    int8_model_path: Optional[str] = None
+    dataset_root: str = ""
+    num_samples_per_dataset: int = 20
+    warmup_runs: int = 3
+    save_outputs: bool = False
+    output_dir_base: str = "./benchmark_results_multimodel"
+    pytorch_target_hw: Optional[Tuple[int, int]] = None 
+    onnx_target_hw: Optional[Tuple[int, int]] = None
+    visualizations_per_dataset: int = 2
 
-def save_predictions(model_name, image_path, input_tensor, output_tensor, output_dir):
+
+################################################################################
+# Dataset Loading 
+################################################################################
+class BenchmarkDatasetLoader:
+    """Loads and prepares dataset samples for benchmarking.
+
+    This class scans specified dataset directories, loads image and ground truth data
+    using LoadDataSceneSeg, and makes a specified number of samples available for
+    the benchmarking process. It stores samples as dictionaries containing paths,
+    image data (NumPy array), ground truth lists (from LoadDataSceneSeg.getItemVal),
+    the dataset key, and the original sample index.
     """
-    Save model predictions as visualizations.
-    
-    Args:
-        model_name: Name of the model (FP32/INT8)
-        image_path: Path to the original image
-        input_tensor: Input tensor used for inference
-        output_tensor: Output tensor from model inference
-        output_dir: Directory to save visualizations
-    """
-    # Create output directory if it doesn't exist
-    try:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-    except Exception as e:
-        logger.error(f"Error creating output directory: {str(e)}")
-        return
+    def __init__(self, dataset_root_dir: str, num_samples_per_dataset: int):
+        """Initializes the BenchmarkDatasetLoader.
+
+        Args:
+            dataset_root_dir: The root directory where datasets (ACDC, IDDAW, etc.) are stored.
+            num_samples_per_dataset: The maximum number of validation samples to load from each dataset.
         
-    # Get original image for visualization
-    try:
-        orig_img = cv2.imread(image_path)
-        if orig_img is None:
-            logger.error(f"Could not read image {image_path} for visualization")
-            return
-            
-        orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
-    except Exception as e:
-        logger.error(f"Error reading original image: {str(e)}")
-        return
-    
-    # Get basename for saving files
-    img_basename = os.path.splitext(os.path.basename(image_path))[0]
-    
-    # Save the raw output as numpy array for further analysis
-    try:
-        np.save(os.path.join(output_dir, f"{img_basename}_{model_name}_raw.npy"), output_tensor)
-    except Exception as e:
-        logger.error(f"Error saving raw output: {str(e)}")
-    
-    try:
-        # Handle different output formats based on shape
+        Raises:
+            RuntimeError: If LoadDataSceneSeg is not available (e.g., due to import issues).
+        """
+        self.dataset_root_dir = dataset_root_dir
+        if not self.dataset_root_dir.endswith('/'):
+            self.dataset_root_dir += '/'
+        self.num_samples_per_dataset = num_samples_per_dataset
+        self.samples = []
+        self.dataset_loaders = {}  # Store dataset loaders for later use
+        if LoadDataSceneSeg is None:
+            logger.error("LoadDataSceneSeg unavailable, cannot initialize BenchmarkDatasetLoader.")
+            raise RuntimeError("LoadDataSceneSeg is not available.")
+        self._load_all_samples()
+
+    def _load_all_samples(self) -> None:
+        """Scans dataset directories, loads samples using LoadDataSceneSeg.
         
-        # Case 1: RGB image output (shape [1, 3, H, W])
-        if len(output_tensor.shape) == 4 and output_tensor.shape[1] == 3:
-            # Convert from NCHW to HWC format
-            output_img = output_tensor[0].transpose(1, 2, 0)
-            
-            # Normalize to 0-255 range if needed
-            if output_img.min() < 0 or output_img.max() > 1:
-                min_val = output_img.min()
-                max_val = output_img.max()
-                if min_val != max_val:  # Prevent division by zero
-                    output_img = (output_img - min_val) / (max_val - min_val)
-            
-            # Convert to uint8 for saving
-            output_img = (output_img * 255).astype(np.uint8)
-                
-            # Save the output image
-            output_path = os.path.join(output_dir, f"{img_basename}_{model_name}_output.png")
-            cv2.imwrite(output_path, cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR))
-            
-            # Create side-by-side comparison with original
+        Constructs paths to image and label directories for each configured dataset.
+        If a dataset is found, it initializes LoadDataSceneSeg and retrieves a specified
+        number of validation samples. These samples (image NumPy array, ground truth list from
+        getItemVal, image path, dataset key, sample index) are collected, shuffled, and stored.
+        """
+        all_raw_samples = []
+        
+        # Direct path construction like in training script
+        datasets_to_load = {
+            'ACDC': {
+                'images': self.dataset_root_dir + 'ACDC/ACDC/images/',
+                'labels': self.dataset_root_dir + 'ACDC/ACDC/gt_masks/'
+            },
+            'IDDAW': {
+                'images': self.dataset_root_dir + 'IDDAW/IDDAW/images/',
+                'labels': self.dataset_root_dir + 'IDDAW/IDDAW/gt_masks/'
+            },
+            'MUSES': {
+                'images': self.dataset_root_dir + 'MUSES/MUSES/images/',
+                'labels': self.dataset_root_dir + 'MUSES/MUSES/gt_masks/'
+            },
+            'MAPILLARY': {
+                'images': self.dataset_root_dir + 'Mapillary_Vistas/Mapillary_Vistas/images/',
+                'labels': self.dataset_root_dir + 'Mapillary_Vistas/Mapillary_Vistas/gt_masks/'
+            },
+            'COMMA10K': {
+                'images': self.dataset_root_dir + 'comma10k/comma10k/images/',
+                'labels': self.dataset_root_dir + 'comma10k/comma10k/gt_masks/'
+            },
+            'BDD100K': {
+                'images': self.dataset_root_dir + 'BDD100K/BDD100K/images/',
+                'labels': self.dataset_root_dir + 'BDD100K/BDD100K/gt_masks/'
+            }
+        }
+        
+        for dataset_key, paths in tqdm(datasets_to_load.items(), desc="Scanning datasets"):
             try:
-                # Resize original to match output size
-                orig_resized = cv2.resize(orig_img, (output_img.shape[1], output_img.shape[0]))
+                images_fp = paths['images']
+                labels_fp = paths['labels']
                 
-                # Create combined image
-                combined = np.hstack((orig_resized, output_img))
-                comparison_path = os.path.join(output_dir, f"{img_basename}_{model_name}_comparison.png")
-                cv2.imwrite(comparison_path, cv2.cvtColor(combined, cv2.COLOR_RGB2BGR))
+                # Check if paths exist
+                if not os.path.exists(images_fp) or not os.path.isdir(images_fp) or \
+                   not os.path.exists(labels_fp) or not os.path.isdir(labels_fp):
+                    continue
+                
+                # Load dataset using LoadDataSceneSeg
+                dataset_loader = LoadDataSceneSeg(labels_filepath=labels_fp, images_filepath=images_fp, dataset=dataset_key)
+                self.dataset_loaders[dataset_key] = dataset_loader
+                
+                _, num_val_available = dataset_loader.getItemCount()
+                actual_samples_to_load = min(num_val_available, self.num_samples_per_dataset)
+                
+                if actual_samples_to_load == 0:
+                    continue
+                
+                logger.info(f"Loading {actual_samples_to_load} samples from {dataset_key}")
+                for i in range(actual_samples_to_load):
+                    img_np, gt_list, _ = dataset_loader.getItemVal(i)
+                    # Store original path, dataset key, and sample index for later reference
+                    all_raw_samples.append({
+                        'img_path': dataset_loader.val_images[i],
+                        'img_np': img_np,
+                        'gt_list': gt_list,
+                        'dataset_key': dataset_key,
+                        'sample_idx': i
+                    })
             except Exception as e:
-                logger.error(f"Error creating comparison: {str(e)}")
-                
-        # Case 2: Segmentation output with multiple classes [1, C, H, W] where C > 3
-        elif len(output_tensor.shape) == 4 and output_tensor.shape[1] > 3:
-            # Remove batch dimension
-            output = output_tensor[0]  # Now shape [C, H, W]
-            
-            # Get predicted class for each pixel (argmax across class dimension)
-            predicted_mask = np.argmax(output, axis=0)
-            
-            # Create a colormap based on number of classes
-            num_classes = output.shape[0]
-            colormap = plt.cm.get_cmap('viridis', num_classes)
-            
-            # Convert to RGB visualization
-            colored_mask = colormap(predicted_mask)
-            colored_mask = (colored_mask[:, :, :3] * 255).astype(np.uint8)
-            
-            # Resize mask to match original image size
-            colored_mask = cv2.resize(colored_mask, (orig_img.shape[1], orig_img.shape[0]))
-            
-            # Create a blended visualization
-            alpha = 0.5
-            blended = cv2.addWeighted(orig_img, 1-alpha, colored_mask, alpha, 0)
-            
-            # Save all visualizations
-            cv2.imwrite(os.path.join(output_dir, f"{img_basename}_{model_name}_mask.png"), 
-                        cv2.cvtColor(colored_mask, cv2.COLOR_RGB2BGR))
-            cv2.imwrite(os.path.join(output_dir, f"{img_basename}_{model_name}_blended.png"), 
-                        cv2.cvtColor(blended, cv2.COLOR_RGB2BGR))
-            
-        # Case 3: Single-channel output [1, 1, H, W]
-        elif len(output_tensor.shape) == 4 and output_tensor.shape[1] == 1:
-            # Extract the single channel
-            heatmap = output_tensor[0, 0]
-            
-            # Normalize to 0-1 range if needed
-            if heatmap.min() < 0 or heatmap.max() > 1:
-                heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
-            
-            # Create a colormap visualization
-            heatmap_colored = plt.cm.jet(heatmap)
-            heatmap_colored = (heatmap_colored[:, :, :3] * 255).astype(np.uint8)
-            
-            # Resize to match original image
-            heatmap_colored = cv2.resize(heatmap_colored, (orig_img.shape[1], orig_img.shape[0]))
-            
-            # Create a blended visualization
-            alpha = 0.7
-            blended = cv2.addWeighted(orig_img, 1-alpha, heatmap_colored, alpha, 0)
-            
-            # Save visualizations
-            cv2.imwrite(os.path.join(output_dir, f"{img_basename}_{model_name}_heatmap.png"), 
-                       cv2.cvtColor(heatmap_colored, cv2.COLOR_RGB2BGR))
-            cv2.imwrite(os.path.join(output_dir, f"{img_basename}_{model_name}_blended.png"), 
-                       cv2.cvtColor(blended, cv2.COLOR_RGB2BGR))
-            
-        # Case 4: 3D tensor without batch dimension [C, H, W]
-        elif len(output_tensor.shape) == 3:
-            if output_tensor.shape[0] > 1:
-                # Likely segmentation with multiple classes
-                predicted_mask = np.argmax(output_tensor, axis=0)
-                
-                # Create a colormap based on number of classes
-                num_classes = output_tensor.shape[0]
-                colormap = plt.cm.get_cmap('viridis', num_classes)
-                
-                # Convert to RGB visualization
-                colored_mask = colormap(predicted_mask)
-                colored_mask = (colored_mask[:, :, :3] * 255).astype(np.uint8)
-                
-                # Resize mask to match original image size
-                colored_mask = cv2.resize(colored_mask, (orig_img.shape[1], orig_img.shape[0]))
-                
-                # Create a blended visualization
-                alpha = 0.5
-                blended = cv2.addWeighted(orig_img, 1-alpha, colored_mask, alpha, 0)
-                
-                # Save all visualizations
-                cv2.imwrite(os.path.join(output_dir, f"{img_basename}_{model_name}_mask.png"), 
-                            cv2.cvtColor(colored_mask, cv2.COLOR_RGB2BGR))
-                cv2.imwrite(os.path.join(output_dir, f"{img_basename}_{model_name}_blended.png"), 
-                            cv2.cvtColor(blended, cv2.COLOR_RGB2BGR))
-                            
-            else:
-                # It's likely some other output format, save array visualization
-                plt.figure(figsize=(10, 8))
-                plt.imshow(output_tensor[0], cmap='viridis')
-                plt.colorbar()
-                plt.title(f"Model output - {model_name}")
-                plt.savefig(os.path.join(output_dir, f"{img_basename}_{model_name}_output.png"))
-                plt.close()
-                
-    except Exception as e:
-        logger.error(f"Error during output visualization: {str(e)}")
-        logger.error(traceback.format_exc())
+                logger.error(f"Error processing dataset {dataset_key}: {e}", exc_info=True)
+        
+        if not all_raw_samples:
+            logger.error("No samples were loaded from any dataset.")
+        else:
+            random.shuffle(all_raw_samples)
+            self.samples = all_raw_samples
+            logger.info(f"Total {len(self.samples)} samples collected for benchmarking.")
 
-def compare_outputs(fp32_output, int8_output, image_path, output_dir):
-    """
-    Compare outputs between FP32 and INT8 models and visualize differences.
-    
-    Theory:
-        Quantization may affect model accuracy by introducing quantization error.
-        This function quantifies these differences and visualizes where they occur,
-        helping to assess the acceptability of accuracy loss for the application.
-    
-    Args:
-        fp32_output: Output tensor from FP32 model
-        int8_output: Output tensor from INT8 model
-        image_path: Path to the original input image
-        output_dir: Directory to save comparison visualizations
-        
-    Returns:
-        Dictionary with difference statistics
-    """
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        
-    img_basename = os.path.splitext(os.path.basename(image_path))[0]
-    
-    # Calculate absolute difference between outputs
-    abs_diff = np.abs(fp32_output - int8_output)
-    
-    # Calculate statistics
-    max_diff = np.max(abs_diff)
-    mean_diff = np.mean(abs_diff)
-    std_diff = np.std(abs_diff)
-    
-    # For segmentation outputs, check if class predictions differ
-    if len(fp32_output.shape) == 4 and fp32_output.shape[1] > 1:  # [B, C, H, W]
-        # Get class predictions
-        fp32_classes = np.argmax(fp32_output[0], axis=0)
-        int8_classes = np.argmax(int8_output[0], axis=0)
-        
-        # Count pixels where class prediction differs
-        class_diff_mask = fp32_classes != int8_classes
-        num_diff_pixels = np.sum(class_diff_mask)
-        total_pixels = fp32_classes.size
-        pct_diff = (num_diff_pixels / total_pixels) * 100
-        
-        # Create visualization of class differences
-        diff_vis = np.zeros((*class_diff_mask.shape, 3), dtype=np.uint8)
-        diff_vis[class_diff_mask] = [255, 0, 0]  # Red for differences
-        
-        # Save difference visualization
-        cv2.imwrite(os.path.join(output_dir, f"{img_basename}_class_diffs.png"), diff_vis)
-        
-    # Save raw difference data
-    np.save(os.path.join(output_dir, f"{img_basename}_abs_diff.npy"), abs_diff)
-    
-    return {
-        'max_diff': max_diff,
-        'mean_diff': mean_diff,
-        'std_diff': std_diff
-    }
+    def get_samples(self):
+        """Returns the list of loaded and shuffled benchmark samples.
 
-def benchmark_model(model_path, calibration_images, runs=10, warmup_runs=3, save_outputs=False, output_dir=None):
+        Each sample is a dictionary with keys: 'img_path', 'img_np', 'gt_list', 
+        'dataset_key', 'sample_idx'.
+        """
+        return self.samples
+
+    def get_dataset_loader(self, dataset_key):
+        """Returns the LoadDataSceneSeg instance for a given dataset key.
+
+        Args:
+            dataset_key: The key identifying the dataset (e.g., 'ACDC').
+
+        Returns:
+            The LoadDataSceneSeg instance for the dataset, or None if not found.
+        """
+        return self.dataset_loaders.get(dataset_key)
+
+################################################################################
+# Model Interface & Implementations
+################################################################################
+class ModelInterface(ABC):
+    """Abstract Base Class for model handlers (ONNX, PyTorch, etc.).
+
+    Defines a common interface for loading models, preprocessing inputs, running inference,
+    and obtaining segmentation maps and visualizations. This allows the Benchmarker
+    to treat different model types uniformly.
     """
-    Benchmark inference speed and memory usage of an ONNX model.
+    def __init__(self, model_path: Optional[str], model_name: str, device_str: str = "cpu"):
+        """Initializes the ModelInterface.
+
+        Args:
+            model_path: Path to the model file.
+            model_name: A descriptive name for the model (e.g., "ONNX_FP32", "PyTorch_FP32").
+            device_str: The device string for model execution (e.g., "cpu", "cuda"),
+                        primarily relevant for PyTorch models.
+        """
+        self.model_path = model_path
+        self.model_name = model_name
+        self.device_str = device_str
+        self.model: Any = None
+        self._target_hw: Optional[Tuple[int, int]] = None # Cache for target_hw
+        self._model_info: Dict[str, Any] = {}
+
+    @abstractmethod
+    def load_model(self) -> bool:
+        pass
+
+    def get_model_info(self) -> Dict[str, Any]:
+        if not self._model_info and self.is_loaded(): # Compute if not cached
+            self._model_info = self._compute_model_info()
+        return self._model_info
     
-    Theory:
-        To accurately measure inference performance, this function:
-        1. Performs warmup runs to ensure cache is loaded and JIT compilation is complete
-        2. Uses actual calibration images to represent real-world performance
-        3. Measures execution time with high-precision timer
-        4. Tracks memory usage to assess resource requirements
-        5. Optionally saves and visualizes model outputs
-    
-    Args:
-        model_path: Path to the ONNX model
-        calibration_images: List of paths to calibration images
-        runs: Number of inference runs per image to average
-        warmup_runs: Number of warmup runs before timing
-        save_outputs: Whether to save model predictions
-        output_dir: Directory to save output visualizations
+    @abstractmethod
+    def _compute_model_info(self) -> Dict[str, Any]: # Specific to each model type
+        pass
+
+    @abstractmethod
+    def get_target_hw(self) -> Tuple[int, int]: # H, W for preprocessing and GT resizing
+        pass
+
+    @abstractmethod
+    def preprocess_input(self, pil_image: Image.Image, target_hw: Tuple[int, int]) -> Any:
+        pass # Returns model-ready tensor
+
+    @abstractmethod
+    def run_inference(self, processed_input: Any) -> np.ndarray:
+        pass # Returns raw output as NCHW float32 numpy array
+
+    @abstractmethod
+    def get_segmentation_map(self, raw_output_nchw: np.ndarray) -> np.ndarray:
+        pass # Returns HW class index map (uint8)
+
+    def get_visualization_colors(self) -> List[Tuple[int,int,int]]: # BGR colors
+        # Use the exact same colors as in LoadDataSceneSeg.createGroundTruth
+        # and SceneSegTrainer.make_visualization
+        return [(61, 93, 255),  # background_objects_colour
+                (255, 28, 145), # foreground_objects_colour
+                (0, 255, 220)]  # road_colour
+
+    def get_visualization(self, pred_map_hw: np.ndarray, target_hw_vis: Tuple[int, int]) -> Image.Image:
+        colors_bgr = self.get_visualization_colors()
+        vis_h, vis_w = target_hw_vis
         
-    Returns:
-        Dictionary with benchmark results and model outputs
+        colored_mask_bgr = np.zeros((vis_h, vis_w, 3), dtype=np.uint8)
+        # Resize pred_map_hw if its shape is different from target_hw_vis
+        if pred_map_hw.shape != (vis_h, vis_w):
+            pred_map_hw_resized = cv2.resize(pred_map_hw.astype(np.uint8), (vis_w, vis_h), interpolation=cv2.INTER_NEAREST)
+        else:
+            pred_map_hw_resized = pred_map_hw.astype(np.uint8)
+
+        for class_idx, color in enumerate(colors_bgr):
+            if class_idx < len(CLASS_NAMES):
+                colored_mask_bgr[pred_map_hw_resized == class_idx] = color
+        return Image.fromarray(cv2.cvtColor(colored_mask_bgr, cv2.COLOR_BGR2RGB))
+
+    def is_loaded(self) -> bool:
+        return self.model is not None
+
+class ONNXModel(ModelInterface):
+    """Handles ONNX model loading, inference, and evaluation.
+
+    This class uses onnxruntime to load and run ONNX models. It preprocesses input images,
+    runs inference, calculates IoU scores by mirroring SceneSegTrainer's logic, and provides
+    segmentation maps for visualization.
     """
-    results = {}
-    model_outputs = {}  # Store outputs for later comparison
-    logger.info(f"Benchmarking model: {model_path}")
-    
-    try:
-        # Get model info
-        model_info = get_model_info(model_path)
-        if not model_info:
+    def __init__(self, model_path: str, model_name: str, device_str: str = "cpu", target_hw_override: Optional[Tuple[int,int]] = None):
+        """Initializes the ONNXModel handler.
+
+        Args:
+            model_path: Path to the .onnx model file.
+            model_name: Descriptive name for the model.
+            device_str: Device for inference (e.g., "cpu", "cuda"). Currently, onnxruntime
+                        providers are hardcoded to ['CUDAExecutionProvider'] but this argument
+                        is kept for interface consistency.
+            target_hw_override: Optional (Height, Width) to override model's input dimensions.
+        """
+        super().__init__(model_path, model_name, device_str)
+        self.session: Optional[onnxruntime.InferenceSession] = None
+        self.input_name: Optional[str] = None
+        self.output_names: Optional[List[str]] = None
+        self._target_hw_override = target_hw_override
+        self.temp_trainer = SceneSegTrainer() if SceneSegTrainer is not None else None
+
+    def load_model(self) -> bool:
+        if not self.model_path or not os.path.exists(self.model_path):
+            logger.error(f"ONNX model path invalid or not found: {self.model_path} for {self.model_name}")
+            return False
+        try:
+            # TODO: Allow specifying providers (e.g. CUDAExecutionProvider)
+            self.session = onnxruntime.InferenceSession(self.model_path, providers=['CUDAExecutionProvider'])
+            self.input_name = self.session.get_inputs()[0].name
+            self.output_names = [out.name for out in self.session.get_outputs()]
+            self.model = self.session # For is_loaded()
+            logger.info(f"ONNX model {self.model_name} loaded from {self.model_path} with providers {self.session.get_providers()}")
+            # Prime target_hw and model_info caches
+            self.get_target_hw()
+            self.get_model_info()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load ONNX model {self.model_name} from {self.model_path}: {e}", exc_info=True)
+            self.session = None
+            self.model = None
+            return False
+
+    def _compute_model_info(self) -> Dict[str, Any]:
+        info: Dict[str, Any] = {}
+        if not self.model_path or not os.path.exists(self.model_path): return info
+        info['size_bytes'] = os.path.getsize(self.model_path)
+        info['size_mb'] = info['size_bytes'] / (1024 * 1024)
+        info['type'] = 'ONNX'
+        info['path'] = self.model_path
+        if self.session:
+            inputs = self.session.get_inputs()
+            info['input_names'] = [inp.name for inp in inputs]
+            info['input_shapes'] = [inp.shape for inp in inputs] # List of lists/tuples
+            info['output_names'] = [out.name for out in self.session.get_outputs()]
+            # H,W from metadata
+            h, w = self._get_hw_from_onnx_metadata()
+            info['metadata_height'] = h
+            info['metadata_width'] = w
+        return info
+        
+    def _get_hw_from_onnx_metadata(self) -> Tuple[Optional[int], Optional[int]]:
+        if self.session:
+            first_input_shape = self.session.get_inputs()[0].shape
+            if len(first_input_shape) == 4 and \
+               all(isinstance(dim, int) and dim > 0 for dim in first_input_shape[2:]):
+                return first_input_shape[2], first_input_shape[3] # H, W
+        return None, None
+
+    def get_target_hw(self) -> Tuple[int, int]:
+        if self._target_hw: return self._target_hw
+        
+        if self._target_hw_override:
+            logger.info(f"Using target H,W override for {self.model_name}: {self._target_hw_override}")
+            self._target_hw = self._target_hw_override
+            return self._target_hw
+
+        h, w = self._get_hw_from_onnx_metadata()
+        if h and w:
+            self._target_hw = (h,w)
+            return self._target_hw
+        else:
+            logger.error(f"Could not determine target H,W for ONNX model {self.model_name}. Input shape: {self.session.get_inputs()[0].shape if self.session else 'N/A'}. Please provide --onnx_target_hw.")
+            raise ValueError(f"Target H,W indeterminable for {self.model_name}")
+
+    def preprocess_input(self, sample_data: Dict[str, Any], target_hw: Tuple[int, int]) -> Dict[str, Any]:
+        """Preprocesses the input image from sample_data for ONNX inference.
+
+        Extracts the image NumPy array from sample_data, converts it to a PIL Image,
+        resizes it to target_hw, normalizes it, and transposes it to CHW format.
+        The processed NumPy array (NCHW, float32) is stored back in the sample_data
+        dictionary under the key 'processed_input'.
+
+        Args:
+            sample_data: Dictionary containing the raw sample data, including 'img_np'.
+            target_hw: Target (Height, Width) for resizing.
+
+        Returns:
+            The modified sample_data dictionary with 'processed_input', or None on error.
+        """
+        try:
+            # Process the image for ONNX inference
+            img_np = sample_data['img_np']
+            pil_image = Image.fromarray(img_np).convert("RGB")
+            
+            img_resized_pil = pil_image.resize((target_hw[1], target_hw[0]), Image.Resampling.BILINEAR if hasattr(Image, 'Resampling') else Image.BILINEAR)
+            img_resized_np = np.array(img_resized_pil)
+            norm_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 1, 3)
+            norm_std = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 1, 3)
+            img_normalized = (img_resized_np / 255.0 - norm_mean) / norm_std
+            img_chw = img_normalized.transpose(2, 0, 1)
+            
+            # Store processed input in the sample data
+            sample_data['processed_input'] = np.expand_dims(img_chw, axis=0).astype(np.float32)
+            return sample_data
+        except Exception as e:
+            logger.error(f"Error preprocessing image for ONNX model {self.model_name}: {e}", exc_info=True)
+            return None
+
+    def run_inference(self, sample_data: Dict[str, Any]) -> Optional[List[float]]:
+        if not self.session or not self.input_name or not sample_data: 
             return None
             
-        results['model_info'] = model_info
-        
-        # Extract input shape from model info
-        if 'height' in model_info and 'width' in model_info and model_info['height'] and model_info['width']:
-            input_shape = (model_info['height'], model_info['width'])
-        else:
-            # Default fallback shape if not available in model
-            input_shape = (320, 640)
-            logger.warning(f"Could not determine input shape from model, using default: {input_shape}")
+        try:
+            # Get the processed input
+            processed_input = sample_data.get('processed_input')
+            if processed_input is None:
+                logger.error(f"Processed input not found in sample data for {self.model_name}")
+                return None
+                
+            # Run ONNX inference
+            outputs = self.session.run(self.output_names, {self.input_name: processed_input})
+            raw_output = outputs[0]
             
-        logger.info(f"Using input shape: {input_shape}")
-        
-        # Create inference session with CPU provider for consistent benchmarking
-        providers = ['CPUExecutionProvider']
-        session_options = onnxruntime.SessionOptions()
-        session = onnxruntime.InferenceSession(
-            model_path, 
-            sess_options=session_options,
-            providers=providers
-        )
-        
-        # Get input and output details
-        inputs = session.get_inputs()
-        outputs = session.get_outputs()
-        
-        input_name = inputs[0].name
-        output_names = [output.name for output in outputs]
-        
-        # Get model name for saving outputs
-        model_type = "fp32" if "FP32" in os.path.basename(model_path).upper() else "int8"
-        
-        # Memory usage before session creation
-        process = psutil.Process(os.getpid())
-        baseline_memory = process.memory_info().rss / (1024 * 1024)  # MB
-        
-        # Preprocess calibration images
-        processed_images = []
-        for img_path in calibration_images:
-            img_tensor = preprocess_image(img_path, input_shape)
-            if img_tensor is not None:
-                processed_images.append((img_path, img_tensor))
-        
-        if not processed_images:
-            logger.error("No valid images could be processed for benchmarking")
+            # Calculate IoU scores directly
+            return self.calc_iou_from_output(raw_output, sample_data)
+        except Exception as e:
+            logger.error(f"Error during ONNX inference for {self.model_name}: {e}", exc_info=True)
             return None
             
-        logger.info(f"Successfully preprocessed {len(processed_images)} images")
-        
-        # Warm-up runs with the first image
-        logger.info(f"Performing {warmup_runs} warm-up runs...")
-        for _ in range(warmup_runs):
-            _ = session.run(None, {input_name: processed_images[0][1]})
-        
-        # Memory after warmup
-        warmup_memory = process.memory_info().rss / (1024 * 1024)  # MB
-        results['memory_usage_mb'] = warmup_memory - baseline_memory
-        
-        # Benchmark runs
-        logger.info(f"Running {runs} timed inference passes per image...")
-        all_run_times = []
-        
-        for img_idx, (img_path, img_tensor) in enumerate(processed_images):
-            img_name = os.path.basename(img_path)
-            logger.info(f"Image {img_idx+1}/{len(processed_images)}: {img_name}")
+    def calc_iou_from_output(self, raw_output: np.ndarray, sample_data: Dict[str, Any]) -> List[float]:
+        """Calculates IoU scores using same approach as SceneSegTrainer.calc_IoU_val"""
+        if raw_output is None or sample_data is None or self.temp_trainer is None:
+            logger.error("Cannot calculate IoU: missing raw output, sample data, or trainer")
+            return [0.0, 0.0, 0.0, 0.0]  # Full, BG, FG, RD
             
-            image_run_times = []
-            last_output = None
-            
-            for i in range(runs):
-                # Clear any cached memory between runs
-                if platform.system() != 'Windows':
-                    os.system('sync')
+        try:
+            # Get ground truth data from sample
+            gt_list = sample_data.get('gt_list')
+            if not gt_list or len(gt_list) < 4:
+                logger.error("Invalid ground truth data in sample")
+                return [0.0, 0.0, 0.0, 0.0]  # Full, BG, FG, RD
                 
-                start = time.perf_counter()
-                # Run with None for output_names to get all outputs
-                outputs = session.run(None, {input_name: img_tensor})
-                end = (time.perf_counter() - start) * 1000  # Convert to ms
-                image_run_times.append(end)
-                
-                # Save the last run's output
-                last_output = outputs
-                
-            # Log summary for this image
-            avg_image_time = sum(image_run_times) / len(image_run_times)
-            logger.info(f"  Average time: {avg_image_time:.2f}ms")
-            all_run_times.extend(image_run_times)
-            
-            # Save the output for this image
-            if last_output is not None:
-                model_outputs[img_path] = last_output    
-                # Save predictions if requested
-                if save_outputs and output_dir:
-                    try:
-                        # Make sure the output directory exists
-                        os.makedirs(output_dir, exist_ok=True)
-                        
-                        # For segmentation models, the first output is typically the segmentation mask
-                        save_predictions(model_type, img_path, img_tensor, last_output[0], output_dir)
-                    except Exception as e:
-                        logger.error(f"Error saving predictions: {str(e)}")
+            # Process exactly like in calc_IoU_val
+            if raw_output.ndim == 4 and raw_output.shape[0] == 1:
+                output_val = raw_output.squeeze(0) # Remove batch dim
             else:
-                logger.warning(f"No output generated for {img_name}")
-            
-        # Calculate statistics across all images
-        avg_time = sum(all_run_times) / len(all_run_times)
-        min_time = min(all_run_times)
-        max_time = max(all_run_times)
-        std_dev = np.std(all_run_times)
-        
-        results['avg_time_ms'] = avg_time
-        results['min_time_ms'] = min_time
-        results['max_time_ms'] = max_time
-        results['std_dev_ms'] = std_dev
-        results['outputs'] = model_outputs
-        
-        logger.info(f"Overall average inference time: {avg_time:.2f}ms (±{std_dev:.2f}ms)")
-        logger.info(f"Min/Max times: {min_time:.2f}ms / {max_time:.2f}ms")
-        
-        return results
-        
-    except Exception as e:
-        logger.error(f"Benchmarking failed: {str(e)}")
-        logger.error(traceback.format_exc())
-        return None
-
-def compare_models(fp32_results, int8_results, output_dir=None):
-    """
-    Compare benchmark results between FP32 and INT8 models.
-    
-    Theory:
-        This function analyzes the trade-offs of quantization by comparing:
-        1. Inference speed - The primary benefit of quantization
-        2. Model size - Reduced precision means smaller models
-        3. Memory usage - Memory requirements during inference
-        4. Output accuracy - Potential degradation due to reduced precision
-        
-        The ideal outcome is significant improvements in speed and size
-        with minimal impact on accuracy.
-    
-    Args:
-        fp32_results: Results from benchmarking FP32 model
-        int8_results: Results from benchmarking INT8 model
-        output_dir: Directory to save comparison visualizations
-    """
-    if not fp32_results or not int8_results:
-        logger.error("Cannot compare models: missing benchmark results")
-        return
-    
-    logger.info("\n" + "="*50)
-    logger.info("MODEL COMPARISON SUMMARY")
-    logger.info("="*50)
-    
-    # Performance comparison
-    fp32_time = fp32_results['avg_time_ms']
-    int8_time = int8_results['avg_time_ms']
-    speedup = fp32_time / int8_time if int8_time > 0 else 0
-    
-    logger.info(f"\nPerformance:")
-    logger.info(f"  FP32 average inference: {fp32_time:.2f}ms (±{fp32_results['std_dev_ms']:.2f}ms)")
-    logger.info(f"  INT8 average inference: {int8_time:.2f}ms (±{int8_results['std_dev_ms']:.2f}ms)")
-    logger.info(f"  Speedup: {speedup:.2f}x")
-    
-    # Size comparison
-    fp32_size = fp32_results['model_info']['size_mb']
-    int8_size = int8_results['model_info']['size_mb']
-    size_reduction = fp32_size / int8_size if int8_size > 0 else 0
-    
-    logger.info(f"\nModel Size:")
-    logger.info(f"  FP32 model: {fp32_size:.2f}MB")
-    logger.info(f"  INT8 model: {int8_size:.2f}MB")
-    logger.info(f"  Size reduction: {size_reduction:.2f}x")
-    
-    # Memory usage comparison
-    fp32_memory = fp32_results['memory_usage_mb']
-    int8_memory = int8_results['memory_usage_mb']
-    memory_reduction = fp32_memory / int8_memory if int8_memory > 0 else 0
-    
-    logger.info(f"\nRuntime Memory Usage:")
-    logger.info(f"  FP32 model: {fp32_memory:.2f}MB")
-    logger.info(f"  INT8 model: {int8_memory:.2f}MB")
-    logger.info(f"  Memory reduction: {memory_reduction:.2f}x")
-    
-    # Output comparison if available
-    if output_dir and 'outputs' in fp32_results and 'outputs' in int8_results:
-        logger.info(f"\nOutput Comparison:")
-        
-        # Find common images
-        common_images = set(fp32_results['outputs'].keys()) & set(int8_results['outputs'].keys())
-        
-        if not common_images:
-            logger.warning("No common images to compare outputs")
-        else:
-            logger.info(f"Comparing model outputs for {len(common_images)} images")
-            
-            all_diffs = []
-            output_comp_dir = os.path.join(output_dir, "comparisons")
-            if not os.path.exists(output_comp_dir):
-                os.makedirs(output_comp_dir)
+                output_val = raw_output
                 
-            for img_path in common_images:
+            # Convert from CHW to HWC (if needed)
+            if output_val.ndim == 3 and output_val.shape[0] <= 3:  # Likely CHW format
+                output_val = np.transpose(output_val, (1, 2, 0))
+                
+            # Now we have HWC format, similar to SceneSegTrainer.calc_IoU_val output
+            output_processed = np.zeros_like(output_val)
+            
+            # Convert to one-hot format exactly like in calc_IoU_val
+            for x in range(0, output_val.shape[0]):
+                for y in range(0, output_val.shape[1]):
+                    bg_prob = output_val[x,y,0]
+                    fg_prob = output_val[x,y,1]
+                    rd_prob = output_val[x,y,2]
+
+                    if(bg_prob >= fg_prob and bg_prob >= rd_prob):
+                        output_processed[x,y,0] = 1
+                        output_processed[x,y,1] = 0
+                        output_processed[x,y,2] = 0
+                    elif(fg_prob >= bg_prob and fg_prob >= rd_prob):
+                        output_processed[x,y,0] = 0
+                        output_processed[x,y,1] = 1
+                        output_processed[x,y,2] = 0
+                    elif(rd_prob >= bg_prob and rd_prob >= fg_prob):
+                        output_processed[x,y,0] = 0
+                        output_processed[x,y,1] = 0
+                        output_processed[x,y,2] = 1
+            
+            # First, prepare GT in the format expected by calc_IoU_val
+            # These match the format in SceneSegTrainer.apply_augmentations
+            h, w = output_processed.shape[:2]
+            bg_mask = gt_list[1].astype(bool)
+            fg_mask = gt_list[2].astype(bool)
+            rd_mask = gt_list[3].astype(bool)
+                
+            # Resize masks to match model output
+            bg_mask_resized = cv2.resize(bg_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST).astype(bool)
+            fg_mask_resized = cv2.resize(fg_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST).astype(bool)
+            rd_mask_resized = cv2.resize(rd_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST).astype(bool)
+                
+            # Stack into HWC
+            gt_val_fused = np.stack((bg_mask_resized, fg_mask_resized, rd_mask_resized), axis=2)
+            
+            # Calculate IoU exactly as in calc_IoU_val
+            iou_score_full = self.temp_trainer.IoU(output_processed, gt_val_fused)
+            iou_score_bg = self.temp_trainer.IoU(output_processed[:,:,0], gt_val_fused[:,:,0])
+            iou_score_fg = self.temp_trainer.IoU(output_processed[:,:,1], gt_val_fused[:,:,1])
+            iou_score_rd = self.temp_trainer.IoU(output_processed[:,:,2], gt_val_fused[:,:,2])
+            
+            # For visualization, save the processed output
+            sample_data['output_processed'] = output_processed
+            
+            # Return all IoU scores with full IoU first, just like in training script
+            return [iou_score_full, iou_score_bg, iou_score_fg, iou_score_rd]
+        except Exception as e:
+            logger.error(f"Error calculating IoU for ONNX model: {e}", exc_info=True)
+            return [0.0, 0.0, 0.0, 0.0]  # Full, BG, FG, RD
+
+    def get_segmentation_map(self, sample_data: Dict[str, Any]) -> Optional[np.ndarray]:
+        """Extracts the H,W class index map from the processed output stored in sample_data.
+
+        This map is typically used for generating visualizations. It assumes that
+        calc_iou_from_output has already been called and stored the one-hot 'output_processed'
+        in the sample_data dictionary.
+
+        Args:
+            sample_data: The dictionary containing sample data, including 'output_processed'.
+
+        Returns:
+            A NumPy array (H, W) of class indices, or None if an error occurs.
+        """
+        # This is now mainly for visualization purposes
+        if not sample_data or 'output_processed' not in sample_data:
+            logger.warning(f"ONNXModel '{self.model_name}': 'output_processed' not found in sample_data for get_segmentation_map. Was calc_iou_from_output run?")
+            return None
+            
+        try:
+            # output_processed is in one-hot HWC format, convert to class indices
+            output_processed = sample_data['output_processed']
+            return np.argmax(output_processed, axis=2).astype(np.uint8)
+        except Exception as e:
+            logger.error(f"Error in ONNXModel.get_segmentation_map: {e}", exc_info=True)
+            return None
+
+class PyTorchModel(ModelInterface):
+    """Handles PyTorch model loading, inference, and evaluation using SceneSegTrainer.
+
+    This class leverages the existing SceneSegTrainer for most operations, ensuring consistency
+    with the training pipeline. It uses trainer.validate() for IoU calculation and provides
+    methods to get segmentation maps for visualization by re-running inference on the
+    trainer's internal validation tensor.
+    """
+    def __init__(self, model_path: str, model_name: str, device_str: str = "cpu", target_hw_override: Optional[Tuple[int, int]] = None):
+        """Initializes the PyTorchModel handler.
+
+        Args:
+            model_path: Path to the PyTorch (.pth) model checkpoint.
+            model_name: Descriptive name for the model.
+            device_str: Device to load the model on (e.g., "cpu", "cuda").
+            target_hw_override: Optional (Height, Width) to override the default target dimensions.
+                                This primarily influences GT resizing if the model's internal
+                                target dimensions differ.
+        """
+        super().__init__(model_path, model_name, device_str)
+        if not PYTORCH_AVAILABLE or SceneSegTrainer is None: # Check SceneSegTrainer
+            raise RuntimeError("PyTorch or SceneSegTrainer is not available, cannot create PyTorchModel.")
+        
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        logger.info(f"PyTorchModel '{self.model_name}' will use device: {self.device}")
+        
+        self._target_hw_override = target_hw_override
+        self.trainer_instance: Optional[SceneSegTrainer] = None # Will hold SceneSegTrainer
+
+    def load_model(self) -> bool:
+        if not self.model_path or not os.path.exists(self.model_path):
+            logger.error(f"PyTorch model path invalid or not found: {self.model_path} for {self.model_name}")
+            return False
+        try:
+            # Instantiate SceneSegTrainer - it loads the model internally if checkpoint_path is given
+            self.trainer_instance = SceneSegTrainer(checkpoint_path=self.model_path) # Pass model path to trainer
+            self.trainer_instance.model = self.trainer_instance.model.to(self.device) # Ensure model is on correct device
+            self.trainer_instance.set_eval_mode() # Calls self.model.eval()
+            self.model = self.trainer_instance.model # For ModelInterface.is_loaded()
+            
+            logger.info(f"PyTorch model '{self.model_name}' (via SceneSegTrainer) loaded from '{self.model_path}' to {self.device}")
+            self.get_target_hw()
+            self.get_model_info()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load PyTorch model '{self.model_name}' using SceneSegTrainer: {e}", exc_info=True)
+            self.model = None; self.trainer_instance = None
+            return False
+
+    def _compute_model_info(self) -> Dict[str, Any]:
+        info : Dict[str, Any] = {}
+        if self.model_path and os.path.exists(self.model_path):
+             info['size_bytes'] = os.path.getsize(self.model_path)
+             info['size_mb'] = info['size_bytes'] / (1024 * 1024)
+        info['type'] = 'PyTorch'; info['path'] = self.model_path
+        if self.model:
+            try: info['num_trainable_params'] = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+            except: pass 
+        return info
+
+    def get_target_hw(self) -> Tuple[int, int]:
+        if self._target_hw: return self._target_hw
+        if self._target_hw_override:
+            logger.info(f"Using target H,W override for PyTorch model '{self.model_name}': {self._target_hw_override}")
+            self._target_hw = self._target_hw_override
+            return self._target_hw
+        default_hw = (320, 640) 
+        logger.info(f"PyTorch model '{self.model_name}' effective target H,W (from SceneSegTrainer default or override): {default_hw}. This is mainly for GT resizing if trainer doesn't return a map.")
+        self._target_hw = default_hw
+        return self._target_hw
+
+    def preprocess_input(self, sample_data: Dict[str, Any], target_hw: Tuple[int, int]) -> Dict[str, Any]:
+        # No preprocessing needed since we're passing data directly to validate
+        return sample_data
+
+    def run_inference(self, sample_data: Dict[str, Any]) -> Optional[List[float]]:
+        # For PyTorch, we'll directly use trainer.validate which returns IoU scores
+        if not self.trainer_instance or sample_data is None: 
+            logger.error(f"Trainer instance or sample_data is None for '{self.model_name}'.")
+            return None
+            
+        try:
+            # Directly use validate as shown in the example code
+            # validate expects raw numpy image and gt_list returned by getItemVal
+            IoU_score_full, IoU_score_bg, IoU_score_fg, IoU_score_rd = self.trainer_instance.validate(
+                sample_data['img_np'], sample_data['gt_list']
+            )
+            
+            # Return all IoU scores with full IoU first, just like in training script
+            return [IoU_score_full, IoU_score_bg, IoU_score_fg, IoU_score_rd]
+        except Exception as e:
+            logger.error(f"Error in PyTorchModel.run_inference using validate for '{self.model_name}': {e}", exc_info=True)
+            return None
+            
+    def get_segmentation_map(self) -> Optional[np.ndarray]:
+        """Generates a segmentation map (HW class indices) after validate() has been run.
+           This is used to get the raw prediction map for visualization.
+        """
+        if not self.trainer_instance or self.trainer_instance.image_val_tensor is None:
+            logger.error("PyTorchModel: Trainer instance or its image_val_tensor is not ready for get_segmentation_map. Ensure run_inference (which calls validate) was called first.")
+            return None
+        try:
+            with torch.no_grad():
+                # Ensure model is on the correct device
+                self.trainer_instance.model.to(self.device)
+                self.trainer_instance.image_val_tensor = self.trainer_instance.image_val_tensor.to(self.device)
+                
+                raw_output_tensor = self.trainer_instance.model(self.trainer_instance.image_val_tensor)
+            
+            # Process CHW tensor to HW class index map
+            if raw_output_tensor.ndim == 4 and raw_output_tensor.shape[0] == 1:
+                output_chw_np = raw_output_tensor.squeeze(0).cpu().numpy()
+            elif raw_output_tensor.ndim == 3:
+                output_chw_np = raw_output_tensor.cpu().numpy()
+            else:
+                logger.error(f"PyTorchModel: Unexpected output tensor dim from model: {raw_output_tensor.shape}")
+                return None
+            
+            pred_map_hw = np.argmax(output_chw_np, axis=0).astype(np.uint8)
+            return pred_map_hw
+        except Exception as e:
+            logger.error(f"Error in PyTorchModel.get_segmentation_map: {e}", exc_info=True)
+            return None
+
+################################################################################
+# Evaluation Utilities
+################################################################################
+# IoU calculation is done using the same approach as in SceneSegTrainer:
+# 1. For PyTorch models: directly use trainer.validate() which returns IoU scores
+# 2. For ONNX models: use calc_iou_from_output which mirrors SceneSegTrainer.calc_IoU_val
+#    and uses SceneSegTrainer.IoU for the final calculation
+# This ensures consistency between benchmarking and training evaluation.
+
+################################################################################
+# Benchmarking Orchestration
+################################################################################
+class Benchmarker:
+    """Orchestrates the model benchmarking process.
+
+    This class manages the overall workflow of evaluating multiple models across
+    multiple datasets. It handles:
+    - Warmup runs for each model.
+    - For each model, processes all benchmark samples, collecting inference times and IoU scores.
+    - If enabled, combined visualizations are saved for a few samples per dataset.
+    - Aggregating results (mIoU, per-class IoUs, average inference times) per dataset and overall.
+    """
+    def __init__(self, config: BenchmarkConfig, models_to_benchmark: List[ModelInterface], dataset_loader: BenchmarkDatasetLoader):
+        """Initializes the Benchmarker.
+
+        Args:
+            config: The BenchmarkConfig object with all settings.
+            models_to_benchmark: A list of initialized ModelInterface compliant model handlers.
+            dataset_loader: An initialized BenchmarkDatasetLoader providing the samples.
+        """
+        self.config = config
+        self.models = [m for m in models_to_benchmark if m.is_loaded()] # Only use successfully loaded models
+        self.dataset_loader = dataset_loader
+        # Track visualizations per dataset and model
+        self.visualizations_count = defaultdict(lambda: defaultdict(int))
+        # Create output directory for visualizations
+        if config.save_outputs:
+            self.visualization_dir = os.path.join(config.output_dir_base, "visualizations")
+            os.makedirs(self.visualization_dir, exist_ok=True)
+
+    def _save_pil_combined_visualization(self, sample_data: Dict[str, Any], 
+                                      pred_hw_map: np.ndarray, 
+                                      model_handler: ModelInterface, 
+                                      dataset_name: str, 
+                                      target_vis_hw: Tuple[int,int]) -> None:
+        """Save a combined PIL image: Original | Ground Truth | Prediction."""
+        try:
+            if self.visualizations_count[dataset_name][model_handler.model_name] >= self.config.visualizations_per_dataset:
+                return
+
+            output_subdir = os.path.join(self.visualization_dir, dataset_name)
+            os.makedirs(output_subdir, exist_ok=True)
+            img_basename = os.path.splitext(os.path.basename(sample_data['img_path']))[0]
+
+            # Original Image (from sample_data['img_np'])
+            original_pil = Image.fromarray(sample_data['img_np']).convert("RGB")
+            orig_resized = original_pil.resize((target_vis_hw[1], target_vis_hw[0]), 
+                                             Image.Resampling.BILINEAR if hasattr(Image, 'Resampling') else Image.BILINEAR)
+            
+            # Ground Truth Visualization (from sample_data['gt_list'][0])
+            gt_vis_pil = Image.fromarray(sample_data['gt_list'][0]).convert("RGB") # gt_list[0] is the vis from createGroundTruth
+            gt_vis_resized = gt_vis_pil.resize((target_vis_hw[1], target_vis_hw[0]), 
+                                              Image.Resampling.NEAREST if hasattr(Image, 'Resampling') else Image.NEAREST)
+
+            # Prediction Visualization (using model_handler.get_visualization)
+            pred_vis_pil = model_handler.get_visualization(pred_hw_map, target_vis_hw)
+
+            # Combine: Original | GT | Prediction
+            total_width = target_vis_hw[1] * 3
+            combined_image = Image.new('RGB', (total_width, target_vis_hw[0]))
+            combined_image.paste(orig_resized, (0,0))
+            combined_image.paste(gt_vis_resized, (target_vis_hw[1], 0))
+            combined_image.paste(pred_vis_pil, (target_vis_hw[1]*2, 0))
+            
+            save_path = os.path.join(output_subdir, f"{img_basename}_{model_handler.model_name}_comparison.png")
+            combined_image.save(save_path)
+            
+            self.visualizations_count[dataset_name][model_handler.model_name] += 1
+            logger.info(f"Saved PIL combined visualization for {dataset_name} with {model_handler.model_name} to {save_path}")
+
+        except Exception as e:
+            logger.error(f"Error saving PIL combined visualization: {e}", exc_info=True)
+
+    def run_evaluation(self) -> Dict[str, Dict[str, Any]]:
+        logger.info(f"Starting evaluation for {len(self.models)} models.")
+        all_model_results = defaultdict(lambda: {
+            'iou_data': defaultdict(lambda: {'all_sample_ious': [], 'all_inference_times_ms': [], 'num_samples_processed': 0}),
+            'model_info': {}
+        })
+
+        benchmark_samples = self.dataset_loader.get_samples()
+        if not benchmark_samples:
+            logger.error("No samples loaded by BenchmarkDatasetLoader. Aborting evaluation.")
+            return dict(all_model_results)
+
+        for model_handler in self.models:
+            model_name = model_handler.model_name
+            logger.info(f"--- Evaluating Model: {model_name} ---")
+            all_model_results[model_name]['model_info'] = model_handler.get_model_info()
+            
+            if benchmark_samples:
+                first_sample = benchmark_samples[0]
+                target_hw_warmup = model_handler.get_target_hw()
+                warmup_input = model_handler.preprocess_input(first_sample, target_hw_warmup)
+                if warmup_input is not None:
+                    logger.info(f"Performing {self.config.warmup_runs} warmup runs for {model_name}...")
+                    for _ in range(self.config.warmup_runs): 
+                        _ = model_handler.run_inference(warmup_input)
+                else:
+                    logger.warning(f"Warmup input could not be preprocessed for {model_name}.")
+
+            for sample in tqdm(benchmark_samples, desc=f"Processing {model_name}"):
                 try:
-                    # Get the first output tensor from each model
-                    fp32_output = fp32_results['outputs'][img_path][0]
-                    int8_output = int8_results['outputs'][img_path][0]
+                    img_path = sample['img_path']
+                    ds_name = sample['dataset_key']
                     
-                    # Ensure outputs have same shape for comparison
-                    if fp32_output.shape != int8_output.shape:
-                        logger.warning(f"Output shapes don't match: {fp32_output.shape} vs {int8_output.shape}")
+                    current_target_hw = model_handler.get_target_hw() # H,W for model processing
+                    input_for_handler = model_handler.preprocess_input(sample, current_target_hw)
+                    if input_for_handler is None:
+                        logger.warning(f"Preprocessing failed for {img_path} with model {model_name}. Skipping.")
+                        continue
+
+                    start_t = time.perf_counter()
+                    iou_scores = model_handler.run_inference(input_for_handler)
+                    inference_time_ms = (time.perf_counter() - start_t) * 1000
+
+                    if iou_scores is None:
+                        logger.warning(f"Inference failed for {img_path} with model {model_name}. Skipping.")
                         continue
                     
-                    diff_stats = compare_outputs(fp32_output, int8_output, img_path, output_comp_dir)
-                    all_diffs.append(diff_stats)
+                    iou_score_full = iou_scores[0]
+                    per_class_iou = iou_scores[1:4]
+                        
+                    res_io = all_model_results[model_name]['iou_data']
+                    res_io[ds_name]['all_sample_ious'].append(per_class_iou)
+                    res_io[ds_name]['all_inference_times_ms'].append(inference_time_ms)
+                    res_io[ds_name]['num_samples_processed'] += 1
+                    res_io[ds_name]['full_iou_sum'] = res_io[ds_name].get('full_iou_sum', 0.0) + iou_score_full
                     
-                except Exception as e:
-                    logger.error(f"Error comparing outputs for {os.path.basename(img_path)}: {str(e)}")
-            
-            if all_diffs:
-                # Calculate average differences
-                avg_max_diff = sum(d['max_diff'] for d in all_diffs) / len(all_diffs)
-                avg_mean_diff = sum(d['mean_diff'] for d in all_diffs) / len(all_diffs)
-                
-                logger.info(f"  Average maximum difference: {avg_max_diff:.6f}")
-                logger.info(f"  Average mean difference: {avg_mean_diff:.6f}")
-    
-    logger.info("\n" + "="*50 + "\n")
+                    res_io['Overall']['all_sample_ious'].append(per_class_iou)
+                    res_io['Overall']['all_inference_times_ms'].append(inference_time_ms)
+                    res_io['Overall']['num_samples_processed'] += 1
+                    res_io['Overall']['full_iou_sum'] = res_io['Overall'].get('full_iou_sum', 0.0) + iou_score_full
 
-def main():
+                    if self.config.save_outputs and self.visualizations_count[ds_name][model_name] < self.config.visualizations_per_dataset:
+                        pred_map_hw = None
+                        if isinstance(model_handler, ONNXModel):
+                            pred_map_hw = model_handler.get_segmentation_map(input_for_handler)
+                        elif isinstance(model_handler, PyTorchModel):
+                            pred_map_hw = model_handler.get_segmentation_map() # Uses internal state set by run_inference
+                        
+                        if pred_map_hw is not None:
+                            self._save_pil_combined_visualization(
+                                sample, pred_map_hw, model_handler, ds_name, current_target_hw
+                            )
+                except Exception as e_sample:
+                    logger.error(f"Error processing sample {sample.get('img_path', 'unknown')} with model {model_name}: {e_sample}", exc_info=True)
+
+        # Aggregate final metrics
+        for model_name_res in all_model_results.keys():
+            for key_ds_overall, data_dict in all_model_results[model_name_res]['iou_data'].items():
+                if data_dict['all_sample_ious']:
+                    avg_ious = np.mean(np.array(data_dict['all_sample_ious']), axis=0)
+                    data_dict['avg_ious_per_class'] = avg_ious.tolist()
+                else:
+                    data_dict['avg_ious_per_class'] = [0.0] * len(CLASS_NAMES)
+                
+                num_processed = data_dict['num_samples_processed']
+                if num_processed > 0:
+                    data_dict['mIoU'] = data_dict.get('full_iou_sum', 0.0) / num_processed
+                else:
+                    data_dict['mIoU'] = 0.0
+                
+                data_dict['avg_inference_time_ms'] = float(np.mean(data_dict['all_inference_times_ms'])) if data_dict['all_inference_times_ms'] else 0.0
+        
+        return dict(all_model_results)
+
+################################################################################
+# Reporting Functions
+################################################################################
+def format_single_model_iou_table(model_name_report: str, results_for_model: Dict[str, Any]) -> str:
+    """Formats a string table summarizing mIoU and per-class IoU scores for a single model.
+
+    The table includes scores for the "Overall" category and for each dataset processed.
+    It also lists the number of processed samples and average inference time.
+
+    Args:
+        model_name_report: The name of the model for the report header.
+        results_for_model: The results dictionary for the model, as produced by Benchmarker.
+
+    Returns:
+        A formatted string representing the IoU table for the model.
     """
-    Parse arguments and run benchmarks.
-    """
-    parser = argparse.ArgumentParser(description="Benchmark and compare ONNX models")
-    parser.add_argument("-f", "--fp32_model", required=True,
-                      help="Path to FP32 ONNX model")
-    parser.add_argument("-q", "--int8_model", required=True,
-                      help="Path to INT8 quantized ONNX model")
-    parser.add_argument("-d", "--dataset", required=True,
-                      help="Path to calibration dataset directory")
-    parser.add_argument("--save_outputs", action="store_true",
-                      help="Save model outputs and comparisons (default: False)")
-    parser.add_argument("--output_dir", type=str, default="./benchmark_outputs",
-                      help="Directory to save outputs (default: ./benchmark_outputs)")
+    if 'iou_data' not in results_for_model or not results_for_model['iou_data']:
+        return f"--- {model_name_report} mIoU Scores ---\nNo IoU data available.\n"
+
+    header = f"--- {model_name_report} mIoU Scores ---"
+    iou_data = results_for_model['iou_data']
+    # Ensure 'Overall' is present
+    if 'Overall' not in iou_data: iou_data['Overall'] = {'avg_ious_per_class': [0.0]*len(CLASS_NAMES), 'mIoU':0.0, 'num_samples_processed':0, 'avg_inference_time_ms':0.0}
     
+    dataset_keys = sorted([k for k in iou_data.keys() if k != 'Overall' and iou_data[k].get('num_samples_processed', 0) > 0])
+    columns = ["Metric"] + ["Overall"] + dataset_keys
+    
+    table_str = f"{header}\n{' | '.join(columns)}\n{'|-' * len(columns)}\n"
+    
+    # First row is always full mIoU (calculated as sum/count)
+    row_values = ["mIoU (full)"]
+    # Overall column
+    overall_data_dict = iou_data['Overall']
+    val = overall_data_dict.get('mIoU', 0.0)
+    row_values.append(f"{val:.3f}")
+    # Per-dataset columns
+    for ds_key in dataset_keys:
+        ds_data_dict = iou_data.get(ds_key, {})
+        val_ds = ds_data_dict.get('mIoU', 0.0)
+        row_values.append(f"{val_ds:.3f}")
+    table_str += f"{' | '.join(row_values)}\n"
+    
+    # Add per-class IoU rows
+    class_names = CLASS_NAMES
+    for class_idx, class_name in enumerate(class_names):
+        row_values = [f"{class_name} IoU"]
+        # Overall column
+        overall_data_dict = iou_data['Overall']
+        val = overall_data_dict.get('avg_ious_per_class', [0.0]*len(class_names))[class_idx]
+        row_values.append(f"{val:.3f}")
+        # Per-dataset columns
+        for ds_key in dataset_keys:
+            ds_data_dict = iou_data.get(ds_key, {})
+            val_ds = ds_data_dict.get('avg_ious_per_class', [0.0]*len(class_names))[class_idx]
+            row_values.append(f"{val_ds:.3f}")
+        table_str += f"{' | '.join(row_values)}\n"
+    
+    num_s_overall = iou_data['Overall'].get('num_samples_processed', 0)
+    processed_samples_str = f"Processed Samples (Overall): {num_s_overall}"
+    for ds_key in dataset_keys:
+        num_s_ds = iou_data[ds_key].get('num_samples_processed', 0)
+        if num_s_ds > 0: processed_samples_str += f", {ds_key}: {num_s_ds}"
+    table_str += f"\n{processed_samples_str}\n" if num_s_overall > 0 else "\nNo samples processed for IoU.\n"
+
+    avg_time_overall = iou_data['Overall'].get('avg_inference_time_ms', 0.0)
+    table_str += f"Avg. Inference Time (Overall): {avg_time_overall:.2f} ms\n"
+    
+    model_info_dict = results_for_model.get('model_info', {})
+    model_size_mb = model_info_dict.get('size_mb', 0.0)
+    if model_size_mb > 0 : table_str += f"Model Size: {model_size_mb:.2f} MB\n"
+    
+    return table_str
+
+def generate_full_comparison_report(all_results: Dict[str, Dict[str, Any]], config: BenchmarkConfig) -> None:
+    """Generates and logs a comprehensive comparison report for all benchmarked models.
+
+    This function first logs the detailed IoU table for each model using
+    format_single_model_iou_table. Then, it prints a summary table comparing
+    key performance indicators (mIoU, average time, model size) across all models.
+
+    Args:
+        all_results: A dictionary containing results for all benchmarked models.
+        config: The BenchmarkConfig object (currently unused in this function but
+                could be used for future enhancements to the report).
+    """
+    logger.info("\n" + "="*70 + "\nCOMPREHENSIVE MODEL COMPARISON REPORT\n" + "="*70)
+    for model_name_key, results_for_one_model in all_results.items():
+        logger.info(format_single_model_iou_table(model_name_key, results_for_one_model))
+    
+    logger.info("\n--- Key Performance Indicators (Overall) ---")
+    # Simple comparison for now, can be expanded
+    for model_name_key, results_for_one_model in all_results.items():
+        overall_data = results_for_one_model.get('iou_data',{}).get('Overall',{})
+        miou = overall_data.get('mIoU',0.0)
+        avg_time = overall_data.get('avg_inference_time_ms',0.0)
+        size_mb = results_for_one_model.get('model_info',{}).get('size_mb')
+        logger.info(f"Model: {model_name_key:<15} | mIoU: {miou:.4f} | Avg Time: {avg_time:>7.2f} ms {f'| Size: {size_mb:.2f} MB' if size_mb else ''}")
+    logger.info("="*70 + "\n")
+
+################################################################################
+# Main Orchestration
+################################################################################
+def main() -> int:
+    """Main function to parse arguments, set up, and run the benchmarking process.
+
+    Parses command-line arguments, initializes configuration and loaders,
+    instantiates model handlers, runs the benchmarking through the Benchmarker class,
+    and finally generates the report.
+
+    Returns:
+        0 on successful completion, 1 on error.
+    """
+    parser = argparse.ArgumentParser(description="Benchmark PyTorch and ONNX models with mIoU.")
+    parser.add_argument("--pytorch_model_path", type=str, help="Path to PyTorch (.pth) model checkpoint.")
+    parser.add_argument("--fp32_model_path", type=str, help="Path to FP32 ONNX model.")
+    parser.add_argument("--int8_model_path", type=str, help="Path to INT8 ONNX model.")
+    parser.add_argument("--dataset_root", type=str, help="Root directory of segmentation datasets.")
+    parser.add_argument("--num_samples_per_dataset", type=int, default=20, help="Max samples per dataset (default: 20).")
+    parser.add_argument("--warmup_runs", type=int, default=3, help="Warmup runs (default: 3).")
+    parser.add_argument("--save_outputs", action="store_true", help="Save output visualizations.")
+    parser.add_argument("--output_dir_base", type=str, default="./benchmark_multimodel_results", help="Base dir for outputs.")
+    parser.add_argument("--pytorch_target_hw", type=str, help="Target H,W for PyTorch model e.g., '320,640'. If None, uses SceneSegTrainer default.")
+    parser.add_argument("--onnx_target_hw", type=str, help="Target H,W for ONNX models e.g., '320,640'. If None, derived from FP32 model.")
+    parser.add_argument("--device", type=str, default="cpu", help="Device for PyTorch model ('cpu' or 'cuda:0' etc.)")
+    parser.add_argument("--visualizations_per_dataset", type=int, default=2, help="Number of visualizations to save per dataset (default: 2).")
+
     args = parser.parse_args()
     
-    logger.info("Starting ONNX model benchmarking")
-    logger.info(f"FP32 model: {args.fp32_model}")
-    logger.info(f"INT8 model: {args.int8_model}")
-    logger.info(f"Dataset: {args.dataset}")
-    logger.info("Using default settings: 5 images, 5 runs per image, 3 warmup runs")
+    # Parse H,W string arguments
+    pytorch_hw = None
+    if args.pytorch_target_hw:
+        try: pytorch_hw = tuple(map(int, args.pytorch_target_hw.split(',')))
+        except: logger.error("Invalid --pytorch_target_hw format. Use H,W (e.g., 320,640).")
     
-    # Set up output directory with timestamp if saving outputs
-    output_dir = None
-    if args.save_outputs:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = f"{args.output_dir}/benchmark_{timestamp}"
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Will save outputs to: {output_dir}")
-        
-        # Check if directory is writable
-        try:
-            test_file = os.path.join(output_dir, "test.txt")
-            with open(test_file, 'w') as f:
-                f.write("test")
-            os.remove(test_file)
-        except Exception as e:
-            logger.error(f"Output directory is not writable: {str(e)}")
-            logger.error("Will continue without saving outputs")
-            args.save_outputs = False
-            output_dir = None
+    onnx_hw_override = None
+    if args.onnx_target_hw:
+        try: onnx_hw_override = tuple(map(int, args.onnx_target_hw.split(',')))
+        except: logger.error("Invalid --onnx_target_hw format.")
 
-    # Get system info
-    logger.info("\nSystem Information:")
-    logger.info(f"  OS: {platform.system()} {platform.release()}")
-    logger.info(f"  CPU: {platform.processor()}")
-    logger.info(f"  Python: {platform.python_version()}")
-    logger.info(f"  ONNX Runtime: {onnxruntime.__version__}")
-    logger.info(f"  Available providers: {onnxruntime.get_available_providers()}")
-    
-    # Load calibration images
-    calibration_images = load_calibration_images(args.dataset)
-    if not calibration_images:
-        logger.error("Failed to load calibration images. Exiting.")
-        return
-    
-    # Benchmark FP32 model
-    logger.info("\nBenchmarking FP32 model...")
-    fp32_results = benchmark_model(
-        args.fp32_model, 
-        calibration_images, 
-        runs=5,
-        warmup_runs=3,
+    # Create the config directly from args
+    config = BenchmarkConfig(
+        pytorch_model_path=args.pytorch_model_path,
+        fp32_model_path=args.fp32_model_path,
+        int8_model_path=args.int8_model_path,
+        dataset_root=args.dataset_root,
+        num_samples_per_dataset=args.num_samples_per_dataset,
+        warmup_runs=args.warmup_runs,
         save_outputs=args.save_outputs,
-        output_dir=os.path.join(output_dir, "fp32") if output_dir else None
+        output_dir_base=args.output_dir_base,
+        pytorch_target_hw=pytorch_hw,
+        onnx_target_hw=onnx_hw_override,
+        visualizations_per_dataset=args.visualizations_per_dataset
     )
+
+    logger.info(f"Initializing Multi-Model Benchmarking with Config: {config}")
+    logger.info(f"System: {platform.system()} {platform.release()}, Python: {platform.python_version()}, ONNXRuntime: {onnxruntime.__version__}, PyTorch: {torch.__version__ if PYTORCH_AVAILABLE else 'N/A'}")
+
+    if not config.pytorch_model_path and not config.fp32_model_path and not config.int8_model_path:
+        logger.error("No models specified for benchmarking. Exiting.")
+        return 1
+
+    # Setup output directory
+    if config.save_outputs:
+        try:
+            os.makedirs(config.output_dir_base, exist_ok=True)
+            # Subdirectory for visualizations
+            os.makedirs(os.path.join(config.output_dir_base, "visualizations"), exist_ok=True) 
+            logger.info(f"Outputs will be saved under: {config.output_dir_base}")
+        except Exception as e:
+            logger.error(f"Could not create output directory {config.output_dir_base}: {e}. Disabling output saving.")
+            config.save_outputs = False
     
-    # Benchmark INT8 model
-    logger.info("\nBenchmarking INT8 model...")
-    int8_results = benchmark_model(
-        args.int8_model, 
-        calibration_images, 
-        runs=5,
-        warmup_runs=3,
-        save_outputs=args.save_outputs,
-        output_dir=os.path.join(output_dir, "int8") if output_dir else None
-    )
+    try:
+        dataset_loader = BenchmarkDatasetLoader(config.dataset_root, config.num_samples_per_dataset)
+        if not dataset_loader.get_samples(): return 1 # Exit if no data
+    except RuntimeError as e: # Handles LoadDataSceneSeg unavailability
+        logger.error(f"Dataset loading failed: {e}. Exiting.")
+        return 1
+
+    models_to_evaluate: List[ModelInterface] = []
     
-    # Compare results
-    compare_models(fp32_results, int8_results, output_dir)
+    # Determine ONNX target H,W (from FP32 model if available and no override)
+    final_onnx_target_hw = config.onnx_target_hw
+    if not final_onnx_target_hw and config.fp32_model_path:
+        temp_onnx_fp32_handler = ONNXModel(config.fp32_model_path, "temp_fp32_for_shape")
+        if temp_onnx_fp32_handler.load_model():
+            try:
+                final_onnx_target_hw = temp_onnx_fp32_handler.get_target_hw()
+                logger.info(f"Derived ONNX target H,W from FP32 model: {final_onnx_target_hw}")
+            except ValueError: # Raised if get_target_hw fails
+                pass # Keep final_onnx_target_hw as None, will be handled by individual ONNXModel init
+        del temp_onnx_fp32_handler
+
+    # Load models based on provided paths
+    if config.pytorch_model_path and PYTORCH_AVAILABLE:
+        pytorch_handler = PyTorchModel(config.pytorch_model_path, "PyTorch_FP32", args.device, config.pytorch_target_hw)
+        if pytorch_handler.load_model(): models_to_evaluate.append(pytorch_handler)
+    
+    if config.fp32_model_path:
+        onnx_fp32_handler = ONNXModel(config.fp32_model_path, "ONNX_FP32", target_hw_override=final_onnx_target_hw)
+        if onnx_fp32_handler.load_model(): models_to_evaluate.append(onnx_fp32_handler)
+
+    if config.int8_model_path:
+        onnx_int8_handler = ONNXModel(config.int8_model_path, "ONNX_INT8", target_hw_override=final_onnx_target_hw)
+        if onnx_int8_handler.load_model(): models_to_evaluate.append(onnx_int8_handler)
+
+    if not models_to_evaluate:
+        logger.error("No models were successfully loaded for benchmarking. Exiting.")
+        return 1
+
+    benchmarker_orchestrator = Benchmarker(config, models_to_evaluate, dataset_loader)
+    all_results = benchmarker_orchestrator.run_evaluation()
+
+    generate_full_comparison_report(all_results, config)
+    
+    logger.info("Benchmarking process finished.")
+    return 0
 
 if __name__ == "__main__":
-    main() 
+    sys.exit(main()) 
