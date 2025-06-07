@@ -5,19 +5,62 @@ import json
 import os
 import shutil
 import math
-from PIL import Image, ImageDraw
 import warnings
-from datetime import datetime
 import numpy as np
-from pprint import pprint
+from PIL import Image, ImageDraw
+
+
+anomaly_dict = {
+    "one-sided-anchors" : {
+        "count" : 0,
+        "list" : []
+    },
+    "non-mid-egopath" : {
+        "count" : 0,
+        "list" : {}
+    },
+    "too-short-egopath" : {
+        "count" : 0,
+        "list" : {}
+    },
+    "too-steep-egopath" : {
+        "count" : 0,
+        "list" : {}
+    },
+}
+
+
+# ============================= Format functions ============================= #
+
+
+def round_line_floats(line, ndigits = 6):
+    line = list(line)
+    for i in range(len(line)):
+        line[i] = [
+            round(line[i][0], ndigits),
+            round(line[i][1], ndigits)
+        ]
+    line = tuple(line)
+    return line
+
+
+def add_anomaly(frame_id, anomaly_code, drivable_path = None):
+    anomaly_dict[anomaly_code]["count"] += 1
+    if (drivable_path):
+        anomaly_dict[anomaly_code]["list"][frame_id] = drivable_path
+    else:
+        anomaly_dict[anomaly_code]["list"].append(frame_id)
+
 
 # Custom warning format cuz the default one is wayyyyyy too verbose
-def custom_warning_format(message, category, filename, lineno, line=None):
+def custom_warning_format(message, category, filename, lineno, line = None):
     return f"WARNING : {message}\n"
 
 warnings.formatwarning = custom_warning_format
 
+
 # ============================== Helper functions ============================== #
+
 
 def normalizeCoords(line, width, height):
     """
@@ -89,21 +132,24 @@ def getLineAnchor(line, new_img_height):
     return (x0, a, b)
 
 
-def getEgoIndexes(anchors, new_img_width):
+def getEgoIndexes(frame_id, anchors, new_img_width):
     """
     Identifies 2 ego lanes - left and right - from a sorted list of line anchors.
     """
     for i in range(len(anchors)):
         if (anchors[i][0] >= new_img_width / 2):
             if (i == 0):
+                add_anomaly(frame_id, "one-sided-anchors")
                 return "NO LINES on the LEFT side of frame. Something's sussy out there!"
             left_ego_idx, right_ego_idx = i - 1, i
             return (left_ego_idx, right_ego_idx)
-
+        
+    add_anomaly(frame_id, "one-sided-anchors")
     return "NO LINES on the RIGHT side of frame. Something's sussy out there!"
 
 
 def getDrivablePath(
+        frame_id,
         left_ego, right_ego, 
         new_img_height, new_img_width, 
         y_coords_interp = False
@@ -206,10 +252,13 @@ def getDrivablePath(
     )))
 
     if not (new_img_width * LEFT_ANCHOR_BOUNDARY <= drivable_path[0][0] <= new_img_width * (1 - RIGHT_ANCHOR_BOUNDARY)):
+        add_anomaly(frame_id, "non-mid-egopath", drivable_path)
         return f"Drivable path has anchor point out of heuristic boundary [{LEFT_ANCHOR_BOUNDARY} , {1 - RIGHT_ANCHOR_BOUNDARY}], ignoring this frame!"
     elif not (drivable_path[-1][1] < new_img_height * (1 - HEIGHT_BOUNDARY)):
+        add_anomaly(frame_id, "too-short-egopath", drivable_path)
         return f"Drivable path has length not exceeding heuristic length of {HEIGHT_BOUNDARY * 100}% frame height, ignoring this frame!"
     elif not (drivable_path_angle_deg >= ANGLE_BOUNDARY):
+        add_anomaly(frame_id, "too-steep-egopath", drivable_path)
         return f"Drivable path has angle not exceeding heuristic angle of {ANGLE_BOUNDARY} degrees, ignoring this frame!"
 
     return drivable_path
@@ -217,7 +266,7 @@ def getDrivablePath(
 
 def annotateGT(
         raw_img, anno_entry,
-        raw_dir, visualization_dir, mask_dir,
+        raw_dir, visualization_dir,
         init_img_width, init_img_height,
         normalized = True,
         resize = None,
@@ -227,7 +276,6 @@ def annotateGT(
     Annotates and saves an image with:
         - Raw image, in "output_dir/image".
         - Annotated image with all lanes, in "output_dir/visualization".
-        - Binary segmentation mask of drivable path, in "output_dir/segmentation".
     """
 
     # Define save name
@@ -297,17 +345,12 @@ def annotateGT(
         drivable_renormed = anno_entry["drivable_path"]
     draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
 
-    # Save visualization img, same format with raw, just different dir
-    raw_img.save(os.path.join(visualization_dir, save_name))
-
-    # Working on binary mask
-    mask = Image.new("L", (new_img_width, new_img_height), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.line(drivable_renormed, fill = 255, width = lane_w)
-    mask.save(os.path.join(mask_dir, save_name))
+    # Save visualization img, same format with raw, just different dir, and jpg since it's vis 
+    raw_img.save(os.path.join(visualization_dir, save_name.replace("png", "jpg")))
 
 
 def parseAnnotations(
+        frame_id,
         anno_path, 
         init_img_width,
         init_img_height,
@@ -387,6 +430,7 @@ def parseAnnotations(
             ]
 
             ego_indexes = getEgoIndexes(
+                frame_id,
                 [anchor[1] for anchor in line_anchors],
                 new_img_width
             )
@@ -401,6 +445,7 @@ def parseAnnotations(
 
             # Determine drivable path from 2 egos, and switch on interp cuz this is CurveLanes
             drivable_path = getDrivablePath(
+                frame_id,
                 left_ego, right_ego,
                 new_img_height, new_img_width,
                 y_coords_interp = True
@@ -416,11 +461,9 @@ def parseAnnotations(
                         for line in lines_sortedBy_anchor
                     ],
                     "ego_indexes" : ego_indexes,
-                    "drivable_path" : normalizeCoords(
-                        drivable_path, 
-                        new_img_width, 
-                        new_img_height
-                    ),
+                    "drivable_path" : normalizeCoords(drivable_path, new_img_width, new_img_height),
+                    "egoleft_lane" : normalizeCoords(left_ego, new_img_width, new_img_height),
+                    "egoright_lane" : normalizeCoords(right_ego, new_img_width, new_img_height),
                     "img_width" : new_img_width,
                     "img_height" : new_img_height,
                 }
@@ -468,7 +511,7 @@ if __name__ == "__main__":
 
     # ====== Heuristic boundaries of drivable path for automatic auditing ====== #
 
-    LEFT_ANCHOR_BOUNDARY = RIGHT_ANCHOR_BOUNDARY = 0.2
+    LEFT_ANCHOR_BOUNDARY = RIGHT_ANCHOR_BOUNDARY = 0.25
     HEIGHT_BOUNDARY = 0.15
     ANGLE_BOUNDARY = 30
 
@@ -494,7 +537,6 @@ if __name__ == "__main__":
         type = int,
         help = "Sampling step for each split/class",
         required = False,
-        default = 5
     )
     # For debugging only
     parser.add_argument(
@@ -511,14 +553,14 @@ if __name__ == "__main__":
 
     # Parse sampling step
     if (args.sampling_step):
-        pprint(f"Sampling step set to {args.sampling_step}.")
         sampling_step = args.sampling_step
     else:
         sampling_step = 1
+    print(f"Sampling step set to {sampling_step}.")
 
     # Parse early stopping
     if (args.early_stopping):
-        pprint(f"Early stopping set, each split/class stops after {args.early_stopping} files.")
+        print(f"Early stopping set, each split/class stops after {args.early_stopping} files.")
         early_stopping = args.early_stopping
     else:
         early_stopping = None
@@ -527,11 +569,14 @@ if __name__ == "__main__":
     """
     --output_dir
         |----image
-        |----segmentation
         |----visualization
         |----drivable_path.json
     """
-    list_subdirs = ["image", "segmentation", "visualization"]
+    list_subdirs = [
+        "image", 
+        # "segmentation",   # Removed on 2025/06/05 
+        "visualization"
+    ]
     if (os.path.exists(output_dir)):
         warnings.warn(f"Output directory {output_dir} already exists. Purged")
         shutil.rmtree(output_dir)
@@ -578,6 +623,7 @@ if __name__ == "__main__":
                 anno_path = img_path.replace(".jpg", ".lines.json").replace(IMG_DIR, LABEL_DIR)
 
                 this_data = parseAnnotations(
+                    frame_id = os.path.abspath(img_path),
                     anno_path = anno_path,
                     init_img_width = img_width,
                     init_img_height = img_height,
@@ -591,7 +637,6 @@ if __name__ == "__main__":
                         anno_entry = this_data,
                         raw_dir = os.path.join(output_dir, "image"),
                         visualization_dir = os.path.join(output_dir, "visualization"),
-                        mask_dir = os.path.join(output_dir, "segmentation"),
                         init_img_height = img_height,
                         init_img_width = img_width,
                         resize = resize,
@@ -601,7 +646,9 @@ if __name__ == "__main__":
                     # Save as 6-digit incremental index
                     img_index = str(str(img_id_counter).zfill(6))
                     data_master[img_index] = {}
-                    data_master[img_index]["drivable_path"] = this_data["drivable_path"]
+                    data_master[img_index]["drivable_path"] = round_line_floats(this_data["drivable_path"])
+                    data_master[img_index]["egoleft_lane"] = round_line_floats(this_data["egoleft_lane"])
+                    data_master[img_index]["egoright_lane"] = round_line_floats(this_data["egoright_lane"])
                     data_master[img_index]["img_height"] = this_data["img_height"]
                     data_master[img_index]["img_width"] = this_data["img_width"]
 
@@ -612,3 +659,7 @@ if __name__ == "__main__":
     # Save master data
     with open(os.path.join(output_dir, "drivable_path.json"), "w") as f:
         json.dump(data_master, f, indent = 4)
+
+    # Save discarded data
+    with open(os.path.join(output_dir, "anomaly.json"), "w") as f:
+        json.dump(anomaly_dict, f, indent = 4)
