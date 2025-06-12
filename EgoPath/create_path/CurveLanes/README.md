@@ -47,7 +47,7 @@ Each image, upon being parsed into those functions, will have 2 params of `origi
 # `pov_datasets` includes `Curvelanes` directory in this case
 # Sampling rate 5 (also by default)
 # Process first 100 images, then stop (for a quick run, instead of going through 150k images)
-python EgoPath/create_path/CurveLanes/process_curvelanes.py --dataset_dir ../pov_datasets --output_dir ../pov_datasets/Output --sampling_step 5 --early_stopping 100
+python3 EgoPath/create_path/CurveLanes/process_curvelanes.py --dataset_dir ../pov_datasets --output_dir ../pov_datasets/Output --sampling_step 5 --early_stopping 100
 ```
 
 ## III. Functions
