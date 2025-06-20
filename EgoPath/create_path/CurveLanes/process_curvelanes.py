@@ -10,26 +10,6 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 
-anomaly_dict = {
-    "one-sided-anchors" : {
-        "count" : 0,
-        "list" : []
-    },
-    "non-mid-egopath" : {
-        "count" : 0,
-        "list" : {}
-    },
-    "too-short-egopath" : {
-        "count" : 0,
-        "list" : {}
-    },
-    "too-steep-egopath" : {
-        "count" : 0,
-        "list" : {}
-    },
-}
-
-
 # ============================= Format functions ============================= #
 
 
@@ -42,14 +22,6 @@ def round_line_floats(line, ndigits = 6):
         ]
     line = tuple(line)
     return line
-
-
-def add_anomaly(frame_id, anomaly_code, drivable_path = None):
-    anomaly_dict[anomaly_code]["count"] += 1
-    if (drivable_path):
-        anomaly_dict[anomaly_code]["list"][frame_id] = drivable_path
-    else:
-        anomaly_dict[anomaly_code]["list"].append(frame_id)
 
 
 # Custom warning format cuz the default one is wayyyyyy too verbose
@@ -132,26 +104,25 @@ def getLineAnchor(line, new_img_height):
     return (x0, a, b)
 
 
-def getEgoIndexes(frame_id, anchors, new_img_width):
+def getEgoIndexes(anchors, new_img_width):
     """
     Identifies 2 ego lanes - left and right - from a sorted list of line anchors.
     """
     for i in range(len(anchors)):
         if (anchors[i][0] >= new_img_width / 2):
             if (i == 0):
-                add_anomaly(frame_id, "one-sided-anchors")
-                return "NO LINES on the LEFT side of frame. Something's sussy out there!"
-            left_ego_idx, right_ego_idx = i - 1, i
-            return (left_ego_idx, right_ego_idx)
-        
-    add_anomaly(frame_id, "one-sided-anchors")
-    return "NO LINES on the RIGHT side of frame. Something's sussy out there!"
+                print("NO LINES on the LEFT side of frame. Registering FIRST 2 lines on the right side as egolines.")
+                return (i, i + 1)
+            
+            return (i - 1, i)
+    
+    print("NO LINES on the RIGHT side of frame. Registering LAST 2 lines on the left side as egolines.")
+    return (-2, -1)
 
 
 def getDrivablePath(
-        frame_id,
         left_ego, right_ego, 
-        new_img_height, new_img_width, 
+        new_img_height,
         y_coords_interp = False
 ):
     """
@@ -243,23 +214,6 @@ def getDrivablePath(
                     x_top = x1 + (y_top - y1) / a
 
                 drivable_path.append((x_top, y_top))
-
-    # Now check drivable path's params for automatic auditting
-
-    drivable_path_angle_deg = math.degrees(math.atan(float(
-        abs(drivable_path[-1][1] - drivable_path[0][1]) / \
-        abs(drivable_path[-1][0] - drivable_path[0][0])
-    )))
-
-    if not (new_img_width * LEFT_ANCHOR_BOUNDARY <= drivable_path[0][0] <= new_img_width * (1 - RIGHT_ANCHOR_BOUNDARY)):
-        add_anomaly(frame_id, "non-mid-egopath", drivable_path)
-        return f"Drivable path has anchor point out of heuristic boundary [{LEFT_ANCHOR_BOUNDARY} , {1 - RIGHT_ANCHOR_BOUNDARY}], ignoring this frame!"
-    elif not (drivable_path[-1][1] < new_img_height * (1 - HEIGHT_BOUNDARY)):
-        add_anomaly(frame_id, "too-short-egopath", drivable_path)
-        return f"Drivable path has length not exceeding heuristic length of {HEIGHT_BOUNDARY * 100}% frame height, ignoring this frame!"
-    elif not (drivable_path_angle_deg >= ANGLE_BOUNDARY):
-        add_anomaly(frame_id, "too-steep-egopath", drivable_path)
-        return f"Drivable path has angle not exceeding heuristic angle of {ANGLE_BOUNDARY} degrees, ignoring this frame!"
 
     return drivable_path
 
@@ -364,12 +318,15 @@ def parseAnnotations(
     with open(anno_path, "r") as f:
         read_data = json.load(f)["Lines"]
         if (len(read_data) < 2):    # Some files are empty, or having less than 2 lines
-            warnings.warn(f"Parsing {anno_path} : insufficient line amount: {len(read_data)}")
+            warnings.warn(f"Parsing {anno_path} : insufficient line amount: {len(read_data)} in raw data. Skipping this frame.")
             return None
         else:
-            # Parse data from those JSON lines
+            # Parse data from those JSON lines, also sort by y
             lines = [
-                [(float(point["x"]), float(point["y"])) for point in line]
+                sorted([(float(point["x"]), float(point["y"])) for point in line],
+                    key = lambda x: x[1], 
+                    reverse = True
+                )
                 for line in read_data
             ]
 
@@ -410,7 +367,7 @@ def parseAnnotations(
             # Remove empty lanes
             lines = [line for line in lines if (line and len(line) >= 2)]   # Pick lines with >= 2 points
             if (len(lines) < 2):    # Ignore frames with less than 2 lines
-                warnings.warn(f"Parsing {anno_path}: insufficient line amount after cropping: {len(lines)}")
+                warnings.warn(f"Parsing {anno_path}: insufficient line amount after cropping: {len(lines)}. Skipping this frame.")
                 return None
             
             # Determine 2 ego lines via line anchors
@@ -430,7 +387,6 @@ def parseAnnotations(
             ]
 
             ego_indexes = getEgoIndexes(
-                frame_id,
                 [anchor[1] for anchor in line_anchors],
                 new_img_width
             )
@@ -445,9 +401,8 @@ def parseAnnotations(
 
             # Determine drivable path from 2 egos, and switch on interp cuz this is CurveLanes
             drivable_path = getDrivablePath(
-                frame_id,
                 left_ego, right_ego,
-                new_img_height, new_img_width,
+                new_img_height,
                 y_coords_interp = True
             )
 
@@ -508,12 +463,6 @@ if __name__ == "__main__":
 
     # For interping lines with soooooooo few points, 2~3 or so
     LINE_INTERP_THRESHOLD = 5
-
-    # ====== Heuristic boundaries of drivable path for automatic auditing ====== #
-
-    LEFT_ANCHOR_BOUNDARY = RIGHT_ANCHOR_BOUNDARY = 0.25
-    HEIGHT_BOUNDARY = 0.15
-    ANGLE_BOUNDARY = 30
 
     # ============================== Parsing args ============================== #
 
@@ -659,7 +608,3 @@ if __name__ == "__main__":
     # Save master data
     with open(os.path.join(output_dir, "drivable_path.json"), "w") as f:
         json.dump(data_master, f, indent = 4)
-
-    # Save discarded data
-    with open(os.path.join(output_dir, "anomaly.json"), "w") as f:
-        json.dump(anomaly_dict, f, indent = 4)
