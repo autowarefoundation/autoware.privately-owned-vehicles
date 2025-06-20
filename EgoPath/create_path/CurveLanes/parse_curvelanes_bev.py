@@ -127,14 +127,27 @@ def polyfit_BEV(
     )
     x_new = f(y_new)
 
-    fitted_bev_egopath = tuple(zip(x_new, y_new))
+    # Sort by decreasing y
+    fitted_bev_egopath = sorted(
+        tuple(zip(x_new, y_new)),
+        key = lambda x: x[1],
+        reverse = True
+    )
 
-    flag_list = [
-        True if (0 <= point[0] <= BEV_W) else False
-        for point in fitted_bev_egopath
-    ]
+    flag_list = [0] * len(fitted_bev_egopath)
+    for i in range(len(fitted_bev_egopath)):
+        if (not 0 <= fitted_bev_egopath[i][0] <= BEV_W):
+            flag_list[i - 1] = 1
+            break
+    if (not 1 in flag_list):
+        flag_list[-1] = 1
+
+    validity_list = [1] * len(fitted_bev_egopath)
+    last_valid_index = flag_list.index(1)
+    for i in range(last_valid_index + 1, len(validity_list)):
+        validity_list[i] = 0
     
-    return fitted_bev_egopath, flag_list
+    return fitted_bev_egopath, flag_list, validity_list
 
 
 def imagePointTuplize(point: PointCoords) -> ImagePointCoords:
@@ -175,18 +188,26 @@ def findSourcePointsBEV(
     # CALCULATING LE AND RE BASED ON LATEST ALGORITHM
 
     midanchor_start = [(sps["LS"][0] + sps["RS"][0]) / 2, h]
-    left_deg = math.degrees(math.atan(anchor_left[1])) % 180
-    right_deg = math.degrees(math.atan(anchor_right[1])) % 180
-    mid_deg = (left_deg + right_deg) / 2
-    mid_grad = - math.tan(math.radians(mid_deg))
-    mid_intercept = h - mid_grad * midanchor_start[0]
-
     ego_height = max(egoleft[-1][1], egoright[-1][1]) * 1.05
-    midanchor_end = [
-        (ego_height - mid_intercept) / mid_grad,
-        ego_height
-    ]
-    original_end_w = interpX(egoright, ego_height) - interpX(egoleft, ego_height)
+    # print(f"egoheight = {ego_height} with egoleft[-1][1] = {egoleft[-1][1]} and egoright[-1][1] = {egoright[-1][1]}")
+
+    # Both egos have Null anchors
+    if ((not anchor_left[1]) and (not anchor_right[1])):
+        midanchor_end = [midanchor_start[0], h]
+        original_end_w = sps["RS"][0] - sps["LS"][0]
+
+    else:
+        left_deg = 90 if (not anchor_left[1]) else math.degrees(math.atan(anchor_left[1])) % 180
+        right_deg = 90 if (not anchor_right[1]) else math.degrees(math.atan(anchor_right[1])) % 180
+        mid_deg = (left_deg + right_deg) / 2
+        mid_grad = - math.tan(math.radians(mid_deg))
+        mid_intercept = h - mid_grad * midanchor_start[0]
+        midanchor_end = [
+            (ego_height - mid_intercept) / mid_grad,
+            ego_height
+        ]
+        original_end_w = interpX(egoright, ego_height) - interpX(egoleft, ego_height)
+
     sps["LE"] = [
         midanchor_end[0] - original_end_w / 2,
         ego_height
@@ -214,10 +235,14 @@ def transformBEV(
     h, w, _ = img.shape
 
     # Renorm/tuplize drivable path
+    # print(egopath)
     egopath = [
         (point[0] * w, point[1] * h) for point in egopath
         if (point[1] * h >= sps["ego_h"])
     ]
+    # print(egopath)
+    if (not egopath):
+        return (None, None, None, None, None)
 
     # Interp more points for original egopath
     egopath = interpLine(egopath, MIN_POINTS)
@@ -256,14 +281,14 @@ def transformBEV(
     ]
 
     # Polyfit BEV egopath to get 33-coords format with flags
-    bev_egopath, flag_list = polyfit_BEV(
+    bev_egopath, flag_list, validity_list = polyfit_BEV(
         bev_egopath = bev_egopath,
         order = POLYFIT_ORDER,
         y_step = BEV_Y_STEP,
         y_limit = BEV_H
     )
 
-    return im_dst, bev_egopath, flag_list, mat
+    return (im_dst, bev_egopath, flag_list, validity_list, mat)
 
 
 # ============================== Main run ============================== #
@@ -351,6 +376,7 @@ if __name__ == "__main__":
     for frame_id, frame_content in json_data.items():
 
         counter += 1
+        # print(frame_id)
 
         # Acquire frame
         frame_img_path = os.path.join(
@@ -370,13 +396,20 @@ if __name__ == "__main__":
             egoleft = this_frame_data["egoleft_lane"],
             egoright = this_frame_data["egoright_lane"]
         )
+        # print(sps_dict)
 
         # Transform to BEV space
-        im_dst, bev_egopath, flag_list, mat = transformBEV(
+        
+        (im_dst, bev_egopath, flag_list, validity_list, mat) = transformBEV(
             img = img,
             egopath = this_frame_data["drivable_path"],
             sps = sps_dict
         )
+
+        # Skip if invalid frame (due to too high ego_height value)
+        if (not bev_egopath):
+            print(f"Skipped frame ID = {frame_id} due to Null EgoPath from BEV transformation algorithm.")
+            continue
 
         # Save stuffs
         annotateGT(
@@ -388,35 +421,32 @@ if __name__ == "__main__":
             normalized = False
         )
 
-        # Round, normalize egopath, and sort by descending y (with flag)
-        zipped_path_flag = sorted(
-            zip(
-                round_line_floats(
-                    normalizeCoords(
-                        bev_egopath,
-                        width = BEV_W,
-                        height = BEV_H
-                    )
-                ),
-                flag_list
+        # Round, normalize egopath
+        zipped_path_flag = zip(
+            round_line_floats(
+                normalizeCoords(
+                    bev_egopath,
+                    width = BEV_W,
+                    height = BEV_H
+                )
             ),
-            key = lambda point: point[0][1],
-            reverse = True
+            flag_list,
+            validity_list
         )
-        bev_egopath = [
-            zipped_ent[0]
-            for zipped_ent in zipped_path_flag
-        ]
-        flag_list = [
-            zipped_ent[1]
-            for zipped_ent in zipped_path_flag
-        ]
+        # bev_egopath = [
+        #     zipped_ent[0]
+        #     for zipped_ent in zipped_path_flag
+        # ]
+        # flag_list = [
+        #     zipped_ent[1]
+        #     for zipped_ent in zipped_path_flag
+        # ]
 
         # Register this frame GT to master JSON
         # Each point has tuple format (x, y, flag)
         data_master[frame_id] = [
-            (point[0], point[1], flag)
-            for point, flag in list(zip(bev_egopath, flag_list))
+            (point[0], point[1], flag, valid)
+            for point, flag, valid in list(zip(bev_egopath, flag_list, validity_list))
         ]
 
         # Break if early_stopping reached
