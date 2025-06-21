@@ -53,6 +53,12 @@ class Augmentations():
             ]
         )
 
+        self.transform_shape_bev = A.Compose(
+            [
+                A.Resize(width = 320, height = 640),   
+            ]
+        )
+
         # ========================== Noise transforms ========================== #
 
         self.transform_noise = A.Compose(
@@ -207,7 +213,7 @@ class Augmentations():
         if (self.is_train):
 
             # Resize image
-            self.adjust_shape = self.transform_shape_test(image = self.image)
+            self.adjust_shape = self.transform_shape_bev(image = self.image)
             self.augmented_image = self.adjust_shape["image"]
 
             # Apply random image augmentations
@@ -220,7 +226,7 @@ class Augmentations():
         else:
 
             # Only resize the image without any augmentations
-            self.adjust_shape = self.transform_shape_test(image = self.image)
+            self.adjust_shape = self.transform_shape_bev(image = self.image)
             self.augmented_image = self.adjust_shape["image"]
 
         return self.augmented_image

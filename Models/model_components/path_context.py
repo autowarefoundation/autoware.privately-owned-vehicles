@@ -38,7 +38,7 @@ class PathContext(nn.Module):
         c2 = self.sigmoid(c2)
         
         # Reshape
-        c3 = c2.reshape([10, 20])
+        c3 = c2.reshape([20, 10])
         c3 = c3.unsqueeze(0)
         c3 = c3.unsqueeze(0)
         
