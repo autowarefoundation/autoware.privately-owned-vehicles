@@ -110,14 +110,14 @@ def annotateGT(
     drawLine(
         img = img,
         line = renormed_bev_egoleft,
-        color = COLOR_EGOPATH
+        color = COLOR_EGOLEFT
     )
 
     # Egoright
     drawLine(
         img = img,
         line = renormed_bev_egoright,
-        color = COLOR_EGOPATH
+        color = COLOR_EGORIGHT
     )
 
     # Save visualization img in vis dir, as JPG (saving storage space)
