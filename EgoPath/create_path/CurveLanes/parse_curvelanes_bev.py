@@ -235,21 +235,21 @@ def findSourcePointsBEV(
 
 def transformBEV(
     img: np.ndarray,
-    egopath: list,
+    line: list,
     sps: dict
 ):
     h, w, _ = img.shape
 
-    # Renorm/tuplize drivable path
-    egopath = [
-        (point[0] * w, point[1] * h) for point in egopath
+    # Renorm/tuplize line
+    line = [
+        (point[0] * w, point[1] * h) for point in line
         if (point[1] * h >= sps["ego_h"])
     ]
-    if (not egopath):
+    if (not line):
         return (None, None, None, None, None)
 
-    # Interp more points for original egopath
-    egopath = interpLine(egopath, MIN_POINTS)
+    # Interp more points for original line
+    line = interpLine(line, MIN_POINTS)
 
     # Get transformation matrix
     mat, _ = cv2.findHomography(
@@ -274,25 +274,25 @@ def transformBEV(
     )
 
     # Transform egopath
-    bev_egopath = np.array(
-        egopath,
+    line = np.array(
+        line,
         dtype = np.float32
     ).reshape(-1, 1, 2)
-    bev_egopath = cv2.perspectiveTransform(bev_egopath, mat)
-    bev_egopath = [
+    line = cv2.perspectiveTransform(line, mat)
+    line = [
         tuple(map(int, point[0])) 
-        for point in bev_egopath
+        for point in line
     ]
 
     # Polyfit BEV egopath to get 33-coords format with flags
-    bev_egopath, flag_list, validity_list = polyfit_BEV(
-        bev_egopath = bev_egopath,
+    line, flag_list, validity_list = polyfit_BEV(
+        line = line,
         order = POLYFIT_ORDER,
         y_step = BEV_Y_STEP,
         y_limit = BEV_H
     )
 
-    return (im_dst, bev_egopath, flag_list, validity_list, mat)
+    return (im_dst, line, flag_list, validity_list, mat)
 
 
 # ============================== Main run ============================== #
@@ -407,11 +407,14 @@ if __name__ == "__main__":
 
             # Transform to BEV space
             
+            # Drivable path
             (im_dst, bev_egopath, flag_list, validity_list, mat) = transformBEV(
                 img = img,
                 egopath = this_frame_data["drivable_path"],
                 sps = sps_dict
             )
+
+            
 
             # Skip if invalid frame (due to too high ego_height value)
             if (not bev_egopath):
