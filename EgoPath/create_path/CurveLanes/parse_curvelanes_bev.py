@@ -119,13 +119,13 @@ def interpX(line, y):
 
 
 def polyfit_BEV(
-    bev_egopath: list,
+    line: list,
     order: int,
     y_step: int,
     y_limit: int
 ):
-    x = [point[0] for point in bev_egopath]
-    y = [point[1] for point in bev_egopath]
+    x = [point[0] for point in line]
+    y = [point[1] for point in line]
     z = np.polyfit(y, x, order)
     f = np.poly1d(z)
     y_new = np.linspace(
@@ -135,26 +135,26 @@ def polyfit_BEV(
     x_new = f(y_new)
 
     # Sort by decreasing y
-    fitted_bev_egopath = sorted(
+    fitted_bev_line = sorted(
         tuple(zip(x_new, y_new)),
         key = lambda x: x[1],
         reverse = True
     )
 
-    flag_list = [0] * len(fitted_bev_egopath)
-    for i in range(len(fitted_bev_egopath)):
-        if (not 0 <= fitted_bev_egopath[i][0] <= BEV_W):
+    flag_list = [0] * len(fitted_bev_line)
+    for i in range(len(fitted_bev_line)):
+        if (not 0 <= fitted_bev_line[i][0] <= BEV_W):
             flag_list[i - 1] = 1
             break
     if (not 1 in flag_list):
         flag_list[-1] = 1
 
-    validity_list = [1] * len(fitted_bev_egopath)
+    validity_list = [1] * len(fitted_bev_line)
     last_valid_index = flag_list.index(1)
     for i in range(last_valid_index + 1, len(validity_list)):
         validity_list[i] = 0
     
-    return fitted_bev_egopath, flag_list, validity_list
+    return fitted_bev_line, flag_list, validity_list
 
 
 def imagePointTuplize(point: PointCoords) -> ImagePointCoords:
@@ -496,6 +496,7 @@ if __name__ == "__main__":
 
         except Exception as e:
             log_skipped(frame_id, str(e))
+            print(f"Skipped frame {frame_id} due to error: {e}")
             continue
 
         # Break if early_stopping reached
