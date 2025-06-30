@@ -88,7 +88,7 @@ def main():
 
         # Read image and get ID
         image_file = str(images[i])
-        image_file_id = image_file.replace(images_filepath, '')
+        image_file_id = image_file[len(images_filepath):] # image_file.replace(images_filepath, '')
         image_file_id = image_file_id[0:-4]
 
         # Get corresponding label ID from image ID
