@@ -463,7 +463,34 @@ if __name__ == "__main__":
                         validity_list
                     ))
                 ],
-                
+                "egoleft" : [
+                    (point[0], point[1], flag, valid)
+                    for point, flag, valid in list(zip(
+                        round_line_floats(
+                            normalizeCoords(
+                                bev_egoleft,
+                                width = BEV_W,
+                                height = BEV_H
+                            )
+                        ), 
+                        flag_list_egoleft, 
+                        validity_list_egoleft
+                    ))
+                ],
+                "egoright" : [
+                    (point[0], point[1], flag, valid)
+                    for point, flag, valid in list(zip(
+                        round_line_floats(
+                            normalizeCoords(
+                                bev_egoright,
+                                width = BEV_W,
+                                height = BEV_H
+                            )
+                        ), 
+                        flag_list_egoright, 
+                        validity_list_egoright
+                    ))
+                ],
                 "transform_matrix" : mat.tolist()
             }
 
