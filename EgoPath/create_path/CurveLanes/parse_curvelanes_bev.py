@@ -77,18 +77,46 @@ def annotateGT(
         img
     )
 
-    # Draw egopath
+    # Draw all lines: BEV egopath, BEV egoleft, BEV egoright
+
+    # Renorm first if needed
     if (normalized):
         h, w, _ = img.shape
         renormed_bev_egopath = [
             (x * w, y * h) 
             for x, y in bev_egopath
         ]
+        renormed_bev_egoleft = [
+            (x * w, y * h) 
+            for x, y in bev_egoleft
+        ]
+        renormed_bev_egoright = [
+            (x * w, y * h) 
+            for x, y in bev_egoright
+        ]
     else:
         renormed_bev_egopath = bev_egopath
+        renormed_bev_egoleft = bev_egoleft
+        renormed_bev_egoright = bev_egoright
+
+    # Egopath
     drawLine(
         img = img,
         line = renormed_bev_egopath,
+        color = COLOR_EGOPATH
+    )
+
+    # Egoleft
+    drawLine(
+        img = img,
+        line = renormed_bev_egoleft,
+        color = COLOR_EGOPATH
+    )
+
+    # Egoright
+    drawLine(
+        img = img,
+        line = renormed_bev_egoright,
         color = COLOR_EGOPATH
     )
 
@@ -326,7 +354,9 @@ if __name__ == "__main__":
     BEV_Y_STEP = 20
     POLYFIT_ORDER = 2
 
-    COLOR_EGOPATH = (0, 255, 255)   # Yellow (BGR)
+    COLOR_EGOPATH  = (0, 255, 255)      # Yellow (BGR)
+    COLOR_EGOLEFT  = (144, 238, 144)    # Light green (BGR)
+    COLOR_EGORIGHT = (225, 225, 0)      # Cyan (BGR)
 
     # PARSING ARGS
 
