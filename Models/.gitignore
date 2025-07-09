@@ -1,0 +1,22 @@
+
+# Ignore runs and build directories
+*.mp4
+*.avi
+*.pt
+*.onnx
+*.pth
+runs/*
+visualizations/Onnx/build/*
+exports/libtorch/build/*
+exports/onnx_rt/build/*
+exports/export_utils/benchmark_multimodel_results/*
+exports/export_utils/runs/*
+exports/onnx_rt/build/*
+quantize_components/runs/*
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore Python scripts temporarily (if you don't want them tracked for now)
+quantize_components/*.py

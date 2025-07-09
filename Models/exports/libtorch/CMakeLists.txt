@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
 project(deploy_libtorch)
 
 ## These should be variables (TODO)
