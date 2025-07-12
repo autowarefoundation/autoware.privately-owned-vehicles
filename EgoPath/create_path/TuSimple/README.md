@@ -198,3 +198,6 @@ Structure of `output_dir`:
     |----visualization
     |----drivable_path.json
 ```
+
+python3 EgoPath/create_path/TuSimple/process_tusimple.py --dataset_dir ../pov_datasets/ --output_dir ../pov_datasets/TUSIMPLE
+python3 EgoPath/create_path/TuSimple/parse_tusimple_bev.py --dataset_dir ../pov_datasets/TUSIMPLE/

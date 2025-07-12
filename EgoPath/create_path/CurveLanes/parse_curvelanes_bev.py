@@ -260,10 +260,10 @@ def transformBEV(
             sps["RE"]
         ]),
         dstPoints = np.array([
-            BEV_pts["LS"],
-            BEV_pts["RS"],
-            BEV_pts["LE"],
-            BEV_pts["RE"],
+            BEV_PTS["LS"],
+            BEV_PTS["RS"],
+            BEV_PTS["LE"],
+            BEV_PTS["RE"],
         ])
     )
 
@@ -314,7 +314,7 @@ if __name__ == "__main__":
 
     MIN_POINTS = 30
 
-    BEV_pts = {
+    BEV_PTS = {
         "LS" : [120, 640],          # Left start
         "RS" : [200, 640],          # Right start
         "LE" : [120, 0],            # Left end
