@@ -16,6 +16,17 @@ warnings.formatwarning = custom_warning_format
 
 # ============================== Helper functions ============================== #
 
+def roundLineFloats(line, ndigits = 4):
+    line = list(line)
+    for i in range(len(line)):
+        line[i] = [
+            round(line[i][0], ndigits),
+            round(line[i][1], ndigits)
+        ]
+    line = tuple(line)
+    return line
+
+
 def normalizeCoords(lane, width, height):
     """
     Normalize the coords of lane points.
@@ -40,7 +51,7 @@ def getLaneAnchor(lane):
         return (x1, None, None)
     a = (y2 - y1) / (x2 - x1)
     b = y1 - a * x1
-    x0 = (img_height - b) / a
+    x0 = (H - b) / a
     
     return (x0, a, b)
 
@@ -51,7 +62,7 @@ def getEgoIndexes(anchors):
 
     """
     for i in range(len(anchors)):
-        if (anchors[i][0] >= img_width / 2):
+        if (anchors[i][0] >= W / 2):
             if (i == 0):
                 return "NO LANES on the LEFT side of frame. Something's sussy out there!"
             left_ego_idx, right_ego_idx = i - 1, i
@@ -88,8 +99,8 @@ def getDrivablePath(left_ego, right_ego):
             x_bottom = x2
         else:
             a = (y2 - y1) / (x2 - x1)
-            x_bottom = x2 + (img_height - y2) / a
-        drivable_path.append((x_bottom, img_height))
+            x_bottom = x2 + (H - y2) / a
+        drivable_path.append((x_bottom, H))
 
     # Extend drivable path to be on par with longest ego lane
     # By making it parallel with longer ego lane
@@ -126,16 +137,14 @@ def getDrivablePath(left_ego, right_ego):
 
 
 def annotateGT(
-        anno_entry, anno_raw_file, 
-        raw_dir, visualization_dir, mask_dir,
-        img_width, img_height,
-        normalized = True
+    anno_entry, anno_raw_file, 
+    raw_dir, visualization_dir,
+    normalized = True
 ):
     """
     Annotates and saves an image with:
         - Raw image, in "output_dir/image".
         - Annotated image with all lanes, in "output_dir/visualization".
-        - Binary segmentation mask of drivable path, in "output_dir/segmentation".
 
     """
 
@@ -161,7 +170,7 @@ def annotateGT(
     # Draw lanes
     for idx, lane in enumerate(anno_entry["lanes"]):
         if (normalized):
-            lane = [(x * img_width, y * img_height) for x, y in lane]
+            lane = [(x * W, y * H) for x, y in lane]
         if (idx in anno_entry["ego_indexes"]):
             # Ego lanes, in green
             draw.line(lane, fill = lane_colors["ego_green"], width = lane_w)
@@ -170,19 +179,16 @@ def annotateGT(
             draw.line(lane, fill = lane_colors["outer_red"], width = lane_w)
     # Drivable path, in yellow
     if (normalized):
-        drivable_renormed = [(x * img_width, y * img_height) for x, y in anno_entry["drivable_path"]]
+        drivable_renormed = [(x * W, y * H) for x, y in anno_entry["drivable_path"]]
     else:
         drivable_renormed = anno_entry["drivable_path"]
     draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
 
-    # Save visualization img, same format with raw, just different dir
-    raw_img.save(os.path.join(visualization_dir, save_name))
-
-    # Working on binary mask
-    mask = Image.new("L", (img_width, img_height), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.line(drivable_renormed, fill = 255, width = lane_w)
-    mask.save(os.path.join(mask_dir, save_name))
+    # Save visualization img, JPG for lighter weight, just different dir
+    raw_img.save(os.path.join(
+        visualization_dir, 
+        save_name.replace(".png", ".jpg")
+    ))
 
 def parseAnnotations(anno_path):
     """
@@ -224,11 +230,32 @@ def parseAnnotations(anno_path):
 
         # Parse processed data, all coords normalized
         anno_data[raw_file] = {
-            "lanes" : [normalizeCoords(lane, img_width, img_height) for lane in lanes_decoupled],
+            "lanes" : [
+                roundLineFloats(normalizeCoords(lane, W, H)) 
+                for lane in lanes_decoupled
+            ],
             "ego_indexes" : ego_indexes,
-            "drivable_path" : normalizeCoords(drivable_path, img_width, img_height),
-            "img_width" : img_width,
-            "img_height" : img_height,
+            "drivable_path" : roundLineFloats(
+                normalizeCoords(
+                    drivable_path, 
+                    W, 
+                    H
+                )
+            ),
+            "egoleft_lane" : roundLineFloats(
+                normalizeCoords(
+                    left_ego, 
+                    W, 
+                    H
+                )
+            ),
+            "egoright_lane" : roundLineFloats(
+                normalizeCoords(
+                    right_ego, 
+                    W, 
+                    H
+                )
+            ),
         }
 
     return anno_data
@@ -245,8 +272,8 @@ if __name__ == "__main__":
     train_clip_codes = ["0313", "0531", "0601"] # Train labels are split into 3 dirs
     test_file = "test_label.json"               # Test file name
 
-    img_width = 1280
-    img_height = 720
+    W = 1280
+    H = 720
 
     # ============================== Parsing args ============================== #
 
@@ -263,23 +290,36 @@ if __name__ == "__main__":
         type = str, 
         help = "Output directory"
     )
+    # For debugging only
+    parser.add_argument(
+        "--early_stopping",
+        type = int,
+        help = "Num. files each split/class you wanna limit, instead of whole set.",
+        required = False
+    )
     args = parser.parse_args()
 
     # Generate output structure
     """
     --output_dir
         |----image
-        |----segmentation
         |----visualization
         |----drivable_path.json
     """
     dataset_dir = args.dataset_dir
     output_dir = args.output_dir
-    list_subdirs = ["image", "segmentation", "visualization"]
+    list_subdirs = ["image", "visualization"]
     for subdir in list_subdirs:
         subdir_path = os.path.join(output_dir, subdir)
         if (not os.path.exists(subdir_path)):
             os.makedirs(subdir_path, exist_ok = True)
+
+    # Parse early stopping
+    if (args.early_stopping):
+        print(f"Early stopping set, stops after {args.early_stopping} files.")
+        early_stopping = args.early_stopping
+    else:
+        early_stopping = None
 
     # ============================== Parsing annotations ============================== #
 
@@ -310,6 +350,11 @@ if __name__ == "__main__":
 
             # Conduct index increment
             img_id_counter += 1
+
+            # Early stopping, it defined
+            if (early_stopping and img_id_counter >= early_stopping - 1):
+                break
+            
             #set_dir = "/".join(anno_file.split("/")[ : -1]) # Slap "train_set" or "test_set" to the end  <-- Specific to linux hence used os.path.dirname command below
             set_dir= os.path.dirname(anno_file)
             set_dir = os.path.join(set_dir, test_dir) if test_file in anno_file else set_dir    # Tricky test dir
@@ -320,20 +365,33 @@ if __name__ == "__main__":
                 anno_entry,
                 anno_raw_file = os.path.join(set_dir, raw_file), 
                 raw_dir = os.path.join(output_dir, "image"),
-                visualization_dir = os.path.join(output_dir, "visualization"),
-                mask_dir = os.path.join(output_dir, "segmentation"),
-                img_height = anno_entry["img_height"],
-                img_width = anno_entry["img_width"],
+                visualization_dir = os.path.join(output_dir, "visualization")
             )
 
-            # Pop redundant keys
-            del anno_entry["lanes"]
-            del anno_entry["ego_indexes"]
-            # Change `raw_file` to 6-digit incremental index
-            this_data[str(img_id_counter).zfill(6)] = anno_entry
-            this_data.pop(raw_file)
+            # Reorder all lines by decreasing y
+            anno_entry["drivable_path"] = sorted(
+                anno_entry["drivable_path"],
+                key = lambda p: p[1],
+                reverse = True
+            )
+            anno_entry["egoleft_lane"] = sorted(
+                anno_entry["egoleft_lane"],
+                key = lambda p: p[1],
+                reverse = True
+            )
+            anno_entry["egoright_lane"] = sorted(
+                anno_entry["egoright_lane"],
+                key = lambda p: p[1],
+                reverse = True
+            )
 
-        data_master.update(this_data)
+            # Change `raw_file` to 6-digit incremental index
+            data_master[str(img_id_counter).zfill(6)] = {
+                "drivable_path" : anno_entry["drivable_path"],
+                "egoleft_lane" : anno_entry["egoleft_lane"],
+                "egoright_lane" : anno_entry["egoright_lane"]
+            }
+
         print(f"Processed {len(this_data)} entries in above file.\n")
 
     print(f"Done processing data with {len(data_master)} entries in total.\n")
