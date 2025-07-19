@@ -1,1 +1,90 @@
 # SCENE SEG
+
+This project demonstrates using Zenoh to run a Scene Segmentation model with the ONNX Runtime.
+
+Two applications are built:
+
+* `deploy_onnx_rt` (`main.cpp`): Processes a single input image and saves a visualized output image.
+* `video_visualization` (`video_visualization.cpp`): Processes an input video file and saves a new video with the segmentation results overlaid.
+
+## Dependencies
+
+* **CUDA**: Optional for GPU processing.
+* **OpenCV**: For image and video processing.
+  * Ubuntu: `sudo apt install libopencv-dev`
+* **ONNX Runtime**: For model inference.
+  * Download from [the GitHub release](https://github.com/microsoft/onnxruntime/releases)
+* **LibTorch**: Required *only* for the `deploy_onnx_rt` (single image) tool for its tensor manipulation capabilities.
+  * Download from [the PyTorch website](https://pytorch.org/get-started/locally/)
+* **Zenoh C library**: Required for the transportation.
+  * Download from [the GitHub release](https://github.com/eclipse-zenoh/zenoh-c/releases)
+  * You can also add the Eclipse repository for apt server.
+  
+    ```shell
+    echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee -a /etc/apt/sources.list > /dev/null
+    sudo apt update
+    sudo apt install libzenohc-dev
+    ```
+
+* **SceneSeg Model and Weights**
+  * [Link to Download Pytorch Model Weights *.pth](https://drive.google.com/file/d/1vCZMdtd8ZbSyHn1LCZrbNKMK7PQvJHxj/view?usp=sharing)
+  * [Link to Download Traced Pytorch Model *.pt](https://drive.google.com/file/d/1G2pKrjEGLGY1ouQdNPh11N-5LlmDI7ES/view?usp=drive_link)
+  * [Link to Download ONNX FP32 Weights *.onnx](https://drive.google.com/file/d/1l-dniunvYyFKvLD7k16Png3AsVTuMl9f/view?usp=drive_link)
+
+## Build
+
+* Environment setup
+
+```shell
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+```
+
+* Configure with cmake
+
+```shell
+mkdir build && cd build
+cmake .. \
+    -DLIBTORCH_INSTALL_ROOT=/path/to/libtorch/ \
+    -DONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0 \
+    -DUSE_CUDA_BACKEND=True
+```
+
+* Build
+
+```shell
+make
+```
+
+## Usage
+
+After a successful build, you will find two executables in the `build` directory.
+
+### Image Visualization
+
+Processes a single image and produces two output image files.
+
+**Command:**
+
+```bash
+./deploy_onnx_rt <path_to_model.onnx> <path_to_input_image.png>
+```
+
+**Output:**
+
+* `output_seg_mask.jpg`: The pure segmentation mask.
+* `output_image.jpg`: The input image with the segmentation mask overlaid.
+
+### Video Visualization
+
+Processes a video file and produces a new video file with segmentation overlaid.
+
+**Command:**
+
+```bash
+./video_visualization <path_to_model.onnx> <path_to_input_video.mp4>
+```
+
+**Output:**
+
+* A new video file named `<input_video_name>_seg.avi` (e.g., `my_video_seg.avi`) in the build directory.
