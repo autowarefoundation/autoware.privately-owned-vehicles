@@ -1,0 +1,38 @@
+{
+    "type": "vehicle.lincoln.mkz",
+    "id": "hero",
+    "sensors": [
+        {
+            "type": "sensor.camera.rgb",
+            "id": "main_cam",
+            "spawn_point": {"x": 1.0, "y": 0.0, "z": 1.3, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "image_size_x": 1280,
+                "image_size_y": 720,
+                "fov": 120.0
+            }
+        },
+        {
+            "type": "sensor.camera.rgb",
+            "id": "long_range_cam",
+            "spawn_point": {"x": 1.25, "y": 0.0, "z": 1.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "image_size_x": 1280,
+                "image_size_y": 720,
+                "fov": 30.0
+            }
+        },
+        {
+            "type": "sensor.other.radar",
+            "id": "radar",
+            "spawn_point": {"x": 0.5, "y": 0.0, "z": 1.2, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "range": 100,
+                "points_per_second": 1500,
+                "horizontal_fov": 30.0,
+                "vertical_fov": 30.0,
+                "sensor_tick": 0.0
+            }
+        }
+    ]
+}
