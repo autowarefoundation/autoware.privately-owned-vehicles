@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>autoware_pov_domain_seg</name>
+  <version>1.0.0</version>
+  <description>Real-time domain segmentation using ONNX Runtime and TensorRT backends</description>
+  <maintainer email="dev@autoware.org">Autoware POV Team</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Core ROS2 dependencies -->
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>sensor_msgs</depend>
+  <depend>image_transport</depend>
+  <depend>cv_bridge</depend>
+
+  <!-- OpenCV -->
+  <depend>libopencv-dev</depend>
+
+  <!-- System dependencies for CUDA, TensorRT, ONNX Runtime -->
+  <!-- These are typically installed separately on the system -->
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package> 
