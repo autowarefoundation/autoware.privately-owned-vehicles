@@ -52,9 +52,6 @@ if(onnxruntime_USE_CUDA)
 endif()
 
 ## Build & Link
-add_executable(deploy_onnx_rt main.cpp)
-target_link_libraries(deploy_onnx_rt PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_imgcodecs)
-
 add_executable(video_visualization video_visualization.cpp 
                                    #scene_seg/src/tensorrt_backend.cpp
                                    scene_seg/src/onnx_runtime_backend.cpp

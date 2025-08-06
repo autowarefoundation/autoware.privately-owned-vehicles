@@ -2,9 +2,6 @@
 
 This project demonstrates using Zenoh to run a Scene Segmentation model with the ONNX Runtime.
 
-Two applications are built:
-
-* `deploy_onnx_rt` (`main.cpp`): Processes a single input image and saves a visualized output image.
 * `video_visualization` (`video_visualization.cpp`): Processes an input video file and saves a new video with the segmentation results overlaid.
 
 ## Dependencies
@@ -14,7 +11,7 @@ Two applications are built:
   * Ubuntu: `sudo apt install libopencv-dev`
 * **ONNX Runtime**: For model inference.
   * Download from [the GitHub release](https://github.com/microsoft/onnxruntime/releases)
-* **LibTorch**: Required *only* for the `deploy_onnx_rt` (single image) tool for its tensor manipulation capabilities.
+* **LibTorch**: For tensor manipulation capabilities.
   * Download from [the PyTorch website](https://pytorch.org/get-started/locally/)
 * **Zenoh C library**: Required for the transportation.
   * Download from [the GitHub release](https://github.com/eclipse-zenoh/zenoh-c/releases)
@@ -62,21 +59,6 @@ make
 ## Usage
 
 After a successful build, you will find two executables in the `build` directory.
-
-### Image Visualization
-
-Processes a single image and produces two output image files.
-
-**Command:**
-
-```bash
-./deploy_onnx_rt <path_to_model.onnx> <path_to_input_image.png>
-```
-
-**Output:**
-
-* `output_seg_mask.jpg`: The pure segmentation mask.
-* `output_image.jpg`: The input image with the segmentation mask overlaid.
 
 ### Video Visualization
 
