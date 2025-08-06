@@ -19,6 +19,8 @@ using namespace std;
 #define VIDEO_INPUT_KEYEXPR "scene_segmentation/video/input"
 #define VIDEO_OUTPUT_KEYEXPR "scene_segmentation/video/output"
 
+#define RECV_BUFFER_SIZE 100
+
 // Add DNNL provider includes if enabled via compile-time flags
 #if USE_EP_DNNL
     #include <dnnl_provider_options.h> 
@@ -174,7 +176,7 @@ int main(int argc, char* argv[]) {
         z_view_keyexpr_from_str(&in_ke, input_keyexpr.c_str());
         z_owned_fifo_handler_sample_t handler;
         z_owned_closure_sample_t closure;
-        z_fifo_channel_sample_new(&closure, &handler, 16);
+        z_fifo_channel_sample_new(&closure, &handler, RECV_BUFFER_SIZE);
         if (z_declare_subscriber(z_loan(s), &sub, z_loan(in_ke), z_move(closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + input_keyexpr);
         }

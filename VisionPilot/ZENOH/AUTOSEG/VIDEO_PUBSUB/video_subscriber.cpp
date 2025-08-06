@@ -16,6 +16,8 @@ using namespace std;
 
 #define DEFAULT_KEYEXPR "scene_segmentation/video"
 
+#define RECV_BUFFER_SIZE 100
+
 int main(int argc, char** argv) {
     // Parse command line arguments
     CLI::App app{"Zenoh video subscriber example"};
@@ -39,7 +41,7 @@ int main(int argc, char** argv) {
          z_view_keyexpr_from_str(&ke, keyexpr.c_str());
         z_owned_fifo_handler_sample_t handler;
         z_owned_closure_sample_t closure;
-        z_fifo_channel_sample_new(&closure, &handler, 16);
+        z_fifo_channel_sample_new(&closure, &handler, RECV_BUFFER_SIZE);
         if (z_declare_subscriber(z_loan(s), &sub, z_loan(ke), z_move(closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(keyexpr));
         }
