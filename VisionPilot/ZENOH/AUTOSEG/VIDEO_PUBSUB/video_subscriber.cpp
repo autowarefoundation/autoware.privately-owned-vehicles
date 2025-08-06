@@ -15,7 +15,6 @@ using namespace cv;
 using namespace std; 
 
 #define DEFAULT_KEYEXPR "scene_segmentation/video"
-
 #define RECV_BUFFER_SIZE 100
 
 int main(int argc, char** argv) {
@@ -81,6 +80,19 @@ int main(int argc, char** argv) {
             if (cv::waitKey(1) == 27) { // Stop if 'ESC' is pressed
                 std::cout << "Processing stopped by user." << std::endl;
                 break;
+            }
+
+            // Print frame rate
+            static int frame_count = 0;
+            static auto start_time = std::chrono::steady_clock::now();
+            frame_count++;
+            auto current_time = std::chrono::steady_clock::now();
+            auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+            if (elapsed_time > 0) {
+                double fps = static_cast<double>(frame_count) / elapsed_time;
+                std::cout << "Current FPS: " << fps << std::endl;
+                frame_count = 0;
+                start_time = current_time;
             }
         }
 
