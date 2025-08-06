@@ -41,7 +41,9 @@ include_directories("${ONNXRUNTIME_ROOTDIR}/include"
                     "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/session"
                     "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/providers/dnnl"    # DNNL Backend Support
                     ${OpenCV_INCLUDE_DIRS}                                              # OpenCV
-                    ${TORCH_INCLUDE_DIRS})                                              # Torch
+                    ${TORCH_INCLUDE_DIRS}                                               # Torch
+                    "scene_seg/include"                                                 # Scene Segmentation
+                   )
 
 link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
 
@@ -53,5 +55,8 @@ endif()
 add_executable(deploy_onnx_rt main.cpp)
 target_link_libraries(deploy_onnx_rt PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_imgcodecs)
 
-add_executable(video_visualization video_visualization.cpp)
+add_executable(video_visualization video_visualization.cpp 
+                                   #scene_seg/src/tensorrt_backend.cpp
+                                   scene_seg/src/onnx_runtime_backend.cpp
+                                   scene_seg/src/scene_seg.cpp)
 target_link_libraries(video_visualization PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
