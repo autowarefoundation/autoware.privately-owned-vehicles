@@ -4,22 +4,15 @@
 #include <stdexcept>
 #include <chrono>
 
-#include <onnxruntime_cxx_api.h>
-
-#include <opencv2/core.hpp>
-#include <opencv2/videoio.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
 #include <CLI/CLI.hpp>
 #include <zenoh.h>
 
 #include "scene_seg.hpp"
 
-using namespace autoware_pov::AutoSeg::SceneSeg;
-
 using namespace cv; 
 using namespace std; 
+
+using namespace autoware_pov::AutoSeg::SceneSeg;
 
 #define VIDEO_INPUT_KEYEXPR "scene_segmentation/video/input"
 #define VIDEO_OUTPUT_KEYEXPR "scene_segmentation/video/output"
@@ -76,7 +69,6 @@ int main(int argc, char* argv[]) {
         // Subscribe to the input key expression and process frames
         std::cout << "Subscribing to '" << input_keyexpr << "'..." << std::endl;
         std::cout << "Publishing results to '" << output_keyexpr << "'..." << std::endl;
-        Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         z_owned_sample_t sample;
 
         // For performance estimation
@@ -158,10 +150,6 @@ int main(int argc, char* argv[]) {
         z_drop(z_move(sub));
         z_drop(z_move(s));
         cv::destroyAllWindows();
-
-    } catch (const Ort::Exception& e) {
-        std::cerr << "ONNX Runtime error: " << e.what() << std::endl;
-        return -1;
     } catch (const std::exception& e) {
         std::cerr << "Standard error: " << e.what() << std::endl;
         return -1;
