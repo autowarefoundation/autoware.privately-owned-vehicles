@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <chrono>
 
 #include <onnxruntime_cxx_api.h>
 
@@ -193,7 +194,13 @@ int main(int argc, char* argv[]) {
         std::cout << "Publishing results to '" << output_keyexpr << "'..." << std::endl;
         Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         z_owned_sample_t sample;
+
+        // For performance estimation
+        int frame_count = 0;
+        auto start_time = std::chrono::steady_clock::now();
+
         while (Z_OK == z_recv(z_loan(handler), &sample)) {
+            auto processing_start_time = std::chrono::steady_clock::now();
             // Get the loaned sample and extract the payload
             const z_loaned_sample_t* loaned_sample = z_loan(sample);
             z_owned_slice_t zslice;
@@ -260,6 +267,21 @@ int main(int argc, char* argv[]) {
             z_owned_bytes_t payload_out;
             z_bytes_copy_from_buf(&payload_out, pixelPtr, dataSize);
             z_publisher_put(z_loan(pub), z_move(payload_out), &options);
+
+            // Estimate processing time and frequency
+            auto processing_end_time = std::chrono::steady_clock::now();
+            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(processing_end_time - processing_start_time).count();
+
+            frame_count++;
+            auto current_time = std::chrono::steady_clock::now();
+            auto elapsed_s = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+
+            if (elapsed_s >= 1) {
+                double fps = static_cast<double>(frame_count) / elapsed_s;
+                std::cout << "Processing time: " << elapsed_ms << "ms, FPS: " << fps << std::endl;
+                frame_count = 0;
+                start_time = current_time;
+            }
         }
         
         // Cleanup

@@ -15,6 +15,7 @@ using namespace cv;
 using namespace std; 
 
 #define DEFAULT_KEYEXPR "scene_segmentation/video"
+
 #define RECV_BUFFER_SIZE 100
 
 int main(int argc, char** argv) {
