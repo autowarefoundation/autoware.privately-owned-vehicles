@@ -175,9 +175,9 @@ int main(int argc, char* argv[]) {
         z_owned_subscriber_t sub;
         z_view_keyexpr_t in_ke;
         z_view_keyexpr_from_str(&in_ke, input_keyexpr.c_str());
-        z_owned_fifo_handler_sample_t handler;
+        z_owned_ring_handler_sample_t handler;
         z_owned_closure_sample_t closure;
-        z_fifo_channel_sample_new(&closure, &handler, RECV_BUFFER_SIZE);
+        z_ring_channel_sample_new(&closure, &handler, RECV_BUFFER_SIZE);
         if (z_declare_subscriber(z_loan(s), &sub, z_loan(in_ke), z_move(closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + input_keyexpr);
         }
@@ -201,6 +201,7 @@ int main(int argc, char* argv[]) {
 
         while (Z_OK == z_recv(z_loan(handler), &sample)) {
             auto processing_start_time = std::chrono::steady_clock::now();
+
             // Get the loaned sample and extract the payload
             const z_loaned_sample_t* loaned_sample = z_loan(sample);
             z_owned_slice_t zslice;
@@ -271,11 +272,9 @@ int main(int argc, char* argv[]) {
             // Estimate processing time and frequency
             auto processing_end_time = std::chrono::steady_clock::now();
             auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(processing_end_time - processing_start_time).count();
-
             frame_count++;
             auto current_time = std::chrono::steady_clock::now();
             auto elapsed_s = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
-
             if (elapsed_s >= 1) {
                 double fps = static_cast<double>(frame_count) / elapsed_s;
                 std::cout << "Processing time: " << elapsed_ms << "ms, FPS: " << fps << std::endl;

@@ -39,9 +39,9 @@ int main(int argc, char** argv) {
         z_owned_subscriber_t sub;
         z_view_keyexpr_t ke;
          z_view_keyexpr_from_str(&ke, keyexpr.c_str());
-        z_owned_fifo_handler_sample_t handler;
+        z_owned_ring_handler_sample_t handler;
         z_owned_closure_sample_t closure;
-        z_fifo_channel_sample_new(&closure, &handler, RECV_BUFFER_SIZE);
+        z_ring_channel_sample_new(&closure, &handler, RECV_BUFFER_SIZE);
         if (z_declare_subscriber(z_loan(s), &sub, z_loan(ke), z_move(closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(keyexpr));
         }
