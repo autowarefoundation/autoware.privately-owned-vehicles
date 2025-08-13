@@ -104,16 +104,23 @@ int main(int argc, char* argv[]) {
             cv::Mat frame(row, col, type, (uint8_t *)ptr);
 
             // Run inference
+            auto last_time = std::chrono::steady_clock::now();
             if (!scene_seg_->doInference(frame)) {
                 //RCLCPP_WARN(this->get_logger(), "Failed to run inference");
                 return -1;
             }
+            auto do_inference_time = std::chrono::steady_clock::now() - last_time;
+            // Get the raw mask
+            last_time = std::chrono::steady_clock::now();
             cv::Mat raw_mask;
             scene_seg_->getRawMask(raw_mask, frame.size());
+            auto get_mask_time = std::chrono::steady_clock::now() - last_time;
             // color image
+            last_time = std::chrono::steady_clock::now();
             cv::Mat blended_image;
             scene_seg_->colorizeMask(raw_mask, frame, blended_image);
             cv::Mat final_frame = blended_image;
+            auto colorize_mask_time = std::chrono::steady_clock::now() - last_time;
 
             // Publish the processed frame via Zenoh
             z_publisher_put_options_t options;
@@ -139,6 +146,10 @@ int main(int argc, char* argv[]) {
             if (elapsed_s >= 1) {
                 double fps = static_cast<double>(frame_count) / elapsed_s;
                 std::cout << "Processing time: " << elapsed_ms << "ms, FPS: " << fps << std::endl;
+                std::cout << "Inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(do_inference_time).count() << "ms, "
+                          << "Get mask time: " << std::chrono::duration_cast<std::chrono::milliseconds>(get_mask_time).count() << "ms, "
+                          << "Colorize mask time: " << std::chrono::duration_cast<std::chrono::milliseconds>(colorize_mask_time).count() << "ms" << std::endl;
+                // Reset frame count and start time for the next second
                 frame_count = 0;
                 start_time = current_time;
             }
