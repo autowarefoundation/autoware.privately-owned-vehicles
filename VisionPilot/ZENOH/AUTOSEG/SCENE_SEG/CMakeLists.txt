@@ -32,17 +32,20 @@ if(NOT ONNXRUNTIME_ROOTDIR)
     message(STATUS "You must provide an onnx runtime root directory!")
 endif()
 
+# set the MODEL_ROOTDIR variable to the path where the model is located
+set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../VANILLA")
+
 # The ORT package has a different include directory structure to a local install via cmake.
 # We added the path for the pre-built package above. Add the path for a local install to support either usage.
 # TODO: If we want to support additional EPs being loadable from a local install we also need to add EP specific
 # directories under /include/onnxruntime/core/providers
-include_directories("${ONNXRUNTIME_ROOTDIR}/include"
-                    "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime"
-                    "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/session"
-                    "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/providers/dnnl"    # DNNL Backend Support
-                    ${OpenCV_INCLUDE_DIRS}                                              # OpenCV
-                    ${TORCH_INCLUDE_DIRS}                                               # Torch
-                    "scene_seg/include"                                                 # Scene Segmentation
+include_directories(${ONNXRUNTIME_ROOTDIR}/include
+                    ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime
+                    ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/session
+                    ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/providers/dnnl    # DNNL Backend Support
+                    ${OpenCV_INCLUDE_DIRS}                                            # OpenCV
+                    ${TORCH_INCLUDE_DIRS}                                             # Torch
+                    ${MODEL_ROOTDIR}/SCENE_SEG/include                                # Scene Segmentation
                    )
 
 link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
@@ -53,7 +56,7 @@ endif()
 
 ## Build & Link
 add_executable(video_visualization video_visualization.cpp 
-                                   #scene_seg/src/tensorrt_backend.cpp
-                                   scene_seg/src/onnx_runtime_backend.cpp
-                                   scene_seg/src/scene_seg.cpp)
+                                   #${MODEL_ROOTDIR}/SCENE_SEG/src/tensorrt_backend.cpp
+                                   ${MODEL_ROOTDIR}/SCENE_SEG/src/onnx_runtime_backend.cpp
+                                   ${MODEL_ROOTDIR}/SCENE_SEG/src/scene_seg.cpp)
 target_link_libraries(video_visualization PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
