@@ -318,9 +318,9 @@ class EgoSpaceTrainer():
         foreground_lables = np.where(result > 0)
 
         # Assigning foreground objects colour
-        vis_predict_object[foreground_lables[0], foreground_lables[1], 0] = 255
-        vis_predict_object[foreground_lables[0], foreground_lables[1], 1] = 234
-        vis_predict_object[foreground_lables[0], foreground_lables[1], 2] = 0
+        vis_predict_object[foreground_lables[0], foreground_lables[1], 0] = 88
+        vis_predict_object[foreground_lables[0], foreground_lables[1], 1] = 243
+        vis_predict_object[foreground_lables[0], foreground_lables[1], 2] = 162
 
         return vis_predict_object
 

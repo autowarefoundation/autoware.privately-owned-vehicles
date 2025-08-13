@@ -18,6 +18,10 @@ Read an image using OpenCV, run the network and visualize the output and display
 ```bash
   python3 DomainSeg/image_visualization.py -p /path/to/DomainSeg/weights.pth -i /path/to/image.jpg
 ```
+
+```bash
+  python3 EgoSpace/image_visualization.py -p /path/to/EgoSpace/weights.pth -i /path/to/image.jpg
+```
 ### Parameters:
 
 *-p , --model_checkpoint_path* : path to model weights *.pth* file
@@ -38,6 +42,10 @@ Read a video file using OpenCV, run the network and visualize the output and sav
 
 ```bash
   python3 DomainSeg/video_visualization.py -p /path/to/DomainSeg/weights.pth -i /path/to/raw_video.mp4 -o /path/to/output/video_name -v
+```
+
+```bash
+  python3 EgoSpace/video_visualization.py -p /path/to/DomainSeg/weights.pth -i /path/to/raw_video.mp4 -o /path/to/output/video_name -v
 ```
 ### Parameters:
 

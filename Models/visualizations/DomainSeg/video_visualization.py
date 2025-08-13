@@ -37,7 +37,7 @@ def main():
 
   parser = ArgumentParser()
   parser.add_argument("-p", "--model_checkpoint_path", dest="model_checkpoint_path", help="path to pytorch checkpoint file to load model dict")
-  parser.add_argument("-i", "--video_filepath", dest="video_filepath", help="path to input video which will be processed by SceneSeg")
+  parser.add_argument("-i", "--video_filepath", dest="video_filepath", help="path to input video which will be processed by DomainSeg")
   parser.add_argument("-o", "--output_file", dest="output_file", help="path to output video visualization file, must include output file name")
   parser.add_argument('-v', "--vis", action='store_true', default=False, help="flag for whether to show frame by frame visualization while processing is occuring")
   args = parser.parse_args() 
@@ -45,7 +45,7 @@ def main():
   # Saved model checkpoint path
   model_checkpoint_path = args.model_checkpoint_path
   model = DomainSegNetworkInfer(checkpoint_path=model_checkpoint_path)
-  print('SceneSeg Model Loaded')
+  print('DomainSeg Model Loaded')
     
   # Create a VideoCapture object and read from input file
   # If the input is taken from the camera, pass 0 instead of the video file name.

@@ -5,13 +5,16 @@ from PIL import Image
 import os
 import numpy as np
 
+# define standard width and standard height
+standard_width = 1920
+standard_height = 1080
 
 # Create coarse semantic segmentation mask
 # of combined classes
-def createMask(colorMap):
+def createMask(colorMap, input_image):
 
     # Initializing and loading pixel data
-    row, col = colorMap.size
+    row, col = standard_width, standard_height
     px =  np.asarray(colorMap.convert("RGB"), dtype='float32')  #colorMap.load() #np.array(colorMap) #
     coarseSegColorMap = Image.new(mode="RGB", size=(row, col))
     cx = coarseSegColorMap.load()
@@ -24,6 +27,12 @@ def createMask(colorMap):
     binary_one  = (255, 255, 255)
     binary_zero = (0,   0,   0  )
 
+    # initialize image array for visualization
+    viz_image =  Image.new(mode="RGBA", size=(row, col))
+    viz_image_load = viz_image.load()
+    base_image = input_image.convert("RGBA")
+    visualization_color = (255, 255, 0, 128)
+
     # to filter out image/label without desired class
     is_class_present = False
 
@@ -33,19 +42,35 @@ def createMask(colorMap):
 
             if (  px[y][x][0] == object_traffic_cone[0] and px[y][x][1] == object_traffic_cone[1] and px[y][x][2] == object_traffic_cone[2]  ):
                 cx[x,y] = binary_one
+                '''
+                viz_image[y][x][0] = visualization_color[0]
+                viz_image[y][x][1] = visualization_color[1]
+                viz_image[y][x][2] = visualization_color[2]
+                viz_image[y][x][3] = visualization_color[3]
+                '''
+                viz_image_load[x,y] = visualization_color
                 is_class_present = True
      
             elif (  px[y][x][0] == construction_barrier_temporary[0] and px[y][x][1] == construction_barrier_temporary[1] and px[y][x][2] == construction_barrier_temporary[2]  ):
                 cx[x,y] = binary_one
+                '''
+                viz_image[y][x][0] = visualization_color[0]
+                viz_image[y][x][1] = visualization_color[1]
+                viz_image[y][x][2] = visualization_color[2]
+                #viz_image[y][x][3] = visualization_color[3]
+                '''
+                viz_image_load[x,y] = visualization_color
                 is_class_present = True
             
             else:
                 cx[x,y] = binary_zero
             
 
-    #coarseSegColorMap = Image.fromarray(coarseSegColorMap)
+    #viz_image = Image.fromarray(viz_image)
+    viz_image = Image.alpha_composite(base_image, viz_image)
+    
             
-    return coarseSegColorMap, is_class_present
+    return coarseSegColorMap, viz_image, is_class_present
     
 
 def main():
@@ -57,6 +82,8 @@ def main():
     parser.add_argument("-vaim", "--valiimages", dest="val_images_filepath", help="path to folder with validation images")
     parser.add_argument("-lbs", "--labels-save", dest="labels_save_path", help="path to folder where processed labels will be saved")
     parser.add_argument("-ims", "--images-save", dest="images_save_path", help="path to folder where corresponding images will be saved")
+    parser.add_argument("-vis", "--visualization-save", dest="visualization_save_path", help="path to folder where corresponding visualization will be saved")
+    
     args = parser.parse_args()
 
     # Paths to read input images and ground truth label masks from validation data
@@ -67,11 +94,11 @@ def main():
     train_labels_filepath = args.train_labels_filepath
     train_images_filepath = args.train_images_filepath
 
-    # Paths to save training data with new coarse segmentation masks
+    # Paths to save training data with new coarse segmentation masks and visualization
     labels_save_path = args.labels_save_path
     images_save_path = args.images_save_path
+    visualization_save_path = args.visualization_save_path
     
-  
 
     ## create folders to save images and labels
     folder_path =  images_save_path
@@ -87,6 +114,16 @@ def main():
         print(f"Folder '{folder_path}' created successfully.")
     else:
         print(f"Folder '{folder_path}' already exists.")
+        
+    folder_path =  visualization_save_path
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+        print(f"Folder '{folder_path}' created successfully.")
+    else:
+        print(f"Folder '{folder_path}' already exists.")
+
+
+    
 
     index_for_saving = 0
         
@@ -119,14 +156,19 @@ def main():
             # Open images and pre-existing masks
             image = Image.open(str(val_images[index]))
             label = Image.open(str(val_labels[index]))
+            
+            #resize model################################
+            image = image.resize((standard_width, standard_height))
+            label = label.resize((standard_width, standard_height))
 
             # Create new Coarse Segmentation mask
-            coarseSegColorMap, is_class_present  = createMask(label)
+            coarseSegColorMap, vis_image, is_class_present  = createMask(label, image)
 
             if (is_class_present == True):
                 # Save images
                 image.save(images_save_path  + '/' + str(index_for_saving) + ".png","PNG")
                 coarseSegColorMap.save(labels_save_path + '/' + str(index_for_saving) + ".png","PNG")
+                vis_image.save(visualization_save_path + '/' + str(index_for_saving) + ".png","PNG")
                 print(f'Processing image {index} of {val_num_images-1}')
                 index_for_saving = index_for_saving + 1
             else:
@@ -163,13 +205,18 @@ def main():
             image = Image.open(str(train_images[index]))
             label = Image.open(str(train_labels[index]))
 
+            #resize model################################
+            image = image.resize((standard_width, standard_height))
+            label = label.resize((standard_width, standard_height))
+
             # Create new Coarse Segmentation mask
-            coarseSegColorMap, is_class_present  = createMask(label)
+            coarseSegColorMap, vis_image, is_class_present  = createMask(label, image)
 
             if (is_class_present == True):
                 # Save images
                 image.save(images_save_path + '/' + str(index_for_saving) + ".png","PNG")
                 coarseSegColorMap.save(labels_save_path + '/' + str(index_for_saving) + ".png","PNG")
+                vis_image.save(visualization_save_path + '/' + str(index_for_saving) + ".png","PNG")
                 print(f'Processing image {index} of {train_num_images-1}')
                 index_for_saving = index_for_saving + 1
             else:

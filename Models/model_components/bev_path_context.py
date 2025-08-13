@@ -11,9 +11,6 @@ class BEVPathContext(nn.Module):
         self.dropout = nn.Dropout(p=0.25)
         self.avg_pool = nn.AvgPool2d(2, stride=2)
 
-        # Feature convolution
-        self.feature_conv = nn.Conv2d(1280, 1280, 3, 1, 1)
-
         # Context - MLP Layers
         self.context_layer_0 = nn.Linear(1280, 800)
         self.context_layer_1 = nn.Linear(800, 800)
@@ -31,12 +28,9 @@ class BEVPathContext(nn.Module):
      
 
     def forward(self, features):
-
-        bev_features = self.avg_pool(features)
-        bev_features = self.feature_conv(bev_features)
         
         # Pooling and averaging channel layers to get a single vector
-        feature_vector = torch.mean(bev_features, dim = [2,3])
+        feature_vector = torch.mean(features, dim = [2,3])
         feature_vector = self.dropout(feature_vector)
        
         # MLP
@@ -49,7 +43,7 @@ class BEVPathContext(nn.Module):
         c2 = self.context_layer_2(c1)
         c2 = self.dropout(c2)
         c2 = self.sigmoid(c2)
-        
+   
         # Reshape
         c3 = c2.reshape([20, 10])
         c3 = c3.unsqueeze(0)
@@ -66,10 +60,11 @@ class BEVPathContext(nn.Module):
         context = self.GeLU(c7)
 
         # Attention
-        context = context*bev_features + bev_features
+        context = context*features + features
 
         # Context feature vector
         context_feature_vector = torch.mean(context, dim = [2,3])
+        context_feature_vector = self.dropout(context_feature_vector)
 
         # Decoding driving path related features
         path_features = self.context_layer_7(context_feature_vector)
