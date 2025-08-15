@@ -35,11 +35,13 @@ VisionPilot separates core AI processing from middleware-specific implementation
 ## Key Benefits
 
 ### Middleware Independence
+
 - **Write Once, Deploy Everywhere**: Core AI logic works across ROS2, Zenoh, and future middleware
 - **No Vendor Lock-in**: Switch between middleware systems without changing AI code
 - **Future Proof**: Add new middleware implementations without touching core engines
 
 ### Modular Design
+
 - **Pluggable Backends**: Support for ONNX Runtime, TensorRT, and custom inference engines
 - **Configurable Pipelines**: YAML-driven configuration for models, topics, and parameters
 - **Independent Components**: Sensors, inference, and visualization can run independently
@@ -50,29 +52,35 @@ VisionPilot separates core AI processing from middleware-specific implementation
 ## Current Implementations
 
 ### ROS2 (`/ROS2/`)
+
 Production-ready ROS2 nodes providing:
+
 - Native ROS2 topics and parameters
 - Launch file orchestration
 - Standard ROS2 message types
 - Component-based node architecture
 
 ### Zenoh (`/Zenoh/`) - Coming Soon
+
 Future implementation for:
+
 - Edge computing deployments
 - Low-latency communication
 - Distributed AI processing
 - Cloud-edge hybrid architectures
 
 ### Common Core (`/common/`)
+
 Framework-agnostic engines providing:
+
 - AI inference backends (ONNX Runtime, TensorRT)
 - Visualization rendering (segmentation masks, depth maps)
 - Sensor input processing (video streams, camera feeds)
 
-
 ## Quick Start
 
 ### ROS2 Implementation
+
 ```bash
 cd VisionPilot/ROS2
 colcon build --packages-select sensors models visualization
@@ -85,7 +93,9 @@ ros2 launch models run_pipeline.launch.py \
 ```
 
 ### Custom Middleware Integration
+
 To add a new middleware implementation:
+
 1. Create `/YourMiddleware/` directory
 2. Implement thin wrapper nodes around common engines
 3. Handle middleware-specific message passing
@@ -95,7 +105,7 @@ To add a new middleware implementation:
 
 ```
 VisionPilot/
-├── common/          # Framework-agnostic core engines
+├── common/         # Framework-agnostic core engines
 ├── ROS2/           # ROS2-specific implementation  
 ├── Zenoh/          # Future Zenoh implementation
 └── README.md       # This file
