@@ -293,15 +293,13 @@ class AutoSteerTrainer():
         pred_tensor_x_vals = pred_tensor[0]
 
         data_error_sum = 0
-        num_valid_samples = 0
 
         for i in range(0, len(gt_tensor_x_vals)):
                 
             error = torch.abs(gt_tensor_x_vals[i] - pred_tensor_x_vals[i])
             data_error_sum = data_error_sum + error
-            num_valid_samples = num_valid_samples + 1
 
-        bev_data_loss = data_error_sum/num_valid_samples
+        bev_data_loss = data_error_sum/len(gt_tensor_x_vals)
 
         return bev_data_loss
     
@@ -312,7 +310,7 @@ class AutoSteerTrainer():
         gt_tensor_x_vals = gt_tensor[0,:]
         pred_tensor_x_vals = pred_tensor[0]
 
-        bev_gradient_loss = 0
+        bev_gradient_error = 0
 
         for i in range(0, len(gt_tensor_x_vals) - 1):
 
@@ -320,8 +318,9 @@ class AutoSteerTrainer():
             pred_gradient = pred_tensor_x_vals[i+1] - pred_tensor_x_vals[i]
 
             error = torch.abs(gt_gradient - pred_gradient)
-            bev_gradient_loss = bev_gradient_loss + error
+            bev_gradient_error = bev_gradient_error + error
 
+        bev_gradient_loss = bev_gradient_error/len(gt_tensor_x_vals)
         return bev_gradient_loss
     
     # Reprojected Data Loss for a single lane/path element
@@ -336,7 +335,6 @@ class AutoSteerTrainer():
         gt_reprojected_tensor_y_vals = gt_reprojected_tesnor[1,:]
 
         data_error_sum = 0
-        num_valid_samples = 0
 
         for i in range(0, len(gt_tensor_x_vals)):
 
@@ -351,9 +349,8 @@ class AutoSteerTrainer():
             L1_error = x_error + y_error
 
             data_error_sum = data_error_sum + L1_error
-            num_valid_samples = num_valid_samples + 1
 
-        reprojected_data_loss = data_error_sum/num_valid_samples
+        reprojected_data_loss = data_error_sum/len(gt_tensor_x_vals)
         return reprojected_data_loss
     
     # Reprojected points gradient loss for a single lane/path element
@@ -366,7 +363,7 @@ class AutoSteerTrainer():
         gt_tensor_x_vals = gt_tensor[0,:]
         gt_reprojected_tensor_x_vals = gt_reprojected_tesnor[0,:]
 
-        reprojected_gradient_loss = 0
+        reprojected_gradient_error = 0
 
         for i in range(0, len(gt_tensor_x_vals)-1):
 
@@ -377,8 +374,10 @@ class AutoSteerTrainer():
                 - prediction_reprojected[i][0]
             
             error = torch.abs(gt_reprojected_gradient - prediction_reprojected_gradient)
-            reprojected_gradient_loss = reprojected_gradient_loss + error
+            reprojected_gradient_error = reprojected_gradient_error + error
 
+        reprojected_gradient_loss = reprojected_gradient_error/len(gt_tensor_x_vals)
+            
         return reprojected_gradient_loss
 
     # Get the list of reprojected points from X,Y BEV coordinates

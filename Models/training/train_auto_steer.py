@@ -12,7 +12,7 @@ from Models.data_utils.load_data_auto_steer import LoadDataAutoSteer
 from Models.training.auto_steer_trainer import AutoSteerTrainer
 
 # Currently limiting to available datasets only. Will unlock eventually
-VALID_DATASET_LITERALS = Literal["TUSIMPLE", "CULANE"]
+VALID_DATASET_LITERALS = Literal["TUSIMPLE"] #Literal["TUSIMPLE", "CULANE"]
 VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
 
 BEV_JSON_PATH = "drivable_path_bev.json"
@@ -103,10 +103,10 @@ def main():
     trainer.zero_grad()
     
     # Training loop parameters
-    NUM_EPOCHS = 10
-    LOGSTEP_LOSS = 25
+    NUM_EPOCHS = 50
+    LOGSTEP_LOSS = 50
     LOGSTEP_VIS = 100
-    LOGSTEP_MODEL = 10000
+    LOGSTEP_MODEL = 5000
 
     # Val visualization param
     N_VALVIS = 25

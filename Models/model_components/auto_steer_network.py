@@ -1,5 +1,6 @@
 from .backbone import Backbone
 from .bev_path_context import BEVPathContext
+from .bev_path_neck import BEVPathNeck
 from .ego_lanes_head import EgoLanesHead
 from .ego_path_head import EgoPathHead
 
@@ -13,7 +14,10 @@ class AutoSteerNetwork(nn.Module):
         self.BEVBackbone = Backbone()
 
         # Path Context
-        self.PathContext = BEVPathContext()
+        self.BEVPathContext = BEVPathContext()
+
+        # BEV Neck
+        self.BEVPathNeck = BEVPathNeck()
 
         # EgoLanes Head
         self.EgoLanesHead = EgoLanesHead()
@@ -24,8 +28,8 @@ class AutoSteerNetwork(nn.Module):
 
     def forward(self, image):
         features = self.BEVBackbone(image)
-        deep_features = features[4]
-        context = self.PathContext(deep_features)
+        deep_features = self.BEVPathNeck(features)
+        context = self.BEVPathContext(deep_features)
         ego_path = self.EgoPathHead(context)
         ego_left_lane, ego_right_lane = self.EgoLanesHead(context)
         return ego_path, ego_left_lane, ego_right_lane

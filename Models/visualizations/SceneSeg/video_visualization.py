@@ -9,6 +9,38 @@ from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.scene_seg_infer import SceneSegNetworkInfer
 
+def find_freespace_edge(binary_mask):
+
+    contours, _ = cv2.findContours(binary_mask,
+                      cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    cnt = None
+    if(len(contours > 0)):
+      cnt = max(contours, key = lambda x: cv2.contourArea(x))
+    return cnt
+
+def make_visualization_freespace(prediction, image):
+
+  colour_mask = np.array(image)
+
+  # Getting freespace object labels
+  free_space_labels = np.where(prediction == 2)
+
+  # Get shape
+  shape = prediction.shape
+  row = shape[0]
+  col = shape[1]
+
+  # Create visualization
+  binary_mask = np.zeros((row, col), dtype = "uint8")
+  binary_mask[free_space_labels[0], free_space_labels[1]] = 255
+  edge_contour = find_freespace_edge(binary_mask)
+  if(edge_contour):
+    cv2.fillPoly(colour_mask, pts =[edge_contour], color=(28,255,145))
+
+  # Converting to OpenCV BGR color channel ordering
+  colour_mask = cv2.cvtColor(colour_mask, cv2.COLOR_RGB2BGR)
+
+  return colour_mask
 
 def make_visualization(prediction):
 
@@ -30,7 +62,7 @@ def make_visualization(prediction):
   vis_predict_object[foreground_lables[0], foreground_lables[1], 0] = 145
   vis_predict_object[foreground_lables[0], foreground_lables[1], 1] = 28
   vis_predict_object[foreground_lables[0], foreground_lables[1], 2] = 255
-        
+
   return vis_predict_object
 
 def main(): 
@@ -54,9 +86,13 @@ def main():
 
   # Output filepath
   output_filepath_obj = args.output_file + '.avi'
+  output_filepath_freespace = args.output_file + 'freespace.avi'
   fps = cap.get(cv2.CAP_PROP_FPS)
   # Video writer object
   writer_obj = cv2.VideoWriter(output_filepath_obj,
+    cv2.VideoWriter_fourcc(*"MJPG"), fps,(1280,720))
+  
+  writer_freespace = cv2.VideoWriter(output_filepath_freespace,
     cv2.VideoWriter_fourcc(*"MJPG"), fps,(1280,720))
 
   # Check if video catpure opened successfully
@@ -83,21 +119,26 @@ def main():
       # Running inference
       prediction = model.inference(image_pil)
       vis_obj = make_visualization(prediction)
+      vis_obj_freespace = make_visualization_freespace(prediction, image_pil)
       
       # Resizing to match the size of the output video
       # which is set to standard HD resolution
       frame = cv2.resize(frame, (1280, 720))
       vis_obj = cv2.resize(vis_obj, (1280, 720))
+      vis_obj_freespace = cv2.resize(vis_obj_freespace, (1280, 720))
 
       # Create the composite visualization
       image_vis_obj = cv2.addWeighted(vis_obj, alpha, frame, 1 - alpha, 0)
+      image_vis_freespace = cv2.addWeighted(vis_obj_freespace, alpha, frame, 1 - alpha, 0)
 
       if(args.vis):
         cv2.imshow('Prediction Objects', image_vis_obj)
+        cv2.imshow('Prediction Freespace', image_vis_freespace)
         cv2.waitKey(10)
 
       # Writing to video frame
       writer_obj.write(image_vis_obj)
+      writer_freespace.write(image_vis_freespace)
 
     else:
       print('Frame not read - ending processing')

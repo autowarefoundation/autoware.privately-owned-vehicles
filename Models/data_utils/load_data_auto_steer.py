@@ -18,7 +18,7 @@ from Models.data_utils.check_data import CheckData
 VALID_DATASET_LITERALS = Literal[
     # "BDD100K",
     # "COMMA2K19",
-    "CULANE",
+    #"CULANE",
     # "CURVELANES",
     # "ROADWORK",
     "TUSIMPLE"
