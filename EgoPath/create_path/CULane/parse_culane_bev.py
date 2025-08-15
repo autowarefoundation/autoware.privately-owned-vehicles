@@ -506,7 +506,7 @@ if __name__ == "__main__":
     BEV_W = 640
     BEV_H = 1280
     EGO_HEIGHT_RATIO = 1
-    BEV_Y_STEP = 144
+    BEV_Y_STEP = 128
     POLYFIT_ORDER = 2
 
     # Visualization (colors in BGR)
