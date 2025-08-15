@@ -111,6 +111,7 @@ int main(int argc, char* argv[]) {
                 throw std::runtime_error("Failed to run inference on the frame");
             }
             auto do_inference_time = std::chrono::steady_clock::now() - last_time;
+            last_time = std::chrono::steady_clock::now();
             // Get processed output from backend (like original architecture)
             cv::Mat processed_output;
             // TODO(CY): Support different models

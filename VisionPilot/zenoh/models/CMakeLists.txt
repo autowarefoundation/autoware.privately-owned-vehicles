@@ -45,7 +45,7 @@ include_directories(${ONNXRUNTIME_ROOTDIR}/include
                     ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/providers/dnnl    # DNNL Backend Support
                     ${OpenCV_INCLUDE_DIRS}                                            # OpenCV
                     ${TORCH_INCLUDE_DIRS}                                             # Torch
-                    ${MODEL_ROOTDIR}/include                                # Scene Segmentation
+                    ${MODEL_ROOTDIR}/include                                          # Common libraries
                    )
 
 link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
@@ -59,4 +59,5 @@ add_executable(video_visualization video_visualization.cpp
                                    #${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
                                    ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
                                    ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp)
+target_compile_definitions(video_visualization PRIVATE LOG_TYPE=0)
 target_link_libraries(video_visualization PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
