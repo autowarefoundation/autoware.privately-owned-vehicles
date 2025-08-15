@@ -40,6 +40,7 @@ int main(int argc, char* argv[]) {
     int gpu_id = 0; // Default GPU ID
     try {
         // Initialize the segmentation engine
+        // TODO(CY): Support TensorRT backends
         std::unique_ptr<InferenceBackend> backend_ = std::make_unique<OnnxRuntimeBackend>(model_path, precision, gpu_id);
 
         // Zenoh Initialization
