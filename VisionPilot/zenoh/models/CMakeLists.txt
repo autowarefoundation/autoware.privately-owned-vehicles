@@ -33,7 +33,7 @@ if(NOT ONNXRUNTIME_ROOTDIR)
 endif()
 
 # set the MODEL_ROOTDIR variable to the path where the model is located
-set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../VANILLA")
+set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../common")
 
 # The ORT package has a different include directory structure to a local install via cmake.
 # We added the path for the pre-built package above. Add the path for a local install to support either usage.
@@ -45,7 +45,7 @@ include_directories(${ONNXRUNTIME_ROOTDIR}/include
                     ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/providers/dnnl    # DNNL Backend Support
                     ${OpenCV_INCLUDE_DIRS}                                            # OpenCV
                     ${TORCH_INCLUDE_DIRS}                                             # Torch
-                    ${MODEL_ROOTDIR}/SCENE_SEG/include                                # Scene Segmentation
+                    ${MODEL_ROOTDIR}/include                                # Scene Segmentation
                    )
 
 link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
@@ -56,7 +56,7 @@ endif()
 
 ## Build & Link
 add_executable(video_visualization video_visualization.cpp 
-                                   #${MODEL_ROOTDIR}/SCENE_SEG/src/tensorrt_backend.cpp
-                                   ${MODEL_ROOTDIR}/SCENE_SEG/src/onnx_runtime_backend.cpp
-                                   ${MODEL_ROOTDIR}/SCENE_SEG/src/scene_seg.cpp)
+                                   #${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
+                                   ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
+                                   ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp)
 target_link_libraries(video_visualization PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)

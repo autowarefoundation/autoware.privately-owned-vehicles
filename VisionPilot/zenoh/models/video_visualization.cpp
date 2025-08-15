@@ -7,12 +7,14 @@
 #include <CLI/CLI.hpp>
 #include <zenoh.h>
 
-#include "scene_seg.hpp"
+#include "inference_backend_base.hpp"
+#include "onnx_runtime_backend.hpp"
+#include "masks_visualization_engine.hpp"
 
 using namespace cv; 
 using namespace std; 
 
-using namespace autoware_pov::AutoSeg::SceneSeg;
+using namespace autoware_pov::vision;
 
 #define VIDEO_INPUT_KEYEXPR "scene_segmentation/video/input"
 #define VIDEO_OUTPUT_KEYEXPR "scene_segmentation/video/output"
@@ -38,7 +40,7 @@ int main(int argc, char* argv[]) {
     int gpu_id = 0; // Default GPU ID
     try {
         // Initialize the segmentation engine
-        std::unique_ptr<SceneSeg> scene_seg_ = std::make_unique<SceneSeg>(model_path, backend, precision, gpu_id);
+        std::unique_ptr<InferenceBackend> backend_ = std::make_unique<OnnxRuntimeBackend>(model_path, precision, gpu_id);
 
         // Zenoh Initialization
         // Create Zenoh session
@@ -105,22 +107,21 @@ int main(int argc, char* argv[]) {
 
             // Run inference
             auto last_time = std::chrono::steady_clock::now();
-            if (!scene_seg_->doInference(frame)) {
-                //RCLCPP_WARN(this->get_logger(), "Failed to run inference");
-                return -1;
+            if (!backend_->doInference(frame)) {
+                throw std::runtime_error("Failed to run inference on the frame");
             }
             auto do_inference_time = std::chrono::steady_clock::now() - last_time;
-            // Get the raw mask
-            last_time = std::chrono::steady_clock::now();
-            cv::Mat raw_mask;
-            scene_seg_->getRawMask(raw_mask, frame.size());
-            auto get_mask_time = std::chrono::steady_clock::now() - last_time;
-            // color image
-            last_time = std::chrono::steady_clock::now();
-            cv::Mat blended_image;
-            scene_seg_->colorizeMask(raw_mask, frame, blended_image);
-            cv::Mat final_frame = blended_image;
-            auto colorize_mask_time = std::chrono::steady_clock::now() - last_time;
+            // Get processed output from backend (like original architecture)
+            cv::Mat processed_output;
+            // TODO(CY): Support different models
+            backend_->getRawOutput(processed_output, frame.size(), "segmentation");
+            auto get_output_time = std::chrono::steady_clock::now() - last_time;
+            // TODO(CY): Separate the blending logic
+            std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
+                std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
+            cv::Mat final_frame = viz_engine_->visualize(processed_output, frame);
+
+            // TODO(CY): Add encoding information
 
             // Publish the processed frame via Zenoh
             z_publisher_put_options_t options;
@@ -147,8 +148,7 @@ int main(int argc, char* argv[]) {
                 double fps = static_cast<double>(frame_count) / elapsed_s;
                 std::cout << "Processing time: " << elapsed_ms << "ms, FPS: " << fps << std::endl;
                 std::cout << "Inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(do_inference_time).count() << "ms, "
-                          << "Get mask time: " << std::chrono::duration_cast<std::chrono::milliseconds>(get_mask_time).count() << "ms, "
-                          << "Colorize mask time: " << std::chrono::duration_cast<std::chrono::milliseconds>(colorize_mask_time).count() << "ms" << std::endl;
+                          << "Get output time: " << std::chrono::duration_cast<std::chrono::milliseconds>(get_output_time).count() << "ms" << std::endl;
                 // Reset frame count and start time for the next second
                 frame_count = 0;
                 start_time = current_time;

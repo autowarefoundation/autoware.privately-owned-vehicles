@@ -1,7 +1,7 @@
 #include "../include/onnx_runtime_backend.hpp"
 #include <vector>
 #include <stdexcept>
-#include "rclcpp/rclcpp.hpp"
+//#include "rclcpp/rclcpp.hpp"
 #include "onnxruntime_c_api.h"
 
 namespace autoware_pov::vision
@@ -20,12 +20,12 @@ void OnnxRuntimeBackend::initializeOrtSession(const std::string& model_path, con
   if (precision == "cuda") {
      try {
         Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(session_options_, gpu_id));
-        RCLCPP_INFO(rclcpp::get_logger("vision_model_runner"), "Using CUDA Execution Provider on GPU %d.", gpu_id);
+        //RCLCPP_INFO(rclcpp::get_logger("vision_model_runner"), "Using CUDA Execution Provider on GPU %d.", gpu_id);
      } catch (const Ort::Exception& e) {
-        RCLCPP_WARN(rclcpp::get_logger("vision_model_runner"), "CUDA Execution Provider is not available. Falling back to CPU. Error: %s", e.what());
+        //RCLCPP_WARN(rclcpp::get_logger("vision_model_runner"), "CUDA Execution Provider is not available. Falling back to CPU. Error: %s", e.what());
      }
   } else {
-    RCLCPP_INFO(rclcpp::get_logger("vision_model_runner"), "Using default CPU Execution Provider.");
+    //RCLCPP_INFO(rclcpp::get_logger("vision_model_runner"), "Using default CPU Execution Provider.");
   }
 
   ort_session_ = std::make_unique<Ort::Session>(env_, model_path.c_str(), session_options_);
@@ -75,7 +75,7 @@ bool OnnxRuntimeBackend::doInference(const cv::Mat & input_image)
             Ort::RunOptions{nullptr}, const_cast<const char* const*>(input_names_.data()), &input_tensor, 1,
             const_cast<const char* const*>(output_names_.data()), output_names_.size());
     } catch (const Ort::Exception& e) {
-        RCLCPP_ERROR(rclcpp::get_logger("vision_model_runner"), "ONNX Runtime inference failed: %s", e.what());
+        //RCLCPP_ERROR(rclcpp::get_logger("vision_model_runner"), "ONNX Runtime inference failed: %s", e.what());
         return false;
     }
     
