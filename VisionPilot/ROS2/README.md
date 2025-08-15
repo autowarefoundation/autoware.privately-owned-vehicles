@@ -29,10 +29,12 @@ The ROS2 layer acts as a thin wrapper around common engines:
 ## Supported Pipelines
 
 ### Segmentation
+
 - **Scene Segmentation**: Binary foreground/background separation
 - **Domain Segmentation**: Road/off-road classification  
 
-### Depth Estimation  
+### Depth Estimation
+
 - **Scene 3D**: Monocular depth estimation
 
 ## Core Features
@@ -43,15 +45,17 @@ The ROS2 layer acts as a thin wrapper around common engines:
 - **Performance Monitoring**: Built-in latency and FPS measurements
 - **Concurrent Execution**: Multiple independent pipelines simultaneously
 
-##  Prerequisites
+## Prerequisites
 
 ### System Requirements
+
 - Ubuntu 20.04/22.04
 - ROS2 Humble
 - CUDA 11.8+ (for GPU inference)
 - OpenCV 4.x
 
 ### Dependencies
+
 ```bash
 # ROS2 packages
 sudo apt install ros-humble-cv-bridge ros-humble-image-transport
@@ -66,6 +70,7 @@ sudo apt install cmake build-essential
 ## 🔨 Build Instructions
 
 ### 1. Clone and Build
+
 ```bash
 cd ~/your_workspace
 colcon build --packages-select sensors models visualization \
@@ -76,13 +81,15 @@ colcon build --packages-select sensors models visualization \
 ```
 
 ### 2. Source the Workspace
+
 ```bash
 source install/setup.bash
 ```
 
 ## Usage Examples
 
-###  Basic Video Publishing
+### Basic Video Publishing
+
 ```bash
 ros2 run sensors video_publisher_node_exe \
   --ros-args \
@@ -94,40 +101,47 @@ ros2 run sensors video_publisher_node_exe \
 ### Individual Model Inference
 
 #### Scene Segmentation
+
 ```bash
 ros2 launch models auto_seg.launch.py model_name:=scene_seg_model
 ```
 
 #### Domain Segmentation  
+
 ```bash
 ros2 launch models auto_seg.launch.py model_name:=domain_seg_model
 ```
 
 #### Depth Estimation
+
 ```bash
 ros2 launch models auto_3d.launch.py
 ```
 
-###  Visualization
+### Visualization
 
 #### Scene Segmentation Visualization
+
 ```bash
 ros2 launch visualization visualize_scene_seg.launch.py
 ```
 
 #### Domain Segmentation Visualization
+
 ```bash
 ros2 launch visualization visualize_domain_seg.launch.py
 ```
 
 #### Depth Visualization
+
 ```bash
 ros2 launch visualization visualize_depth.launch.py
 ```
 
-###  Complete Pipelines
+### Complete Pipelines
 
 #### Full Scene Segmentation Pipeline
+
 ```bash
 ros2 launch models run_pipeline.launch.py \
   pipeline:=scene_seg \
@@ -135,19 +149,21 @@ ros2 launch models run_pipeline.launch.py \
 ```
 
 #### Full Depth Pipeline  
+
 ```bash
 ros2 launch models run_pipeline.launch.py \
   pipeline:=scene_3d \
   video_path:="data/your_video.mp4"
 ```
 
-##  Configuration
+## Configuration
 
 ### YAML Configuration Files
 
 All model parameters are controlled via YAML files - **single source of truth**:
 
 #### `models/config/autoseg.yaml`
+
 ```yaml
 scene_seg_model:
   ros__parameters:
@@ -171,6 +187,7 @@ domain_seg_model:
 ```
 
 #### `models/config/auto3d.yaml`
+
 ```yaml
 scene3d_model:
   ros__parameters:
@@ -187,19 +204,21 @@ scene3d_model:
 
 The system uses a **single generic inference node** (`run_model_node`) that delegates processing to common backends. Model behavior is determined by configuration and handled transparently by the common layer.
 
-###  Visualization Configuration
+### Visualization Configuration
 
 #### Scene Segmentation Colors
+
 - **Background**: Black (0,0,0)
 - **Foreground**: Red (255,0,0)
 - **Class IDs**: 0=background, 1=foreground, 2=background
 
 #### Domain Segmentation Colors  
+
 - **Road**: Orange (255,93,61)
 - **Off-road**: Blue (28,148,255)
 - **Class IDs**: 0=road, 255=off-road
 
-##  Performance Monitoring
+## Performance Monitoring
 
 ### Latency Measurements
 
@@ -218,7 +237,7 @@ Both inference and visualization nodes provide real-time performance metrics:
 - **FPS Calculation**: `1000ms / latency_ms` (theoretical maximum throughput)
 - **Monitoring Interval**: Every 100 frames (configurable)
 
-###  Performance Tuning
+### Performance Tuning
 
 ```bash
 # Disable latency monitoring for production
@@ -233,10 +252,11 @@ backend: "onnxruntime"
 precision: "cpu"       # Most compatible
 ```
 
-##  Topic Structure
+## Topic Structure
 
-###  Standard Topics
-```
+### Standard Topics
+
+```bash
 /sensors/video/image_raw           # Input video feed
 
 # Scene Segmentation
@@ -252,7 +272,8 @@ precision: "cpu"       # Most compatible
 /auto3d/scene_3d/depth_viz        # Colorized depth visualization
 ```
 
-###  Debugging Topics
+### Debugging Topics
+
 ```bash
 # Monitor topic rates
 ros2 topic hz /autoseg/scene_seg/mask
@@ -264,11 +285,12 @@ ros2 topic echo /autoseg/scene_seg/mask --max-count=1
 ros2 topic list | grep -E "(autoseg|auto3d|sensors)"
 ```
 
-##  Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
 #### CUDA/TensorRT Issues
+
 ```bash
 # Check CUDA installation
 nvidia-smi
@@ -282,6 +304,7 @@ backend: "onnxruntime"
 ```
 
 #### Model Loading Errors
+
 ```bash
 # Verify model file exists
 ls -la data/models/
@@ -294,6 +317,7 @@ chmod 644 data/models/*.onnx
 ```
 
 #### Performance Issues
+
 ```bash
 # Monitor system resources  
 htop
@@ -305,7 +329,7 @@ ros2 node info /scene_seg_model
 # (lower resolution, simpler color maps)
 ```
 
-##  Advanced Usage
+## Advanced Usage
 
 ### Running Multiple Models Simultaneously
 
@@ -327,21 +351,20 @@ ros2 launch visualization visualize_scene_seg.launch.py
 ros2 launch visualization visualize_domain_seg.launch.py
 ```
 
-###  Custom Model Integration
+### Custom Model Integration
 
 1. **Add model to YAML**:
-```yaml
-your_model:
-  ros__parameters:
-    model_path: "data/models/YourModel.onnx"
-    model_type: "segmentation"  # or "depth" 
-    # ... other parameters
-```
+
+   ```yaml
+   your_model:
+     ros__parameters:
+       model_path: "data/models/YourModel.onnx"
+       model_type: "segmentation"  # or "depth" 
+       # ... other parameters
+   ```
 
 2. **Launch with custom model**:
-```bash
-ros2 launch models auto_seg.launch.py model_name:=your_model
-```
 
-
-
+   ```bash
+   ros2 launch models auto_seg.launch.py model_name:=your_model
+   ```
