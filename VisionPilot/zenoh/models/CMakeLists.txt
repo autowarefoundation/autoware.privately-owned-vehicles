@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
-project(deploy_onnx_rt)
+project(zenoh_models)
 
 set(USE_CUDNN OFF)
 set(CAFFE2_USE_CUDNN OFF)
@@ -33,7 +33,7 @@ if(NOT ONNXRUNTIME_ROOTDIR)
 endif()
 
 # set the MODEL_ROOTDIR variable to the path where the model is located
-set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../VANILLA")
+set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../VANILLA")
 
 # The ORT package has a different include directory structure to a local install via cmake.
 # We added the path for the pre-built package above. Add the path for a local install to support either usage.
