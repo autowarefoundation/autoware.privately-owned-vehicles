@@ -2,6 +2,8 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <thread>
+#include <chrono>
 
 #include <opencv2/core.hpp>
 #include <opencv2/videoio.hpp>
@@ -33,6 +35,7 @@ int main(int argc, char* argv[]) {
             throw std::runtime_error("Error opening video stream or file: " + input_video_path);
         }
         const double fps = cap.get(cv::CAP_PROP_FPS);
+        const auto frame_duration = std::chrono::nanoseconds(static_cast<long long>(1'000'000'000.0 / fps));
         std::cout << "Publishing video from '" << input_video_path << "' (" << fps << " FPS) to key '" << keyexpr << "'..." << std::endl;
 
         // Create Zenoh session
@@ -53,6 +56,8 @@ int main(int argc, char* argv[]) {
         // Display video frames
         cv::Mat frame;
         while (cap.read(frame)) {
+            auto start_time = std::chrono::steady_clock::now();
+
             // Set Zenoh publisher options
             z_publisher_put_options_t options;
             z_publisher_put_options_default(&options);
@@ -70,6 +75,13 @@ int main(int argc, char* argv[]) {
             z_owned_bytes_t payload;
             z_bytes_copy_from_buf(&payload, pixelPtr, dataSize);
             z_publisher_put(z_loan(pub), z_move(payload), &options);
+
+            // Sleep for the remaining time to maintain the frame rate, accounting for processing time
+            auto end_time = std::chrono::steady_clock::now();
+            auto elapsed_time = end_time - start_time;
+            if (elapsed_time < frame_duration) {
+                std::this_thread::sleep_for(frame_duration - elapsed_time);
+            }
         }
         
         // Clean up
