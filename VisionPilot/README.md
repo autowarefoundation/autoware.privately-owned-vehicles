@@ -24,10 +24,10 @@ VisionPilot separates core AI processing from middleware-specific implementation
 │              (Framework Independent)                    │
 ├─────────────────────┬───────────────────┬───────────────┤
 │  Inference Backends │ Visualization     │ Sensor Input  │
-│                     │ Engines          │ Processing    │
+│                     │ Engines           │ Processing    │
 │  • ONNX Runtime     │                   │               │
 │  • TensorRT         │ • Segmentation    │ • Video       │
-│  • Custom Backends  │ • Depth Maps     │ • Camera      │
+│  • Custom Backends  │ • Depth Maps      │ • Camera      │
 │                     │ • Point Clouds    │ • Streaming   │
 └─────────────────────┴───────────────────┴───────────────┘
 ```
@@ -60,9 +60,9 @@ Production-ready ROS2 nodes providing:
 - Standard ROS2 message types
 - Component-based node architecture
 
-### Zenoh (`/Zenoh/`) - Coming Soon
+### Zenoh (`/Zenoh/`)
 
-Future implementation for:
+The Zenoh implementation providing:
 
 - Edge computing deployments
 - Low-latency communication
@@ -113,3 +113,4 @@ VisionPilot/
 
 For technical details on core engines, see `common/README.md`
 For ROS2-specific usage, see `ROS2/README.md`
+For Zenoh-specific usage, see `Zenoh/README.md`
