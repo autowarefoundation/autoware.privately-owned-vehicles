@@ -188,14 +188,14 @@ class AutoSteerTrainer():
         BEV_gradient_loss_driving_corridor = self.calc_BEV_gradient_loss_driving_corridor()
 
         self.BEV_loss = BEV_data_loss_driving_corridor + \
-            BEV_gradient_loss_driving_corridor
+            BEV_gradient_loss_driving_corridor*0.5
    
         # Reprojected Loss
         reprojected_data_loss_driving_corridor = self.calc_reprojected_data_loss_driving_corridor()
         reprojected_gradient_loss_driving_corridor = self.calc_reprojected_gradient_loss_driving_corridor()
 
         self.reprojected_loss = reprojected_data_loss_driving_corridor + \
-            reprojected_gradient_loss_driving_corridor
+            reprojected_gradient_loss_driving_corridor*0.5
 
         # Total Loss
         self.total_loss = self.BEV_loss + self.reprojected_loss

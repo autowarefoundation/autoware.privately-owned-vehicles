@@ -21,10 +21,6 @@ class BEVPathContext(nn.Module):
         self.context_layer_4 = nn.Conv2d(128, 256, 3, 1, 1)
         self.context_layer_5 = nn.Conv2d(256, 512, 3, 1, 1)
         self.context_layer_6 = nn.Conv2d(512, 1456, 3, 1, 1)
-
-        # Context - Decode layers
-        self.context_layer_7 = nn.Linear(1456, 800)
-        self.context_layer_8 = nn.Linear(800, 800)
      
 
     def forward(self, features):
@@ -65,15 +61,5 @@ class BEVPathContext(nn.Module):
 
         # Context feature vector
         context_feature_vector = torch.mean(context, dim = [2,3])
-        context_feature_vector = self.dropout(context_feature_vector)
 
-
-        # Decoding driving path related features
-        path_features = self.context_layer_7(context_feature_vector)
-        path_features = self.dropout(path_features)
-        path_features = self.GeLU(path_features)
-        path_features = self.context_layer_8(path_features)
-        path_features = self.dropout(path_features)
-        path_features = self.GeLU(path_features)
-
-        return path_features   
+        return context_feature_vector   
