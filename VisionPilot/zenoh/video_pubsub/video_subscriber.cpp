@@ -16,6 +16,8 @@ using namespace std;
 
 #define DEFAULT_KEYEXPR "scene_segmentation/video"
 
+#define RECV_BUFFER_SIZE 100
+
 int main(int argc, char** argv) {
     // Parse command line arguments
     CLI::App app{"Zenoh video subscriber example"};
@@ -37,9 +39,9 @@ int main(int argc, char** argv) {
         z_owned_subscriber_t sub;
         z_view_keyexpr_t ke;
          z_view_keyexpr_from_str(&ke, keyexpr.c_str());
-        z_owned_fifo_handler_sample_t handler;
+        z_owned_ring_handler_sample_t handler;
         z_owned_closure_sample_t closure;
-        z_fifo_channel_sample_new(&closure, &handler, 16);
+        z_ring_channel_sample_new(&closure, &handler, RECV_BUFFER_SIZE);
         if (z_declare_subscriber(z_loan(s), &sub, z_loan(ke), z_move(closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(keyexpr));
         }
@@ -79,6 +81,19 @@ int main(int argc, char** argv) {
             if (cv::waitKey(1) == 27) { // Stop if 'ESC' is pressed
                 std::cout << "Processing stopped by user." << std::endl;
                 break;
+            }
+
+            // Print frame rate
+            static int frame_count = 0;
+            static auto start_time = std::chrono::steady_clock::now();
+            frame_count++;
+            auto current_time = std::chrono::steady_clock::now();
+            auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+            if (elapsed_time > 0) {
+                double fps = static_cast<double>(frame_count) / elapsed_time;
+                std::cout << "Current FPS: " << fps << std::endl;
+                frame_count = 0;
+                start_time = current_time;
             }
         }
 
