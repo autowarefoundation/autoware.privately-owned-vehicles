@@ -18,6 +18,9 @@ using namespace autoware_pov::vision;
 
 #define VIDEO_INPUT_KEYEXPR "scene_segmentation/video/input"
 #define VIDEO_OUTPUT_KEYEXPR "scene_segmentation/video/output"
+#define DEFAULT_BACKEND "onnxruntime"
+#define DEFAULT_PRECISION "cuda"
+#define DEFAULT_GPU_ID 0
 
 #define RECV_BUFFER_SIZE 100
 
@@ -33,11 +36,17 @@ int main(int argc, char* argv[]) {
     std::string output_keyexpr = VIDEO_OUTPUT_KEYEXPR;
     app.add_option("-o,--output-key", output_keyexpr, "The key expression to publish the result to")
         ->default_val(VIDEO_OUTPUT_KEYEXPR);
+    std::string backend = DEFAULT_BACKEND;
+    app.add_option("-b,--backend", backend, "Inference backend to use (onnxruntime or tensorrt)")
+        ->default_val(DEFAULT_BACKEND);
+    std::string precision = DEFAULT_PRECISION;
+    app.add_option("-p,--precision", precision, "Precision for the backend (cpu, cuda, fp16, fp32)")
+        ->default_val(DEFAULT_PRECISION);
+    int gpu_id = DEFAULT_GPU_ID;
+    app.add_option("-g,--gpu-id", gpu_id, "GPU ID to use for CUDA backend")
+        ->default_val(DEFAULT_GPU_ID);
     CLI11_PARSE(app, argc, argv);
 
-    std::string backend = "onnxruntime"; // Default backend
-    std::string precision = "cuda"; // Default precision
-    int gpu_id = 0; // Default GPU ID
     try {
         // Initialize the segmentation engine
         // TODO(CY): Support TensorRT backends
