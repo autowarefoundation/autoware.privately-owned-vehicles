@@ -6,7 +6,7 @@
 #include <string>
 
 #ifdef CUDA_FOUND
-#include "cuda_visualization_kernels.hpp"
+#include "masks_visualization_kernels.hpp"
 #endif
 
 namespace autoware_pov::common {
@@ -16,7 +16,8 @@ public:
     explicit MasksVisualizationEngine(const std::string& viz_type, bool show_opencv_window = true);
     
     // Simple mask visualization (clean approach)
-    cv::Mat visualize(const cv::Mat& mask, const cv::Mat& original_image);
+    cv::Mat visualize(const cv::Mat& mask, const cv::Mat& original_image, 
+                     double latency_ms = -1.0, double fps = -1.0);
 
 private:
     
@@ -24,6 +25,11 @@ private:
     std::string viz_type_;
     bool use_cuda_;
     bool show_opencv_window_;  // Flag to control OpenCV window display
+    
+    // OpenCV FPS measurement
+    std::chrono::steady_clock::time_point last_opencv_time_;
+    int opencv_frame_count_;
+    double opencv_fps_;
 };
 
 } // namespace autoware_pov::common
