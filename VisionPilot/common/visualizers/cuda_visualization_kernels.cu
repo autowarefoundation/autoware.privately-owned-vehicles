@@ -1,4 +1,4 @@
-#include "../include/cuda_visualization_kernels.hpp"
+#include "../include/masks_visualization_kernels.hpp"
 
 #ifdef CUDA_FOUND
 #include <cuda_runtime.h>
@@ -41,7 +41,7 @@ __global__ void createMaskKernel(const float* input, unsigned char* output, int 
     }
 }
 
-bool CudaVisualizationKernels::createMaskFromTensorCUDA(
+bool MasksVisualizationKernels::createMaskFromTensorCUDA(
     const float* tensor_data,
     const std::vector<int64_t>& tensor_shape,
     cv::Mat& output_mask
