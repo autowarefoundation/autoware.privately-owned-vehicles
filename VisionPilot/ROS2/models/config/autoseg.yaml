@@ -6,6 +6,7 @@ scene_seg_model:
     model_type: "segmentation"
     input_topic: "/sensors/video/image_raw"
     output_topic: "/autoseg/scene_seg/mask"
+    gpu_backend: "cuda"
 
 domain_seg_model:
   ros__parameters:
@@ -15,3 +16,4 @@ domain_seg_model:
     model_type: "segmentation"
     input_topic: "/sensors/video/image_raw"
     output_topic: "/autoseg/domain_seg/mask"
+    gpu_backend: "hip"

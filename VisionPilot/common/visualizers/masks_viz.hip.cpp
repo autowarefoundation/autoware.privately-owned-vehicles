@@ -1,18 +1,16 @@
 #include "../include/masks_visualization_kernels.hpp"
 
-#ifdef CUDA_FOUND
-#include <cuda_runtime.h>
+#ifdef HIP_FOUND
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <hip/hip_runtime.h>
 
 namespace autoware_pov::common {
 
-
-
-// CUDA kernel to create masks from tensors (for backend use)
+// HIP kernel to create masks from tensors (for backend use)
 __global__ void createMaskKernel(const float* input, unsigned char* output, int rows, int cols, int channels) {
-    int x = blockIdx.y * blockDim.y + threadIdx.y;
-    int y = blockIdx.x * blockDim.x + threadIdx.x;
+    int x = hipBlockIdx_y * hipBlockDim_y + hipThreadIdx_y;
+    int y = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
 
     if (x >= rows || y >= cols) return;
 
@@ -41,15 +39,15 @@ __global__ void createMaskKernel(const float* input, unsigned char* output, int 
     }
 }
 
-bool MasksVisualizationKernels::createMaskFromTensorCUDA(
+bool MasksVisualizationKernels::createMaskFromTensorHIP(
     const float* tensor_data,
     const std::vector<int64_t>& tensor_shape,
     cv::Mat& output_mask
 ) {
-    // Check CUDA availability
+    // Check HIP availability
     int deviceCount = 0;
-    cudaError_t error = cudaGetDeviceCount(&deviceCount);
-    if (error != cudaSuccess || deviceCount <= 0) {
+    hipError_t error = hipGetDeviceCount(&deviceCount);
+    if (error != hipSuccess || deviceCount <= 0) {
         return false;
     }
 
@@ -68,38 +66,36 @@ bool MasksVisualizationKernels::createMaskFromTensorCUDA(
     unsigned char* d_output;
     
     // Allocate GPU memory
-    cudaMalloc(&d_input, input_size);
-    cudaMalloc(&d_output, output_size);
+    hipMalloc(&d_input, input_size);
+    hipMalloc(&d_output, output_size);
     
     // Copy tensor to GPU
-    cudaMemcpy(d_input, tensor_data, input_size, cudaMemcpyHostToDevice);
+    hipMemcpy(d_input, tensor_data, input_size, hipMemcpyHostToDevice);
     
     // Launch kernel
     dim3 block(16, 16);
     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
     
-    createMaskKernel<<<grid, block>>>(d_input, d_output, rows, cols, channels);
+    hipLaunchKernelGGL(createMaskKernel, grid, block, 0, 0, d_input, d_output, rows, cols, channels);
     
-    error = cudaGetLastError();
-    if (error != cudaSuccess) {
-        cudaFree(d_input); 
-        cudaFree(d_output);
+    error = hipGetLastError();
+    if (error != hipSuccess) {
+        hipFree(d_input); 
+        hipFree(d_output);
         return false;
     }
     
     // Copy result back
     output_mask = cv::Mat(rows, cols, CV_8UC1);
-    cudaMemcpy(output_mask.data, d_output, output_size, cudaMemcpyDeviceToHost);
+    hipMemcpy(output_mask.data, d_output, output_size, hipMemcpyDeviceToHost);
     
     // Cleanup
-    cudaFree(d_input);
-    cudaFree(d_output);
+    hipFree(d_input);
+    hipFree(d_output);
     
     return true;
 }
 
-
-
 } // namespace autoware_pov::common
 
-#endif // CUDA_FOUND
+#endif // HIP_FOUND
