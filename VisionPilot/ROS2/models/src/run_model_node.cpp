@@ -3,8 +3,13 @@
 #include "../../common/include/tensorrt_backend.hpp"
 
 #ifdef CUDA_FOUND
-#include "../../common/include/cuda_visualization_kernels.hpp"
+#include "../../common/include/masks_visualization_kernels.hpp"
 #endif
+
+#ifdef HIP_FOUND
+#include "../../common/include/masks_visualization_kernels.hpp"
+#endif
+
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -25,6 +30,7 @@ RunModelNode::RunModelNode(const rclcpp::NodeOptions & options)
   output_topic_str_ = this->declare_parameter<std::string>("output_topic");
   model_type_ = this->declare_parameter<std::string>("model_type");
   measure_latency_ = this->declare_parameter<bool>("measure_latency", true);
+  gpu_backend_ = this->declare_parameter<std::string>("gpu_backend", "cuda"); // "cuda" or "hip"
 
   // Instantiate the backend
   if (backend_str == "onnxruntime") {
@@ -43,6 +49,7 @@ RunModelNode::RunModelNode(const rclcpp::NodeOptions & options)
     rmw_qos_profile_sensor_data);
   
   RCLCPP_INFO(this->get_logger(), "Model runner node configured for model type '%s'", model_type_.c_str());
+  RCLCPP_INFO(this->get_logger(), "GPU backend: %s", gpu_backend_.c_str());
   RCLCPP_INFO(this->get_logger(), "Input topic: %s", input_topic.c_str());
   RCLCPP_INFO(this->get_logger(), "Output topic: %s", output_topic_str_.c_str());
 }
@@ -111,14 +118,27 @@ void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
     // Segmentation: create binary masks
     cv::Mat mask;
     
-#ifdef CUDA_FOUND
-    // Try CUDA acceleration first
-    bool cuda_success = CudaVisualizationKernels::createMaskFromTensorCUDA(
-      tensor_data, tensor_shape, mask
-    );
+    // --- Mask Generation Timing Start ---
+    auto mask_start_time = std::chrono::steady_clock::now();
     
-    if (!cuda_success) {
+    bool gpu_success = false;
+    
+    // Try GPU acceleration based on backend preference
+    if (gpu_backend_ == "cuda") {
+#ifdef CUDA_FOUND
+      gpu_success = MasksVisualizationKernels::createMaskFromTensorCUDA(
+        tensor_data, tensor_shape, mask
+      );
 #endif
+    } else if (gpu_backend_ == "hip") {
+#ifdef HIP_FOUND
+      gpu_success = MasksVisualizationKernels::createMaskFromTensorHIP(
+        tensor_data, tensor_shape, mask
+      );
+#endif
+    }
+    
+    if (!gpu_success) {
       // CPU fallback: create mask from tensor
       int height = static_cast<int>(tensor_shape[2]);
       int width = static_cast<int>(tensor_shape[3]);
@@ -153,9 +173,16 @@ void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
           }
         }
       }
-#ifdef CUDA_FOUND
     }
-#endif
+    
+    // --- Mask Generation Timing End & Report ---
+    auto mask_end_time = std::chrono::steady_clock::now();
+    auto mask_time_ms = std::chrono::duration<double, std::milli>(mask_end_time - mask_start_time).count();
+    
+    if (measure_latency_ && (frame_count_ % LATENCY_SAMPLE_INTERVAL == 0)) {
+      RCLCPP_INFO(this->get_logger(), "Frame %zu: Get mask time: %.2f ms", frame_count_, mask_time_ms);
+    }
+    // ---------------------------------------------
     
     // Resize mask to original image size (use NEAREST for masks)
     cv::Mat resized_mask;
