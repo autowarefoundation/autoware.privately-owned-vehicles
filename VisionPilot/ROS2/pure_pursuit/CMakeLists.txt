@@ -13,6 +13,7 @@ add_subdirectory(
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(carla_msgs REQUIRED)
 
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
@@ -29,7 +30,7 @@ target_include_directories(pure_pursuit_node PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_compile_features(pure_pursuit_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
-ament_target_dependencies(pure_pursuit_node rclcpp std_msgs)
+ament_target_dependencies(pure_pursuit_node rclcpp std_msgs carla_msgs)
 
 install(TARGETS pure_pursuit_node
   DESTINATION lib/${PROJECT_NAME})
