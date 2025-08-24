@@ -45,3 +45,26 @@ def normalizeCoords(line, width, height):
     return [(x / width, y / height) for x, y in line]
 
 
+if __name__ == "__main__":
+
+    # ============================== Dataset structure ============================== #
+
+    # FYI: https://github.com/OpenDriveLab/OpenLane/blob/main/data/README.md
+
+    IMAGE_SPLITS = [
+        "training", 
+        "validation"
+    ]
+    IMG_DIR = "images"
+    LABEL_SPLITS = {
+        "lane3d_1000_training" : [],
+        "lane3d_1000_validation_test" : [
+            "validation"
+        ]
+    }
+
+    # All 200k scenes have reso 1920 x 1280. I checked it.
+    W = 1920
+    H = 1280
+
+    
