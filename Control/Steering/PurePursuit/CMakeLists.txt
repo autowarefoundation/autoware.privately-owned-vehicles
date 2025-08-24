@@ -10,5 +10,11 @@ include_directories(
 )
 
 add_executable(PurePursuit
+    src/main.cpp
     src/pure_pursuit.cpp
 )
+
+add_library(pure_pursuit_lib
+    src/pure_pursuit.cpp
+)
+target_include_directories(pure_pursuit_lib PUBLIC include)
