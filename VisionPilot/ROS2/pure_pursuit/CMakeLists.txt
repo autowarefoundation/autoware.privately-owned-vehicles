@@ -34,4 +34,8 @@ ament_target_dependencies(pure_pursuit_node rclcpp std_msgs)
 install(TARGETS pure_pursuit_node
   DESTINATION lib/${PROJECT_NAME})
 
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 ament_package()
