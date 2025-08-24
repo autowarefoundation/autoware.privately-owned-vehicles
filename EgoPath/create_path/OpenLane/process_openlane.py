@@ -33,3 +33,15 @@ def custom_warning_format(
     return f"WARNING : {message}\n"
 
 warnings.formatwarning = custom_warning_format
+
+
+# ============================== Helper functions ============================== #
+
+
+def normalizeCoords(line, width, height):
+    """
+    Normalize the coords of line points.
+    """
+    return [(x / width, y / height) for x, y in line]
+
+
