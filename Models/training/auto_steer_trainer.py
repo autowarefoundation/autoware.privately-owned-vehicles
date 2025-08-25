@@ -12,6 +12,7 @@ import sys
 sys.path.append('..')
 from model_components.auto_steer_network import AutoSteerNetwork
 from data_utils.augmentations import Augmentations
+from data_utils.load_data_auto_steer import VALID_DATASET_LIST
 
 
 class AutoSteerTrainer():
@@ -63,9 +64,8 @@ class AutoSteerTrainer():
         self.ORIG_FIGSIZE = (8, 4)
 
         # Currently limiting to available datasets only. Will unlock eventually
-        self.VALID_DATASET_LITERALS = Literal["TUSIMPLE"]
-        self.VALID_DATASET_LIST = list(get_args(self.VALID_DATASET_LITERALS))
-
+        self.VALID_DATASET_LIST = VALID_DATASET_LIST
+        
         # Checking devices (GPU vs CPU)
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() 

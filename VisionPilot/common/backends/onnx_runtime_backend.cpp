@@ -81,61 +81,22 @@ bool OnnxRuntimeBackend::doInference(const cv::Mat & input_image)
     return true;
 }
 
-void OnnxRuntimeBackend::getRawOutput(cv::Mat & output, const cv::Size & output_size, const std::string & model_type) const
+
+
+const float* OnnxRuntimeBackend::getRawTensorData() const
 {
     if (last_output_tensors_.empty()) {
         throw std::runtime_error("Inference has not been run yet. Call doInference() first.");
     }
-    
-    const float* output_data = last_output_tensors_.front().GetTensorData<float>();
-    auto output_dims = last_output_tensors_.front().GetTensorTypeAndShapeInfo().GetShape();
-    
-    const int height = static_cast<int>(output_dims[2]);
-    const int width = static_cast<int>(output_dims[3]);
-    const int channels = static_cast<int>(output_dims[1]);
+    return last_output_tensors_.front().GetTensorData<float>();
+}
 
-    if (model_type == "depth") {
-        // Depth estimation: return raw float values without processing
-        cv::Mat raw_output(height, width, CV_32FC1, const_cast<float*>(output_data));
-        cv::resize(raw_output, output, output_size, 0, 0, cv::INTER_LINEAR);
-        
-    } else if (channels > 1) {
-        // Multi-class segmentation: do argmax like original scene seg
-        cv::Mat argmax_mask(height, width, CV_8UC1);
-        
-        for (int h = 0; h < height; ++h) {
-            for (int w = 0; w < width; ++w) {
-                float max_score = -std::numeric_limits<float>::infinity();
-                uint8_t best_class = 0;
-                
-                for (int c = 0; c < channels; ++c) {
-                    float score = output_data[c * height * width + h * width + w];
-                    if (score > max_score) {
-                        max_score = score;
-                        best_class = static_cast<uint8_t>(c);
-                    }
-                }
-                
-                argmax_mask.at<uint8_t>(h, w) = best_class;
-            }
-        }
-        
-        // Resize using nearest neighbor to preserve class boundaries
-        cv::resize(argmax_mask, output, output_size, 0, 0, cv::INTER_NEAREST);
-        
-    } else {
-        // Binary segmentation: threshold like original domain seg
-        cv::Mat raw_output(height, width, CV_32FC1, const_cast<float*>(output_data));
-        
-        cv::Mat thresholded;
-        cv::threshold(raw_output, thresholded, 0.0, 1.0, cv::THRESH_BINARY);
-        
-        cv::Mat binary_mask;
-        thresholded.convertTo(binary_mask, CV_8UC1, 255.0);
-        
-        // Resize using nearest neighbor
-        cv::resize(binary_mask, output, output_size, 0, 0, cv::INTER_NEAREST);
+std::vector<int64_t> OnnxRuntimeBackend::getTensorShape() const
+{
+    if (last_output_tensors_.empty()) {
+        throw std::runtime_error("Inference has not been run yet. Call doInference() first.");
     }
+    return last_output_tensors_.front().GetTensorTypeAndShapeInfo().GetShape();
 }
 
 }  // namespace autoware_pov::vision

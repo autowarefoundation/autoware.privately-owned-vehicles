@@ -18,14 +18,21 @@ from Models.data_utils.check_data import CheckData
 VALID_DATASET_LITERALS = Literal[
     # "BDD100K",
     # "COMMA2K19",
-    #"CULANE",
-    # "CURVELANES",
+    "CULANE",
+    "CURVELANES",
     # "ROADWORK",
     "TUSIMPLE"
-    # "ROADWORK",
-
 ]
 VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
+
+FIXED_HOMOTRANS_DATASETS = [
+    "CULANE",
+    "TUSIMPLE"
+]
+
+DYNAMIC_HOMOTRANS_DATASETS = [
+    "CURVELANES"
+]
 
 
 class LoadDataAutoSteer():
@@ -50,8 +57,11 @@ class LoadDataAutoSteer():
         # Load JSON labels, get homotrans matrix as well
         with open(self.label_filepath, "r") as f:
             json_data = json.load(f)
-            homotrans_mat = json_data.pop("standard_homomatrix")
-            self.BEV_to_image_transform = np.linalg.inv(homotrans_mat)
+            if (self.dataset_name in FIXED_HOMOTRANS_DATASETS):
+                homotrans_mat = json_data.pop("standard_homomatrix")
+                self.BEV_to_image_transform = np.linalg.inv(homotrans_mat)
+            else:
+                self.BEV_to_image_transform = None
             self.labels = json_data
 
         self.images = sorted([
@@ -117,6 +127,13 @@ class LoadDataAutoSteer():
             # Frame ID
             frame_id = self.train_ids[index]
 
+            # BEV-to-image transform
+            bev_to_image_transform = (
+                self.BEV_to_image_transform
+                if (self.BEV_to_image_transform is not None)
+                else np.linalg.inv(self.train_labels[index]["homomatrix"])
+            )
+
             # BEV EgoPath
             bev_egopath = self.train_labels[index]["bev_egopath"]
             bev_egopath = [lab[0:2] for lab in bev_egopath]
@@ -148,6 +165,13 @@ class LoadDataAutoSteer():
 
             # Frame ID
             frame_id = self.val_ids[index]
+
+            # BEV-to-image transform
+            bev_to_image_transform = (
+                self.BEV_to_image_transform
+                if (self.BEV_to_image_transform is not None)
+                else np.linalg.inv(self.val_labels[index]["homomatrix"])
+            )
             
             # BEV EgoPath
             bev_egopath = self.val_labels[index]["bev_egopath"]
@@ -178,7 +202,7 @@ class LoadDataAutoSteer():
         
         return [
             frame_id, bev_img,
-            self.BEV_to_image_transform,
+            bev_to_image_transform,
             bev_egopath, reproj_egopath,
             bev_egoleft, reproj_egoleft,
             bev_egoright, reproj_egoright,

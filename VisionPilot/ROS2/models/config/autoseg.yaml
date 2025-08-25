@@ -1,8 +1,8 @@
 scene_seg_model:
   ros__parameters:
     model_path: "data/models/SceneSeg_FP32-infer.onnx"
-    backend: "onnxruntime"
-    precision: "cpu"
+    backend: "tensorrt"
+    precision: "fp16"
     model_type: "segmentation"
     input_topic: "/sensors/video/image_raw"
     output_topic: "/autoseg/scene_seg/mask"
@@ -10,8 +10,8 @@ scene_seg_model:
 domain_seg_model:
   ros__parameters:
     model_path: "data/models/DomainSeg_FP32.onnx"
-    backend: "onnxruntime"
-    precision: "cpu"
+    backend: "tensorrt"
+    precision: "fp16"
     model_type: "segmentation"
     input_topic: "/sensors/video/image_raw"
     output_topic: "/autoseg/domain_seg/mask"

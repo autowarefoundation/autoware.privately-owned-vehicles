@@ -8,12 +8,8 @@ from PIL import Image
 from typing import Literal, get_args
 import sys
 sys.path.append('../..')
-from Models.data_utils.load_data_auto_steer import LoadDataAutoSteer
+from Models.data_utils.load_data_auto_steer import LoadDataAutoSteer, VALID_DATASET_LIST
 from Models.training.auto_steer_trainer import AutoSteerTrainer
-
-# Currently limiting to available datasets only. Will unlock eventually
-VALID_DATASET_LITERALS = Literal["TUSIMPLE"] #Literal["TUSIMPLE", "CULANE"]
-VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
 
 BEV_JSON_PATH = "drivable_path_bev.json"
 BEV_IMG_PATH = "image_bev"
@@ -28,15 +24,15 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH = '/home/zain/Autoware/Data/AutoSteer/'#args.root
+    ROOT_PATH = 'DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)' #args.root
 
     # Model save root path
-    MODEL_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/models/' #args.model_save_root_path
+    MODEL_SAVE_ROOT_PATH = '{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/models/' #args.model_save_root_path
     if (not os.path.exists(MODEL_SAVE_ROOT_PATH)):
         os.makedirs(MODEL_SAVE_ROOT_PATH)
 
     # Visualizations save root path
-    VIS_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/figures/'
+    VIS_SAVE_ROOT_PATH = '{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/figures/' #args.vis_save_root_path
     if (not os.path.exists(VIS_SAVE_ROOT_PATH)):
         os.makedirs(VIS_SAVE_ROOT_PATH)
 
@@ -108,9 +104,9 @@ def main():
     
     # Training loop parameters
     NUM_EPOCHS = 50
-    LOGSTEP_LOSS = 50
-    LOGSTEP_VIS = 100
-    LOGSTEP_MODEL = 5000
+    LOGSTEP_LOSS = 100
+    LOGSTEP_VIS = 200
+    LOGSTEP_MODEL = 10000
 
     # Val visualization param
     N_VALVIS = 25
