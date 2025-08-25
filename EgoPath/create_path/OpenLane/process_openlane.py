@@ -57,9 +57,12 @@ if __name__ == "__main__":
     ]
     IMG_DIR = "images"
     LABEL_SPLITS = {
-        "lane3d_1000_training" : [],
+        "lane3d_1000_training" : [
+            "training",
+        ],
         "lane3d_1000_validation_test" : [
-            "validation"
+            "validation",
+            # "test" not included
         ]
     }
 
@@ -128,4 +131,27 @@ if __name__ == "__main__":
         if (not os.path.exists(subdir_path)):
             os.makedirs(subdir_path, exist_ok = True)
 
-    
+    # ============================== Parsing annotations ============================== #
+
+    data_master = {}
+    img_id_counter = -1
+
+    for label_split, list_label_subdirs in LABEL_SPLITS.items():
+        
+        for subsplit in list_label_subdirs:
+            subsplit_path = os.path.join(
+                dataset_dir,
+                label_split,
+                subsplit
+            )
+
+            for segment in sorted(os.listdir(subsplit_path)):
+                segment_path = os.path.join(subsplit_path, segment)
+
+                for label_file in sorted(os.listdir(segment_path)):                    
+                    label_file_path = os.path.join(segment_path, label_file)
+                    with open(label_file_path, "r") as f:
+                        this_label_data = json.load(f)
+
+                    this_label_data = parseData(this_label_data)
+                    annotateGT(this_label_data)
