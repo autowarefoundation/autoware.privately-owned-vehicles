@@ -35,17 +35,31 @@ def custom_warning_format(
 warnings.formatwarning = custom_warning_format
 
 
+PointCoords = tuple[float, float]
+ImagePointCoords = tuple[int, int]
+
+
 # ============================== Helper functions ============================== #
 
 
-def normalizeCoords(line, width, height):
+def normalizeCoords(
+    line: list[PointCoords] | list[ImagePointCoords], 
+    width: int, 
+    height: int
+):
     """
     Normalize the coords of line points.
     """
-    return [(x / width, y / height) for x, y in line]
+    return [
+        (x / width, y / height) 
+        for x, y in line
+    ]
 
 
-def getLineAnchor(line, new_img_height):
+def getLineAnchor(
+    line: list[PointCoords] | list[ImagePointCoords], 
+    new_img_height: int
+):
     """
     Determine "anchor" point of a line.
     Unlike other datasets, since the resolution of each line in this dataset is
@@ -72,6 +86,122 @@ def getLineAnchor(line, new_img_height):
     x0 = (new_img_height - b) / a
 
     return (x0, a, b)
+
+
+def getDrivablePath(
+    left_ego: list[PointCoords] | list[ImagePointCoords], 
+    right_ego: list[PointCoords] | list[ImagePointCoords], 
+    new_img_height: int,
+    y_coords_interp: bool = False
+):
+    """
+    Computes drivable path as midpoint between 2 ego lanes.
+    """
+
+    drivable_path = []
+
+    # Interpolation among non-uniform y-coords
+    if (y_coords_interp):
+
+        left_ego = np.array(left_ego)
+        right_ego = np.array(right_ego)
+        y_coords_ASSEMBLE = np.unique(
+            np.concatenate((
+                left_ego[:, 1],
+                right_ego[:, 1]
+            ))
+        )[::-1]
+        left_x_interp = np.interp(
+            y_coords_ASSEMBLE, 
+            left_ego[:, 1][::-1], 
+            left_ego[:, 0][::-1]
+        )
+        right_x_interp = np.interp(
+            y_coords_ASSEMBLE, 
+            right_ego[:, 1][::-1], 
+            right_ego[:, 0][::-1]
+        )
+        mid_x = (left_x_interp + right_x_interp) / 2
+        # Filter out those points that are not in the common vertical zone between 2 egos
+        drivable_path = [
+            [x, y] for x, y in list(zip(mid_x, y_coords_ASSEMBLE))
+            if y <= min(left_ego[0][1], right_ego[0][1])
+        ]
+
+    else:
+        # Get the normal drivable path from the longest common y-coords
+        while (i <= len(left_ego) - 1 and j <= len(right_ego) - 1):
+            if (left_ego[i][1] == right_ego[j][1]):
+                drivable_path.append((
+                    (left_ego[i][0] + right_ego[j][0]) / 2,     # Midpoint along x axis
+                    left_ego[i][1]
+                ))
+                i += 1
+                j += 1
+            elif (left_ego[i][1] > right_ego[j][1]):
+                i += 1
+            else:
+                j += 1
+
+    # Extend drivable path to bottom edge of the frame
+    if ((len(drivable_path) >= 2) and (drivable_path[0][1] < new_img_height - 1)):
+        x1, y1 = drivable_path[1]
+        x2, y2 = drivable_path[0]
+        if (x2 == x1):
+            x_bottom = x2
+        else:
+            a = (y2 - y1) / (x2 - x1)
+            x_bottom = x2 + (new_img_height - 1 - y2) / a
+        drivable_path.insert(0, (x_bottom, new_img_height - 1))
+
+    # Extend drivable path to be on par with longest ego line
+    # By making it parallel with longer ego line
+    y_top = min(
+        left_ego[-1][1], 
+        right_ego[-1][1]
+    )
+
+    if (
+        (len(drivable_path) >= 2) and 
+        (drivable_path[-1][1] > y_top)
+    ):
+        sign_left_ego = left_ego[-1][0] - left_ego[-2][0]
+        sign_right_ego = right_ego[-1][0] - right_ego[-2][0]
+        sign_val = sign_left_ego * sign_right_ego
+
+        # 2 egos going the same direction
+        if (sign_val > 0):
+            longer_ego = left_ego if left_ego[-1][1] < right_ego[-1][1] else right_ego
+            if (
+                (len(longer_ego) >= 2) and 
+                (len(drivable_path) >= 2)
+            ):
+                x1, y1 = longer_ego[-1]
+                x2, y2 = longer_ego[-2]
+                if (x2 == x1):
+                    x_top = drivable_path[-1][0]
+                else:
+                    a = (y2 - y1) / (x2 - x1)
+                    x_top = drivable_path[-1][0] + (y_top - drivable_path[-1][1]) / a
+
+                drivable_path.append((x_top, y_top))
+        
+        # 2 egos going opposite directions
+        else:
+            if (len(drivable_path) >= 2):
+                x1, y1 = drivable_path[-1]
+                x2, y2 = drivable_path[-2]
+
+                if (x2 == x1):
+                    x_top = x1
+                else:
+                    a = (y2 - y1) / (x2 - x1)
+                    x_top = x1 + (y_top - y1) / a
+
+                drivable_path.append((x_top, y_top))
+
+
+    return drivable_path
 
 
 if __name__ == "__main__":
