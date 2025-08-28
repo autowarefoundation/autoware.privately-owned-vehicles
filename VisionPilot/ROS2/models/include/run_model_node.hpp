@@ -21,6 +21,7 @@ private:
   // Parameters
   std::string model_type_;
   std::string output_topic_str_;
+  std::string gpu_backend_; // "cuda" or "hip"
   
   // Backend
   std::unique_ptr<InferenceBackend> backend_;
