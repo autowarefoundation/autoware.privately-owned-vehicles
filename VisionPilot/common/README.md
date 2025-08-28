@@ -133,11 +133,6 @@ public:
 3. Include frame rate and timing management
 4. Add to middleware wrapper's sensor node options
 
-
-### Visualization Engines  
-- **Masks Visualization**: ~2-5ms per frame (efficient color mapping)
-- **Depth Visualization**: ~5-10ms per frame (normalization + color map)
-
 ## Dependencies
 
 ### Required Libraries

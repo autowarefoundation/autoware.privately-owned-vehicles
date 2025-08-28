@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+// Forward declare for tensor support
+namespace Ort { class Value; }
+
 namespace autoware_pov::vision
 {
 
@@ -15,7 +18,9 @@ public:
 
   virtual bool doInference(const cv::Mat & input_image) = 0;
   
-  virtual void getRawOutput(cv::Mat & output, const cv::Size & output_size, const std::string & model_type = "segmentation") const = 0;
+  // Only tensor access - no cv::Mat nonsense
+  virtual const float* getRawTensorData() const = 0;
+  virtual std::vector<int64_t> getTensorShape() const = 0;
 
   virtual int getModelInputHeight() const = 0;
   virtual int getModelInputWidth() const = 0;

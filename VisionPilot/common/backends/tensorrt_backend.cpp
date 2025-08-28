@@ -201,54 +201,19 @@ bool TensorRTBackend::doInference(const cv::Mat & input_image)
   return true;
 }
 
-void TensorRTBackend::getRawOutput(cv::Mat & output, const cv::Size & output_size, const std::string & model_type) const
+
+
+const float* TensorRTBackend::getRawTensorData() const
 {
-  if (model_type == "depth") {
-    // Depth estimation: return raw float values without processing
-    cv::Mat raw_output(
-      model_output_height_, model_output_width_, CV_32FC1,
-      const_cast<float *>(output_buffer_host_.data()));
-    cv::resize(raw_output, output, output_size, 0, 0, cv::INTER_LINEAR);
-    
-  } else if (model_output_classes_ > 1) {
-    // Multi-class segmentation: do argmax like original scene seg
-    cv::Mat argmax_mask(model_output_height_, model_output_width_, CV_8UC1);
-    
-    for (int h = 0; h < model_output_height_; ++h) {
-      for (int w = 0; w < model_output_width_; ++w) {
-        float max_score = -std::numeric_limits<float>::infinity();
-        uint8_t best_class = 0;
-        
-        for (int c = 0; c < model_output_classes_; ++c) {
-          float score = output_buffer_host_[c * model_output_height_ * model_output_width_ + h * model_output_width_ + w];
-          if (score > max_score) {
-            max_score = score;
-            best_class = static_cast<uint8_t>(c);
-          }
-        }
-        
-        argmax_mask.at<uint8_t>(h, w) = best_class;
-      }
+    if (output_buffer_host_.empty()) {
+        throw std::runtime_error("Inference has not been run yet. Call doInference() first.");
     }
-    
-    // Resize using nearest neighbor to preserve class boundaries
-    cv::resize(argmax_mask, output, output_size, 0, 0, cv::INTER_NEAREST);
-    
-  } else {
-    // Binary segmentation: threshold like original domain seg
-    cv::Mat raw_output(
-      model_output_height_, model_output_width_, CV_32FC1,
-      const_cast<float *>(output_buffer_host_.data()));
-    
-    cv::Mat thresholded;
-    cv::threshold(raw_output, thresholded, 0.0, 1.0, cv::THRESH_BINARY);
-    
-    cv::Mat binary_mask;
-    thresholded.convertTo(binary_mask, CV_8UC1, 255.0);
-    
-    // Resize using nearest neighbor
-    cv::resize(binary_mask, output, output_size, 0, 0, cv::INTER_NEAREST);
-  }
+    return output_buffer_host_.data();
+}
+
+std::vector<int64_t> TensorRTBackend::getTensorShape() const
+{
+    return {1, static_cast<int64_t>(model_output_classes_), static_cast<int64_t>(model_output_height_), static_cast<int64_t>(model_output_width_)};
 }
 
 }  // namespace autoware_pov::vision

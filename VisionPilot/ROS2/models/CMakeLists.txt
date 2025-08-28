@@ -14,6 +14,16 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(CUDA REQUIRED)
 
+# --- HIP Configuration ---
+find_package(HIP QUIET)
+if(HIP_FOUND)
+  message(STATUS "HIP found: ${HIP_VERSION}")
+  enable_language(HIP)
+  message(STATUS "HIP language enabled - platform and architecture controlled via command line")
+else()
+  message(STATUS "HIP not found, HIP kernels will be disabled")
+endif()
+
 # --- TensorRT Configuration ---
 find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS /usr/include/x86_64-linux-gnu/ /opt/tensorrt/include)
 find_library(TENSORRT_LIBRARY nvinfer HINTS /usr/lib/x86_64-linux-gnu/)
@@ -61,6 +71,20 @@ target_link_libraries(inference_backends
 add_library(run_model_node SHARED 
   src/run_model_node.cpp
 )
+
+# Add HIP source files if HIP is available
+if(HIP_FOUND)
+  target_sources(run_model_node PRIVATE
+    ../../common/visualizers/masks_viz.hip.cpp
+  )
+  target_include_directories(run_model_node PUBLIC
+    ${HIP_INCLUDE_DIRS}
+  )
+  target_link_libraries(run_model_node
+    ${HIP_LIBRARIES}
+  )
+endif()
+
 target_include_directories(run_model_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../common/include>

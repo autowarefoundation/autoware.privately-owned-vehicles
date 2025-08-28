@@ -21,7 +21,10 @@ public:
   ~TensorRTBackend();
 
   bool doInference(const cv::Mat & input_image) override;
-  void getRawOutput(cv::Mat & output, const cv::Size & output_size, const std::string & model_type = "segmentation") const override;
+
+  // Only tensor access
+  const float* getRawTensorData() const override;
+  std::vector<int64_t> getTensorShape() const override;
 
   int getModelInputHeight() const override { return model_input_height_; }
   int getModelInputWidth() const override { return model_input_width_; }

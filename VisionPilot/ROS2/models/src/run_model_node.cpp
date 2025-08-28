@@ -1,6 +1,15 @@
 #include "run_model_node.hpp"
 #include "../../common/include/onnx_runtime_backend.hpp"
 #include "../../common/include/tensorrt_backend.hpp"
+
+#ifdef CUDA_FOUND
+#include "../../common/include/masks_visualization_kernels.hpp"
+#endif
+
+#ifdef HIP_FOUND
+#include "../../common/include/masks_visualization_kernels.hpp"
+#endif
+
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -21,6 +30,7 @@ RunModelNode::RunModelNode(const rclcpp::NodeOptions & options)
   output_topic_str_ = this->declare_parameter<std::string>("output_topic");
   model_type_ = this->declare_parameter<std::string>("model_type");
   measure_latency_ = this->declare_parameter<bool>("measure_latency", true);
+  gpu_backend_ = this->declare_parameter<std::string>("gpu_backend", "cuda"); // "cuda" or "hip"
 
   // Instantiate the backend
   if (backend_str == "onnxruntime") {
@@ -39,6 +49,7 @@ RunModelNode::RunModelNode(const rclcpp::NodeOptions & options)
     rmw_qos_profile_sensor_data);
   
   RCLCPP_INFO(this->get_logger(), "Model runner node configured for model type '%s'", model_type_.c_str());
+  RCLCPP_INFO(this->get_logger(), "GPU backend: %s", gpu_backend_.c_str());
   RCLCPP_INFO(this->get_logger(), "Input topic: %s", input_topic.c_str());
   RCLCPP_INFO(this->get_logger(), "Output topic: %s", output_topic_str_.c_str());
 }
@@ -76,24 +87,112 @@ void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
   }
   // ------------------------------------
 
-  // Get processed output from backend (like original architecture)
-  cv::Mat processed_output;
-  backend_->getRawOutput(processed_output, in_image_ptr->image.size(), model_type_);
-
-  // Publish based on model type
-  sensor_msgs::msg::Image::SharedPtr out_msg;
-  if (model_type_ == "segmentation") {
-    // Segmentation: backend returns CV_8UC1 mask (like original getRawMask/getDomainMask)
-    out_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, processed_output).toImageMsg();
-  } else if (model_type_ == "depth") {
-    // Depth: backend returns CV_32FC1 depth map
-    out_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::TYPE_32FC1, processed_output).toImageMsg();
-  } else {
-    RCLCPP_WARN(this->get_logger(), "Unknown model type: %s", model_type_.c_str());
+  // Get tensor data from backend
+  const float* tensor_data = backend_->getRawTensorData();
+  std::vector<int64_t> tensor_shape = backend_->getTensorShape();
+  
+  if (tensor_shape.size() != 4) {
+    RCLCPP_ERROR(this->get_logger(), "Invalid tensor shape");
     return;
   }
   
-  pub_.publish(out_msg);
+  // Model-type specific processing
+  if (model_type_ == "depth") {
+    // Depth estimation: output raw depth values (CV_32FC1)
+    int height = static_cast<int>(tensor_shape[2]);
+    int width = static_cast<int>(tensor_shape[3]);
+    
+    // Create depth map from tensor data (single channel float)
+    cv::Mat depth_map(height, width, CV_32FC1, const_cast<float*>(tensor_data));
+    
+    // Resize depth map to original image size (use LINEAR for depth)
+    cv::Mat resized_depth;
+    cv::resize(depth_map, resized_depth, in_image_ptr->image.size(), 0, 0, cv::INTER_LINEAR);
+    
+    // Publish depth map as CV_32FC1
+    sensor_msgs::msg::Image::SharedPtr out_msg = 
+      cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::TYPE_32FC1, resized_depth).toImageMsg();
+    pub_.publish(out_msg);
+    
+  } else if (model_type_ == "segmentation") {
+    // Segmentation: create binary masks
+    cv::Mat mask;
+    
+    // --- Mask Generation Timing Start ---
+    auto mask_start_time = std::chrono::steady_clock::now();
+    
+    bool gpu_success = false;
+    
+    // Try GPU acceleration based on backend preference
+    if (gpu_backend_ == "cuda") {
+#ifdef CUDA_FOUND
+      gpu_success = MasksVisualizationKernels::createMaskFromTensorCUDA(
+        tensor_data, tensor_shape, mask
+      );
+#endif
+    } else if (gpu_backend_ == "hip") {
+#ifdef HIP_FOUND
+      gpu_success = MasksVisualizationKernels::createMaskFromTensorHIP(
+        tensor_data, tensor_shape, mask
+      );
+#endif
+    }
+    
+    if (!gpu_success) {
+      // CPU fallback: create mask from tensor
+      int height = static_cast<int>(tensor_shape[2]);
+      int width = static_cast<int>(tensor_shape[3]);
+      int channels = static_cast<int>(tensor_shape[1]);
+      
+      mask = cv::Mat(height, width, CV_8UC1);
+      
+      if (channels > 1) {
+        // Multi-class segmentation: argmax across channels (NCHW format)
+        for (int h = 0; h < height; ++h) {
+          for (int w = 0; w < width; ++w) {
+            float max_score = -1e9f;
+            uint8_t best_class = 0;
+            for (int c = 0; c < channels; ++c) {
+              // NCHW format: tensor_data[batch=0][channel=c][height=h][width=w]
+              float score = tensor_data[c * height * width + h * width + w];
+              if (score > max_score) {
+                max_score = score;
+                best_class = static_cast<uint8_t>(c);
+              }
+            }
+            // Convert class IDs for scene segmentation: Class 1 -> 255, others -> 0
+            mask.at<uint8_t>(h, w) = (best_class == 1) ? 255 : 0;
+          }
+        }
+      } else {
+        // Single channel: threshold for binary segmentation
+        for (int h = 0; h < height; ++h) {
+          for (int w = 0; w < width; ++w) {
+            float value = tensor_data[h * width + w];
+            mask.at<uint8_t>(h, w) = (value > 0.0f) ? 255 : 0;
+          }
+        }
+      }
+    }
+    
+    // --- Mask Generation Timing End & Report ---
+    auto mask_end_time = std::chrono::steady_clock::now();
+    auto mask_time_ms = std::chrono::duration<double, std::milli>(mask_end_time - mask_start_time).count();
+    
+    if (measure_latency_ && (frame_count_ % LATENCY_SAMPLE_INTERVAL == 0)) {
+      RCLCPP_INFO(this->get_logger(), "Frame %zu: Get mask time: %.2f ms", frame_count_, mask_time_ms);
+    }
+    // ---------------------------------------------
+    
+    // Resize mask to original image size (use NEAREST for masks)
+    cv::Mat resized_mask;
+    cv::resize(mask, resized_mask, in_image_ptr->image.size(), 0, 0, cv::INTER_NEAREST);
+    
+    // Publish binary mask as MONO8
+    sensor_msgs::msg::Image::SharedPtr out_msg = 
+      cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, resized_mask).toImageMsg();
+    pub_.publish(out_msg);
+  }
 }
 
 }  // namespace autoware_pov::vision
