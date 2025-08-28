@@ -9,10 +9,10 @@ class BEVPathContext(nn.Module):
         self.GeLU = nn.GELU()
         self.sigmoid = nn.Sigmoid()
         self.dropout = nn.Dropout(p=0.25)
-        self.avg_pool = nn.AvgPool2d(2, stride=2)
+        self.pool = nn.MaxPool2d(2, stride=2)
 
         # Context - MLP Layers
-        self.context_layer_0 = nn.Linear(1280, 800)
+        self.context_layer_0 = nn.Linear(1456, 800)
         self.context_layer_1 = nn.Linear(800, 800)
         self.context_layer_2 = nn.Linear(800, 200)
 
@@ -20,11 +20,7 @@ class BEVPathContext(nn.Module):
         self.context_layer_3 = nn.Conv2d(1, 128, 3, 1, 1)
         self.context_layer_4 = nn.Conv2d(128, 256, 3, 1, 1)
         self.context_layer_5 = nn.Conv2d(256, 512, 3, 1, 1)
-        self.context_layer_6 = nn.Conv2d(512, 1280, 3, 1, 1)
-
-        # Context - Decode layers
-        self.context_layer_7 = nn.Linear(1280, 800)
-        self.context_layer_8 = nn.Linear(800, 800)
+        self.context_layer_6 = nn.Conv2d(512, 1456, 3, 1, 1)
      
 
     def forward(self, features):
@@ -32,7 +28,7 @@ class BEVPathContext(nn.Module):
         # Pooling and averaging channel layers to get a single vector
         feature_vector = torch.mean(features, dim = [2,3])
         feature_vector = self.dropout(feature_vector)
-       
+               
         # MLP
         c0 = self.context_layer_0(feature_vector)
         c0 = self.dropout(c0)
@@ -60,18 +56,10 @@ class BEVPathContext(nn.Module):
         context = self.GeLU(c7)
 
         # Attention
-        context = context*features + features
+        fused_features = self.pool(features)
+        context = context*fused_features + fused_features
 
         # Context feature vector
         context_feature_vector = torch.mean(context, dim = [2,3])
-        context_feature_vector = self.dropout(context_feature_vector)
 
-        # Decoding driving path related features
-        path_features = self.context_layer_7(context_feature_vector)
-        path_features = self.dropout(path_features)
-        path_features = self.GeLU(path_features)
-        path_features = self.context_layer_8(path_features)
-        path_features = self.dropout(path_features)
-        path_features = self.GeLU(path_features)
-
-        return path_features   
+        return context_feature_vector   

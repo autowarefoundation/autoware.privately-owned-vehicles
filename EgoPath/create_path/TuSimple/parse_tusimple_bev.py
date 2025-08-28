@@ -43,7 +43,20 @@ def normalizeCoords(line, width, height):
     """
     Normalize the coords of line points.
     """
-    return [(x / width, y / height) for x, y in line]
+    return [
+        (x / width, y / height) 
+        for x, y in line
+    ]
+
+
+def renormalizeCoords(line, width, height):
+    """
+    Renormalize the coords of line points.
+    """
+    return [
+        (x * width, y * height) 
+        for x, y in line
+    ]
 
 
 def interpLine(line: list, points_quota: int):
@@ -454,6 +467,77 @@ def transformBEV(
     return (im_dst, bev_line, reproj_line, flag_list, validity_list, mat, True)
 
 
+def calTransformedDistance(
+    a: ImagePointCoords | PointCoords,
+    b: ImagePointCoords | PointCoords,
+    homotrans_mat: list[list[float]]
+) -> float:
+
+    pts = np.array([a, b], dtype = np.float32).reshape(-1, 1, 2)
+    pts_bev = cv2.perspectiveTransform(pts, homotrans_mat)
+    a_bev = pts_bev[0][0]
+    b_bev = pts_bev[1][0]
+
+    distance_bev = np.linalg.norm(a_bev - b_bev)
+
+    return distance_bev
+
+
+def calEgoSide(
+    bev_egopath: list[ImagePointCoords],
+    anchor_offset: float,
+    homotrans_mat: list[list[float]]
+) -> list[tuple[
+        int,    # x-coord, int
+        int,    # y-coord, int
+        int,    # flag, int
+        int     # validity, int
+]]:
+
+    # BEV-egoside
+    bev_egoside = []
+    for point in bev_egopath:
+        x, y = point
+        bev_egoside.append((
+            int(x + anchor_offset), 
+            int(y)
+        ))
+
+    # Original egoside
+    inv_mat = np.linalg.inv(homotrans_mat)
+    orig_egoside = np.array(
+        bev_egoside,
+        dtype = np.float32
+    ).reshape(-1, 1, 2)
+    orig_egoside = cv2.perspectiveTransform(orig_egoside, inv_mat)
+    orig_egoside = [
+        tuple(map(int, point[0])) 
+        for point in orig_egoside
+    ]
+
+    # Flag list
+    egoside_flag_list = [0] * len(bev_egoside)
+    for i in range(len(bev_egoside)):
+        if (not 0 <= bev_egoside[i][0] <= BEV_W):
+            egoside_flag_list[i - 1] = 1
+            break
+    if (not 1 in egoside_flag_list):
+        egoside_flag_list[-1] = 1
+
+    # Validity list
+    egoside_validity_list = [1] * len(bev_egoside)
+    last_valid_index = egoside_flag_list.index(1)
+    for i in range(last_valid_index + 1, len(egoside_validity_list)):
+        egoside_validity_list[i] = 0
+
+    return (
+        bev_egoside, 
+        orig_egoside, 
+        egoside_flag_list, 
+        egoside_validity_list
+    )
+
+
 # ============================== Main run ============================== #
 
 
@@ -564,68 +648,103 @@ if __name__ == "__main__":
 
         counter += 1
 
-        # Acquire frame
-        frame_img_path = os.path.join(
-            IMG_DIR,
-            f"{frame_id}.png"
-        )
-        img = cv2.imread(frame_img_path)
-
-        # Acquire frame data
-        this_frame_data = json_data[frame_id]
-
-        # MAIN ALGORITHM
-
-        # Transform to BEV space            
-
-        # Egopath
-        (
-            im_dst, 
-            bev_egopath, orig_bev_egopath, 
-            egopath_flag_list, egopath_validity_list, 
-            mat, success
-        ) = transformBEV(
-            img = img,
-            line = this_frame_data["drivable_path"],
-            sps = STANDARD_SPS
-        )
-
-        # Register standard homography matrix for the first time
-        if (not matrix_registered):
-            data_master["standard_homomatrix"] = mat.tolist()
-            print("Registered standard homography matrix!")
-            matrix_registered = True
-
-        # Egoleft
-        (
-            _, 
-            bev_egoleft, orig_bev_egoleft, 
-            egoleft_flag_list, egoleft_validity_list, 
-            _, _
-        ) = transformBEV(
-            img = img, 
-            line = this_frame_data["egoleft_lane"],
-            sps = STANDARD_SPS
-        )
-
-        # Egoright
-        (
-            _, 
-            bev_egoright, orig_bev_egoright, 
-            egoright_flag_list, egoright_validity_list, 
-            _, _
-        ) = transformBEV(
-            img = img, 
-            line = this_frame_data["egoright_lane"],
-            sps = STANDARD_SPS
-        )
-        
-        # Skip if invalid frame (due to too high ego_height value)
-        if (success == False):
-            log_skipped(
-                frame_id,
-                "Null EgoPath from BEV transformation algorithm."
+        try:
+            
+            # Acquire frame
+            frame_img_path = os.path.join(
+                IMG_DIR,
+                f"{frame_id}.png"
             )
+            img = cv2.imread(frame_img_path)
+
+            # Acquire frame data
+            this_frame_data = json_data[frame_id]
+
+            # MAIN ALGORITHM
+
+            # Transform to BEV space            
+
+            # Egopath
+            (
+                im_dst, 
+                bev_egopath, orig_bev_egopath, 
+                egopath_flag_list, egopath_validity_list, 
+                mat, success
+            ) = transformBEV(
+                img = img,
+                line = this_frame_data["drivable_path"],
+                sps = STANDARD_SPS
+            )
+
+            # Register standard homography matrix for the first time
+            if (not matrix_registered):
+                data_master["standard_homomatrix"] = mat.tolist()
+                print("Registered standard homography matrix!")
+                matrix_registered = True
+
+            anchor_egopath = getLineAnchor(
+                renormalizeCoords(
+                    this_frame_data["drivable_path"],
+                    W, H
+                )
+            )
+            anchor_egoleft = getLineAnchor(
+                renormalizeCoords(
+                    this_frame_data["egoleft_lane"],
+                    W, H
+                )
+            )
+            anchor_egoright = getLineAnchor(
+                renormalizeCoords(
+                    this_frame_data["egoright_lane"],
+                    W, H
+                )
+            )
+
+
+            # Egoleft
+            (
+                bev_egoleft, 
+                orig_bev_egoleft, 
+                egoleft_flag_list, 
+                egoleft_validity_list, 
+            ) = calEgoSide(
+                bev_egopath = bev_egopath,
+                anchor_offset = - calTransformedDistance(
+                    [anchor_egoleft[0], H],
+                    [anchor_egopath[0], H],
+                    mat
+                ),
+                homotrans_mat = mat
+            )
+
+            # Egoright
+            (
+                bev_egoright, 
+                orig_bev_egoright, 
+                egoright_flag_list, 
+                egoright_validity_list, 
+            ) = calEgoSide(
+                bev_egopath = bev_egopath,
+                anchor_offset = calTransformedDistance(
+                    [anchor_egoright[0], H],
+                    [anchor_egopath[0], H],
+                    mat
+                ),
+                homotrans_mat = mat
+            )
+            
+            # Skip if invalid frame (due to too high ego_height value)
+            if (success == False):
+                log_skipped(
+                    frame_id,
+                    "Null EgoPath from BEV transformation algorithm."
+                )
+                continue
+
+        except Exception as e:
+            print(f"Unexpected error at frame {frame_id}: {e}")
+            log_skipped(frame_id, str(e))
             continue
 
         # Save stuffs
