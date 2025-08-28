@@ -16,11 +16,12 @@ using namespace std;
 
 using namespace autoware_pov::vision;
 
-#define VIDEO_INPUT_KEYEXPR "scene_segmentation/video/input"
-#define VIDEO_OUTPUT_KEYEXPR "scene_segmentation/video/output"
+#define VIDEO_INPUT_KEYEXPR "video/input"
+#define VIDEO_OUTPUT_KEYEXPR "video/output"
 #define DEFAULT_BACKEND "onnxruntime"
 #define DEFAULT_PRECISION "cuda"
 #define DEFAULT_GPU_ID 0
+#define MODEL_TYPE "segmentation"
 
 #define RECV_BUFFER_SIZE 100
 
@@ -45,6 +46,9 @@ int main(int argc, char* argv[]) {
     int gpu_id = DEFAULT_GPU_ID;
     app.add_option("-g,--gpu-id", gpu_id, "GPU ID to use for CUDA backend")
         ->default_val(DEFAULT_GPU_ID);
+    std::string model_type = "scene";
+    app.add_option("-m,--model-type", model_type, "Type of the model (segmentation or domain)")
+        ->default_val("segmentation");
     CLI11_PARSE(app, argc, argv);
 
     try {

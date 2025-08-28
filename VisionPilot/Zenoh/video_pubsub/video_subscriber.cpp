@@ -14,7 +14,7 @@
 using namespace cv; 
 using namespace std; 
 
-#define DEFAULT_KEYEXPR "scene_segmentation/video"
+#define DEFAULT_KEYEXPR "video/raw"
 
 #define RECV_BUFFER_SIZE 100
 

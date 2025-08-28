@@ -41,7 +41,7 @@ make
 ```shell
 ./video_publisher <path_to_input_video.mp4>
 # Assign the key
-./video_publisher -k scene_segmentation/video/input
+./video_publisher -k video/raw <path_to_input_video.mp4>
 ```
 
 * Subscribe the Zenoh video
@@ -49,5 +49,5 @@ make
 ```shell
 ./video_subscriber
 # Assign the key
-./video_subscriber -k scene_segmentation/video/output
+./video_subscriber -k video/raw
 ```

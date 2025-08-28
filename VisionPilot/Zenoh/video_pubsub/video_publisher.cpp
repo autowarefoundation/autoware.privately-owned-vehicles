@@ -16,7 +16,7 @@
 using namespace cv; 
 using namespace std; 
 
-#define DEFAULT_KEYEXPR "scene_segmentation/video"
+#define DEFAULT_KEYEXPR "video/raw"
 
 int main(int argc, char* argv[]) {
     // Parse command line arguments

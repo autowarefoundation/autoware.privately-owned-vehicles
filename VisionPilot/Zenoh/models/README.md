@@ -1,6 +1,6 @@
-# SCENE SEG
+# Models
 
-This project demonstrates using Zenoh to run a Scene Segmentation model with the ONNX Runtime.
+This project demonstrates using Zenoh to run various models.
 
 * `video_visualization` (`video_visualization.cpp`): Processes an input video file and saves a new video with the segmentation results overlaid.
 
@@ -68,9 +68,10 @@ Subscribe a video from a Zenoh publisher and then publish it to a Zenoh Subscrib
 
 ```bash
 # Terminal 1
-./video_publisher -k scene_segmentation/video/input
+./video_publisher -k video/input
 # Terminal 2
-./video_visualization <path_to_model.onnx> -i scene_segmentation/video/input -o scene_segmentation/video/output
+./video_visualization SceneSeg_FP32.onnx -i video/input -o video/output
+./video_visualization DomainSeg_FP32.onnx -i video/input -o video/output
 # Terminal 3
-./video_subscriber -k scene_segmentation/video/output
+./video_subscriber -k video/output
 ```
