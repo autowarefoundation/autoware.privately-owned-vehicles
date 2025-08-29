@@ -55,9 +55,9 @@ if(onnxruntime_USE_CUDA)
 endif()
 
 ## Build & Link
-add_executable(video_visualization video_visualization.cpp 
+add_executable(run_model run_model.cpp 
                                    #${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
                                    ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
                                    ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp)
-target_compile_definitions(video_visualization PRIVATE LOG_TYPE=0)
-target_link_libraries(video_visualization PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+target_compile_definitions(run_model PRIVATE LOG_TYPE=0)
+target_link_libraries(run_model PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)

@@ -71,8 +71,8 @@ Subscribe a video from a Zenoh publisher and then publish it to a Zenoh Subscrib
 # Terminal 1
 ./video_publisher -k video/input
 # Terminal 2
-./video_visualization SceneSeg_FP32.onnx -i video/input -o video/output
-./video_visualization DomainSeg_FP32.onnx -i video/input -o video/output
+./run_model SceneSeg_FP32.onnx -i video/input -o video/output
+./run_model DomainSeg_FP32.onnx -i video/input -o video/output
 # Terminal 3
 ./video_subscriber -k video/output
 ```
