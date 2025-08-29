@@ -1,10 +1,7 @@
-# SCENE SEG
+# Models
 
-This project demonstrates using Zenoh to run a Scene Segmentation model with the ONNX Runtime.
+This project demonstrates using Zenoh to run various models.
 
-Two applications are built:
-
-* `deploy_onnx_rt` (`main.cpp`): Processes a single input image and saves a visualized output image.
 * `video_visualization` (`video_visualization.cpp`): Processes an input video file and saves a new video with the segmentation results overlaid.
 
 ## Dependencies
@@ -14,14 +11,15 @@ Two applications are built:
   * Ubuntu: `sudo apt install libopencv-dev`
 * **ONNX Runtime**: For model inference.
   * Download from [the GitHub release](https://github.com/microsoft/onnxruntime/releases)
-* **LibTorch**: Required *only* for the `deploy_onnx_rt` (single image) tool for its tensor manipulation capabilities.
+* **LibTorch**: For tensor manipulation capabilities.
   * Download from [the PyTorch website](https://pytorch.org/get-started/locally/)
 * **Zenoh C library**: Required for the transportation.
   * Download from [the GitHub release](https://github.com/eclipse-zenoh/zenoh-c/releases)
   * You can also add the Eclipse repository for apt server.
   
     ```shell
-    echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee -a /etc/apt/sources.list > /dev/null
+    curl -L https://download.eclipse.org/zenoh/debian-repo/zenoh-public-key | sudo gpg --dearmor --yes --output /etc/apt/keyrings/zenoh-public-key.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/zenoh-public-key.gpg] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee /etc/apt/sources.list.d/zenoh.list > /dev/null
     sudo apt update
     sudo apt install libzenohc-dev
     ```
@@ -63,21 +61,6 @@ make
 
 After a successful build, you will find two executables in the `build` directory.
 
-### Image Visualization
-
-Processes a single image and produces two output image files.
-
-**Command:**
-
-```bash
-./deploy_onnx_rt <path_to_model.onnx> <path_to_input_image.png>
-```
-
-**Output:**
-
-* `output_seg_mask.jpg`: The pure segmentation mask.
-* `output_image.jpg`: The input image with the segmentation mask overlaid.
-
 ### Video Visualization
 
 Subscribe a video from a Zenoh publisher and then publish it to a Zenoh Subscriber.
@@ -86,9 +69,10 @@ Subscribe a video from a Zenoh publisher and then publish it to a Zenoh Subscrib
 
 ```bash
 # Terminal 1
-./video_publisher -k scene_segmentation/video/input
+./video_publisher -k video/input
 # Terminal 2
-./video_visualization <path_to_model.onnx> -i scene_segmentation/video/input -o scene_segmentation/video/output
+./run_model SceneSeg_FP32.onnx -i video/input -o video/output
+./run_model DomainSeg_FP32.onnx -i video/input -o video/output
 # Terminal 3
-./video_subscriber -k scene_segmentation/video/output
+./video_subscriber -k video/output
 ```
