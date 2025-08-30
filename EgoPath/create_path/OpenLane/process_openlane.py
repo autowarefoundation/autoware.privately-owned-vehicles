@@ -336,7 +336,7 @@ def annotateGT(
     save_name = str(img_id_counter).zfill(6) + ".jpg"
 
     # Draw all lanes & lines
-    raw_img = Image.open(anno_entry["img_path"]).convert("RGB")
+    raw_img = Image.open(anno_entry["file_path"]).convert("RGB")
     draw = ImageDraw.Draw(raw_img)
     lane_colors = {
         "outer_red": (255, 0, 0), 
@@ -488,14 +488,54 @@ if __name__ == "__main__":
             ):
                 segment_path = os.path.join(subsplit_path, segment)
 
-                for label_file in sorted(os.listdir(segment_path)):                    
+                for label_file in sorted(os.listdir(segment_path)):    
+                    img_id_counter += 1                
                     label_file_path = os.path.join(segment_path, label_file)
-                    
+
                     with open(label_file_path, "r") as f:
                         this_label_data = json.load(f)
 
                     this_label_data = parseData(this_label_data)
-                    annotateGT(
-                        anno_entry = this_label_data,
-                        visualization_dir = os.path.join(output_dir, "visualization")
-                    )
+                    if (this_label_data):
+
+                        annotateGT(
+                            anno_entry = this_label_data,
+                            visualization_dir = os.path.join(output_dir, "visualization")
+                        )
+
+                        img_index = str(str(img_id_counter).zfill(6))
+                        data_master[img_id_counter] = {
+                            "img_path"      : this_label_data["img_path"],
+                            "egoleft_lane"  : round_line_floats(
+                                normalizeCoords(
+                                    this_label_data["egoleft_lane"],
+                                )
+                            ),
+                            "egoright_lane" : round_line_floats(
+                                normalizeCoords(
+                                    this_label_data["egoright_lane"],
+                                )
+                            ),
+                            "drivable_path" : round_line_floats(
+                                normalizeCoords(
+                                    this_label_data["drivable_path"],
+                                )
+                            )
+                        }
+
+                    # Early stopping check
+                    if (
+                        early_stopping and 
+                        (img_id_counter + 1 >= early_stopping)
+                    ):
+                        break
+
+    # Save master data
+    with open(
+        os.path.join(output_dir, "drivable_path.json"), 
+        "w"
+    ) as f:
+        json.dump(
+            data_master, f, 
+            indent = 4
+        )
