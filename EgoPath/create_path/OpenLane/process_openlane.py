@@ -3,11 +3,10 @@
 import argparse
 import json
 import os
-import tqdm
 import shutil
-import math
 import warnings
 import numpy as np
+from tqdm import tqdm
 from typing import Any
 from PIL import Image, ImageDraw
 
@@ -471,19 +470,27 @@ if __name__ == "__main__":
     img_id_counter = -1
 
     for label_split, list_label_subdirs in LABEL_SPLITS.items():
+        print(f"\nPROCESSING LABEL SPLIT : {label_split}")
         
         for subsplit in list_label_subdirs:
+            print(f"\tPROCESSING SUBSPLIT : {subsplit}")
+
             subsplit_path = os.path.join(
                 dataset_dir,
                 label_split,
                 subsplit
             )
 
-            for segment in sorted(os.listdir(subsplit_path)):
+            for segment in tqdm(
+                sorted(os.listdir(subsplit_path)), 
+                desc = "\t\tProcessing segments",
+                colour = "green"
+            ):
                 segment_path = os.path.join(subsplit_path, segment)
 
                 for label_file in sorted(os.listdir(segment_path)):                    
                     label_file_path = os.path.join(segment_path, label_file)
+                    
                     with open(label_file_path, "r") as f:
                         this_label_data = json.load(f)
 
