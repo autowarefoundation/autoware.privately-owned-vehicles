@@ -98,10 +98,9 @@ def getLineAnchor(
 
 
 def getDrivablePath(
-    left_ego: list[PointCoords] | list[ImagePointCoords], 
-    right_ego: list[PointCoords] | list[ImagePointCoords], 
-    new_img_height: int,
-    y_coords_interp: bool = False
+    left_ego        : list[PointCoords] | list[ImagePointCoords], 
+    right_ego       : list[PointCoords] | list[ImagePointCoords], 
+    y_coords_interp : bool = False
 ):
     """
     Computes drivable path as midpoint between 2 ego lanes.
@@ -153,15 +152,15 @@ def getDrivablePath(
                 j += 1
 
     # Extend drivable path to bottom edge of the frame
-    if ((len(drivable_path) >= 2) and (drivable_path[0][1] < new_img_height - 1)):
+    if ((len(drivable_path) >= 2) and (drivable_path[0][1] < H - 1)):
         x1, y1 = drivable_path[1]
         x2, y2 = drivable_path[0]
         if (x2 == x1):
             x_bottom = x2
         else:
             a = (y2 - y1) / (x2 - x1)
-            x_bottom = x2 + (new_img_height - 1 - y2) / a
-        drivable_path.insert(0, (x_bottom, new_img_height - 1))
+            x_bottom = x2 + (H - 1 - y2) / a
+        drivable_path.insert(0, (x_bottom, H - 1))
 
     # Extend drivable path to be on par with longest ego line
     # By making it parallel with longer ego line
