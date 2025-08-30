@@ -13,7 +13,17 @@ from PIL import Image, ImageDraw
 # ============================= Format functions ============================= #
 
 
-def round_line_floats(line, ndigits = 6):
+PointCoords = tuple[float, float]
+ImagePointCoords = tuple[int, int]
+
+def round_line_floats(
+    line: list[PointCoords] | list[ImagePointCoords], 
+    ndigits: int = 6
+):
+    """
+    Round the coordinates of a line to a specified number of decimal places.
+    """
+
     line = list(line)
     for i in range(len(line)):
         line[i] = [
@@ -21,6 +31,7 @@ def round_line_floats(line, ndigits = 6):
             round(line[i][1], ndigits)
         ]
     line = tuple(line)
+
     return line
 
 
@@ -33,10 +44,6 @@ def custom_warning_format(
     return f"WARNING : {message}\n"
 
 warnings.formatwarning = custom_warning_format
-
-
-PointCoords = tuple[float, float]
-ImagePointCoords = tuple[int, int]
 
 
 # ============================== Helper functions ============================== #
@@ -202,6 +209,71 @@ def getDrivablePath(
 
 
     return drivable_path
+
+
+# ============================== Core functions ============================== #
+
+
+def annotateGT(
+    raw_img: Image,
+    anno_entry: dict,
+    visualization_dir: str,
+    normalized: bool = True,
+):
+    """
+    Annotates and saves an image with:
+        - Annotated image with all lanes, in "output_dir/visualization".
+    """
+
+    # Define save name
+    # Also save in PNG (EXTREMELY SLOW compared to jpg, for lossless quality)
+    save_name = str(img_id_counter).zfill(6) + ".jpg"
+
+    # Draw all lanes & lines
+    draw = ImageDraw.Draw(raw_img)
+    lane_colors = {
+        "outer_red": (255, 0, 0), 
+        "ego_green": (0, 255, 0), 
+        "drive_path_yellow": (255, 255, 0)
+    }
+    lane_w = 5
+    # Draw lanes
+    for idx, line in enumerate(anno_entry["lanes"]):
+        if (normalized):
+            line = [
+                (x * W, y * H) 
+                for x, y in line
+            ]
+        if (idx in anno_entry["ego_indexes"]):
+            # Ego lanes, in green
+            draw.line(
+                line, 
+                fill = lane_colors["ego_green"], 
+                width = lane_w
+            )
+        else:
+            # Outer lanes, in red
+            draw.line(
+                line, 
+                fill = lane_colors["outer_red"], 
+                width = lane_w
+            )
+    # Drivable path, in yellow
+    if (normalized):
+        drivable_renormed = [
+            (x * W, y * H) 
+            for x, y in anno_entry["drivable_path"]
+        ]
+    else:
+        drivable_renormed = anno_entry["drivable_path"]
+    draw.line(
+        drivable_renormed, 
+        fill = lane_colors["drive_path_yellow"], 
+        width = lane_w
+    )
+
+    # Save visualization img
+    raw_img.save(os.path.join(visualization_dir, save_name))
 
 
 if __name__ == "__main__":
