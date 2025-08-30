@@ -219,12 +219,13 @@ def parseData(json_data: dict[str: Any]):
     """
     Parse raw JSON data from OpenLane dataset, then return a dict with:
         - "img_path"        : str, path to the image file.
-        - "lanes"           : list of lanes [ (xi, yi) ] that are NOT ego lanes.
+        - "other_lanes"     : list of lanes [ (xi, yi) ] that are NOT ego lanes.
         - "egoleft_lane"    : egoleft lane in [ (xi, yi) ].
         - "egoright_lane"   : egoright lane in [ (xi, yi) ].
         - "drivable_path"   : drivable path in [ (xi, yi) ].
 
     All coords are rounded to 2 decimal places (I honestly don't think we need more than that).
+    All coords are NOT NORMALIZED (will do it right before saving to JSON).
     """
 
     global img_id_counter
@@ -275,7 +276,7 @@ def parseData(json_data: dict[str: Any]):
         if (this_attribute == 2):
             if (egoleft_lane):
                 warnings.warn(
-                    f"Multiple egoleft lanes detected: \n\
+                    f"Multiple egoleft lanes detected. Please check! \n\
                     \t - file_path: {img_path}"
                 )
             else:
@@ -283,7 +284,7 @@ def parseData(json_data: dict[str: Any]):
         elif (this_attribute == 3):
             if (egoright_lane):
                 warnings.warn(
-                    f"Multiple egoright lanes detected: \n\
+                    f"Multiple egoright lanes detected. Please check! \n\
                     \t - file_path: {img_path}"
                 )
             else:
@@ -294,14 +295,26 @@ def parseData(json_data: dict[str: Any]):
     if (egoleft_lane and egoright_lane):
         drivable_path = getDrivablePath(
             left_ego = egoleft_lane,
-            right_ego = egoright_lane
+            right_ego = egoright_lane,
+            y_coords_interp = True
         )
+    else:
+        warnings.warn(f"Missing egolines detected: \n\
+        \t - file_path: {img_path} \n")
+
+        if (not egoleft_lane):
+            warnings.warn("\t - Left egoline missing!")
+        if (not egoright_lane):
+            warnings.warn("\t - Right egoline missing!")
+        
+        return None
+    
     drivable_path = round_line_floats(drivable_path)
 
     # Assemble all data
     anno_entry = {
         "img_path"        : img_path,
-        "lanes"           : other_lanes,
+        "other_lanes"     : other_lanes,
         "egoleft_lane"    : egoleft_lane,
         "egoright_lane"   : egoright_lane,
         "drivable_path"   : drivable_path
@@ -311,21 +324,20 @@ def parseData(json_data: dict[str: Any]):
 
 
 def annotateGT(
-    raw_img: Image,
     anno_entry: dict,
-    visualization_dir: str,
-    normalized: bool = True,
+    visualization_dir: str
 ):
     """
     Annotates and saves an image with:
         - Annotated image with all lanes, in "output_dir/visualization".
     """
 
-    # Define save name
-    # Also save in PNG (EXTREMELY SLOW compared to jpg, for lossless quality)
+    # Define save name, now saving everything in JPG
+    # to preserve my remaining disk space
     save_name = str(img_id_counter).zfill(6) + ".jpg"
 
     # Draw all lanes & lines
+    raw_img = Image.open(anno_entry["img_path"]).convert("RGB")
     draw = ImageDraw.Draw(raw_img)
     lane_colors = {
         "outer_red": (255, 0, 0), 
@@ -333,40 +345,35 @@ def annotateGT(
         "drive_path_yellow": (255, 255, 0)
     }
     lane_w = 5
-    # Draw lanes
-    for idx, line in enumerate(anno_entry["lanes"]):
-        if (normalized):
-            line = [
-                (x * W, y * H) 
-                for x, y in line
-            ]
-        if (idx in anno_entry["ego_indexes"]):
-            # Ego lanes, in green
-            draw.line(
-                line, 
-                fill = lane_colors["ego_green"], 
-                width = lane_w
-            )
-        else:
-            # Outer lanes, in red
-            draw.line(
-                line, 
-                fill = lane_colors["outer_red"], 
-                width = lane_w
-            )
-    # Drivable path, in yellow
-    if (normalized):
-        drivable_renormed = [
-            (x * W, y * H) 
-            for x, y in anno_entry["drivable_path"]
-        ]
-    else:
-        drivable_renormed = anno_entry["drivable_path"]
+
+    # Draw other lanes, in red
+    for line in anno_entry["other_lanes"]:
+        draw.line(
+            line, 
+            fill = lane_colors["outer_red"], 
+            width = lane_w
+        )
+    
+    # Draw drivable path, in yellow
     draw.line(
-        drivable_renormed, 
+        anno_entry["drivable_path"],
         fill = lane_colors["drive_path_yellow"], 
         width = lane_w
     )
+
+    # Draw ego lanes, in green
+    if (anno_entry["egoleft_lane"]):
+        draw.line(
+            anno_entry["egoleft_lane"],
+            fill = lane_colors["ego_green"],
+            width = lane_w
+        )
+    if (anno_entry["egoright_lane"]):
+        draw.line(
+            anno_entry["egoright_lane"],
+            fill = lane_colors["ego_green"],
+            width = lane_w
+        )
 
     # Save visualization img
     raw_img.save(os.path.join(visualization_dir, save_name))
@@ -481,4 +488,7 @@ if __name__ == "__main__":
                         this_label_data = json.load(f)
 
                     this_label_data = parseData(this_label_data)
-                    annotateGT(this_label_data)
+                    annotateGT(
+                        anno_entry = this_label_data,
+                        visualization_dir = os.path.join(output_dir, "visualization")
+                    )
