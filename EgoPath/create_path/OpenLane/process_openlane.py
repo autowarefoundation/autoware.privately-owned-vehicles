@@ -3,10 +3,12 @@
 import argparse
 import json
 import os
+import tqdm
 import shutil
 import math
 import warnings
 import numpy as np
+from typing import Any
 from PIL import Image, ImageDraw
 
 
@@ -18,7 +20,7 @@ ImagePointCoords = tuple[int, int]
 
 def round_line_floats(
     line: list[PointCoords] | list[ImagePointCoords], 
-    ndigits: int = 6
+    ndigits: int = 2
 ):
     """
     Round the coordinates of a line to a specified number of decimal places.
@@ -214,6 +216,101 @@ def getDrivablePath(
 # ============================== Core functions ============================== #
 
 
+def parseData(json_data: dict[str: Any]):
+    """
+    Parse raw JSON data from OpenLane dataset, then return a dict with:
+        - "img_path"        : str, path to the image file.
+        - "lanes"           : list of lanes [ (xi, yi) ] that are NOT ego lanes.
+        - "egoleft_lane"    : egoleft lane in [ (xi, yi) ].
+        - "egoright_lane"   : egoright lane in [ (xi, yi) ].
+        - "drivable_path"   : drivable path in [ (xi, yi) ].
+
+    All coords are rounded to 2 decimal places (I honestly don't think we need more than that).
+    """
+
+    global img_id_counter
+    img_id_counter += 1
+
+    img_path = json_data["file_path"]
+    lane_lines = json_data["lane_lines"]
+    egoleft_lane = None
+    egoright_lane = None
+    other_lanes = []
+
+    # Walk thru each lane
+    for i, lane in enumerate(lane_lines):
+
+        assert (
+            len(lane["visibility"]) == len(lane["uv"][0]) == len(lane["uv"][1]),
+            warnings.warn(
+                f"Inconsistent number of visibility and UV coords:\n \
+                \t- file_path  : {img_path}\n \
+                \t- lane_index : {i}\n \
+                \t- visibility : {len(lane['visibility'])}\n \
+                \t- u          : {len(lane['uv'][0])}\n \
+                \t- v          : {len(lane['uv'][1])}"
+            )
+        )
+
+        this_lane = [
+            (
+                lane["uv"][0][j], 
+                lane["uv"][1][j]
+            )
+            for j in range(len(lane["uv"][0]))
+            # if lane["visibility"][j]
+        ].sort(
+            key = lambda x: x[1],
+            reverse = True
+        )
+
+        this_attribute = lane["attribute"]
+
+        """
+        "attribute":    <int>: left-right attribute of the lane
+                            1: left-left
+                            2: left (exactly egoleft)
+                            3: right (exactly egoright)
+                            4: right-right
+        """
+        if (this_attribute == 2):
+            if (egoleft_lane):
+                warnings.warn(
+                    f"Multiple egoleft lanes detected: \n\
+                    \t - file_path: {img_path}"
+                )
+            else:
+                egoleft_lane = this_lane
+        elif (this_attribute == 3):
+            if (egoright_lane):
+                warnings.warn(
+                    f"Multiple egoright lanes detected: \n\
+                    \t - file_path: {img_path}"
+                )
+            else:
+                egoright_lane = this_lane
+        else:
+            other_lanes.append(this_lane)
+
+    if (egoleft_lane and egoright_lane):
+        drivable_path = getDrivablePath(
+            left_ego = egoleft_lane,
+            right_ego = egoright_lane
+        )
+    drivable_path = round_line_floats(drivable_path)
+
+    # Assemble all data
+    anno_entry = {
+        "img_path"        : img_path,
+        "lanes"           : other_lanes,
+        "egoleft_lane"    : egoleft_lane,
+        "egoright_lane"   : egoright_lane,
+        "drivable_path"   : drivable_path
+    }
+
+    return anno_entry
+
+
 def annotateGT(
     raw_img: Image,
     anno_entry: dict,
@@ -297,7 +394,7 @@ if __name__ == "__main__":
         ]
     }
 
-    # All 200k scenes have reso 1920 x 1280. I checked it.
+    # All 200k scenes have reso 1920 x 1280. I checked it manually.
     W = 1920
     H = 1280
 
