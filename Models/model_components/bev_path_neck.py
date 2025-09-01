@@ -35,6 +35,5 @@ class BEVPathNeck(nn.Module):
 
         # Fusing via concatenation
         deep_features = torch.cat((feature_0, feature_1, feature_2, feature_3, feature_4), 1)
- 
 
         return deep_features

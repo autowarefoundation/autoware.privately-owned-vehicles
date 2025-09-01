@@ -9,7 +9,7 @@ class AutoSteerHead(nn.Module):
         self.dropout = nn.Dropout(p=0.25)
         self.dropout_aggressize = nn.Dropout(p=0.4)
         self.sigmoid = nn.Sigmoid()
-   
+           
         # Ego Path  Decode layers
         self.ego_path_layer_0 = nn.Linear(1456, 1280)
         self.ego_path_layer_1 = nn.Linear(1280, 1024)
