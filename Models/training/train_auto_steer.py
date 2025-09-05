@@ -4,6 +4,7 @@
 import os
 import random
 import torch
+import matplotlib.pyplot as plt
 from PIL import Image
 from typing import Literal, get_args
 import sys
@@ -116,7 +117,7 @@ def main():
     print('Beginning Training')
 
     # Batch Size
-    batch_size = 8
+    batch_size = 1
 
     for epoch in range(0, NUM_EPOCHS):
 
@@ -124,20 +125,20 @@ def main():
         print(f"EPOCH : {epoch}")
 
         # Batch Size Schedule
-        if (epoch > 2 and epoch <= 4):
-            batch_size = 6
-        elif (epoch > 4 and epoch <= 6):
-            batch_size = 4
-        elif (epoch > 8):
-            batch_size = 2
+        #if (epoch > 10 and epoch <= 30):
+        #    batch_size = 16
+        #elif (epoch > 30 and epoch <= 40):
+        #    batch_size = 8
+        #elif (epoch > 40):
+        #    batch_size = 4
       
         # Learning Rate Schedule
-        if(epoch <= 4):
+        if(epoch <= 20):
             trainer.set_learning_rate(0.0005)
-        elif(epoch > 4 and epoch < 8):
+        elif(epoch > 20 and epoch < 40):
             trainer.set_learning_rate(0.0001)
-        elif(epoch > 8):
-            trainer.set_learning_rate(0.00001)
+        elif(epoch > 40):
+            trainer.set_learning_rate(0.000025)
 
         # Augmentation Schedule
         apply_augmentation = True
@@ -155,7 +156,8 @@ def main():
             msdict[dataset]["completed"] = False
 
         # Loop through data
-        while (True):
+        #while (True):
+        for i in range (0,5):
 
             # Log count
             msdict["sample_counter"] = msdict["sample_counter"] + 1
@@ -197,7 +199,7 @@ def main():
            
             current_dataset = data_list[msdict["data_list_count"]]
             current_dataset_iter = msdict[current_dataset]["iter"]
-            [   frame_id, bev_image,
+            [   frame_id, bev_image, binary_seg,
                 homotrans_mat,
                 bev_egopath, reproj_egopath,
                 bev_egoleft, reproj_egoleft,
@@ -225,7 +227,7 @@ def main():
             ).convert("RGB")
           
             # Assign data
-            trainer.set_data(homotrans_mat, bev_image, perspective_image, \
+            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, \
                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                 reproj_egoleft, reproj_egoright)
             
@@ -285,7 +287,7 @@ def main():
                         for val_count in range(0, msdict[dataset]["N_vals"]):
 
                             # Fetch data
-                            [   frame_id, bev_image,
+                            [   frame_id, bev_image, binary_seg,
                                 homotrans_mat,
                                 bev_egopath, reproj_egopath,
                                 bev_egoleft, reproj_egoleft,
@@ -313,7 +315,7 @@ def main():
                             ).convert("RGB")
 
                             # Assign data
-                            trainer.set_data(homotrans_mat, bev_image, perspective_image, \
+                            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, \
                                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                                 reproj_egoleft, reproj_egoright)
                             

@@ -24,6 +24,7 @@ class AutoSteerTrainer():
         # Initializing Data
         self.homotrans_mat = None
         self.bev_image = None
+        self.binary_seg = None
         self.perspective_image = None
         self.bev_egopath = None
         self.bev_egoleft = None
@@ -41,6 +42,9 @@ class AutoSteerTrainer():
 
         # Initializing BEV Image tensor
         self.bev_image_tensor = None
+
+        # Initializing Binary Segmentation Mask tensor
+        self.binary_seg_tensor = None
 
         # Initializing Ground Truth Tensors
         self.gt_bev_egopath_tensor = None
@@ -100,6 +104,12 @@ class AutoSteerTrainer():
             ]
         )
 
+        self.binary_seg_loader = transforms.Compose(
+            [
+                transforms.ToTensor()
+            ]
+        )
+
     # Zero gradient
     def zero_grad(self):
         self.optimizer.zero_grad()
@@ -109,12 +119,13 @@ class AutoSteerTrainer():
         self.learning_rate = learning_rate
         
     # Assign input variables
-    def set_data(self, homotrans_mat, bev_image, perspective_image, \
+    def set_data(self, homotrans_mat, bev_image, perspective_image, binary_seg, \
                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                 reproj_egoleft, reproj_egoright):
 
         self.homotrans_mat = np.array(homotrans_mat, dtype = "float32")
         self.bev_image = np.array(bev_image)
+        self.binary_seg = np.array(binary_seg)
         self.perspective_image = np.array(perspective_image)
         self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
         self.bev_egoleft = np.array(bev_egoleft, dtype = "float32").transpose()
@@ -147,6 +158,11 @@ class AutoSteerTrainer():
         bev_image_tensor = self.image_loader(self.bev_image)
         bev_image_tensor = bev_image_tensor.unsqueeze(0)
         self.bev_image_tensor = bev_image_tensor.to(self.device)
+
+        # Binary Segmentation
+        binary_seg_tensor = self.binary_seg_loader(self.binary_seg)
+        binary_seg_tensor = binary_seg_tensor.unsqueeze(0)
+        self.binary_seg_tensor = binary_seg_tensor.to(self.device)
 
         # BEV Egopath
         bev_egopath_tensor = torch.from_numpy(self.bev_egopath)

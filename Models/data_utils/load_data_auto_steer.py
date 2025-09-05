@@ -4,6 +4,7 @@ import os
 import json
 import pathlib
 import numpy as np
+import cv2
 import sys
 sys.path.append(os.path.abspath(os.path.join(
     os.path.dirname(__file__), 
@@ -116,6 +117,32 @@ class LoadDataAutoSteer():
     # Get sizes of Train/Val sets
     def getItemCount(self):
         return self.N_trains, self.N_vals
+    
+    def calcSegMask(self, bev_egoleft, bev_egoright):
+        
+        # Left/Right ego lane points defining a contour
+        contour_points = []
+
+        # Parse egoleft lane
+        for i in range (0, len(bev_egoleft)):
+            point = bev_egoleft[i]
+            point[0] = point[0]*640
+            point[1] = point[1]*1280
+            contour_points.append(point)
+
+        # Parse egoright lane
+        for i in range (0, len(bev_egoright)):
+            point = bev_egoright[len(bev_egoright) - i - 1]
+            point[0] = point[0]*640
+            point[1] = point[1]*1280
+            contour_points.append(point)
+
+        # Get binary segmentation mask
+        contour = np.array(contour_points, dtype=np.int32)
+        binary_segmenation = np.zeros([1280, 640], np.uint8)
+        cv2.drawContours(binary_segmenation,[contour],0,(255),-1)
+        return binary_segmenation
+
        
     # Get item at index ith, returning img and EgoPath
     def getItem(self, index, is_train: bool):
@@ -158,6 +185,9 @@ class LoadDataAutoSteer():
             reproj_egoright = self.train_labels[index]["reproj_egoright"]
             reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
+            # Binary Segmentation Mask
+            binary_seg = self.calcSegMask(bev_egoleft, bev_egoright)
+           
         else:
 
             # BEV Image
@@ -197,12 +227,15 @@ class LoadDataAutoSteer():
             reproj_egoright = self.val_labels[index]["reproj_egoright"]
             reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
+            # Binary Segmentation Mask
+            binary_seg = self.calcSegMask(bev_egoleft, bev_egoright)
+
         # Convert image to OpenCV/Numpy format for augmentations
         bev_img = np.array(bev_img)
         
         return [
-            frame_id, bev_img,
-            bev_to_image_transform,
+            frame_id, bev_img, binary_seg,
+            self.BEV_to_image_transform,
             bev_egopath, reproj_egopath,
             bev_egoleft, reproj_egoleft,
             bev_egoright, reproj_egoright,
