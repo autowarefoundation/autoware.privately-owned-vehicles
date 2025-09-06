@@ -1,5 +1,4 @@
 #! /usr/bin/env python3
-import torch
 import torch.nn as nn
 
 class EgoPathHead(nn.Module):
@@ -7,47 +6,40 @@ class EgoPathHead(nn.Module):
         super(EgoPathHead, self).__init__()
         # Standard
         self.GeLU = nn.GELU()
-        self.dropout = nn.Dropout(p=0.25)
-        self.dropout_aggressize = nn.Dropout(p=0.4)
-        self.sigmoid = nn.Sigmoid()
-   
-        # Ego Path  Decode layers
-        self.ego_path_layer_0 = nn.Linear(1456, 1280)
-        self.ego_path_layer_1 = nn.Linear(1280, 1024)
-        self.ego_path_layer_2 = nn.Linear(1024, 800)
-        self.ego_path_layer_3 = nn.Linear(800, 11)
-        self.ego_left_offset_layer = nn.Linear(1456, 1)
-        self.ego_right_offset_layer = nn.Linear(1456, 1)
- 
 
-    def forward(self, feature_vector):
+        # Segmentation Head - Output Layers
+        self.upsample_layer_3 = nn.ConvTranspose2d(256, 256, 2, 2)
+        self.skip_link_layer_3 = nn.Conv2d(32, 256, 1)
+        self.decode_layer_6 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.decode_layer_7 = nn.Conv2d(256, 128, 3, 1, 1)
+        self.upsample_layer_4 = nn.ConvTranspose2d(128, 128, 2, 2)
+        self.decode_layer_8 = nn.Conv2d(128, 128, 3, 1, 1)
+        self.decode_layer_9 = nn.Conv2d(128, 64, 3, 1, 1)
+        self.decode_layer_10 = nn.Conv2d(64, 1, 3, 1, 1)
 
-        # Features
-        feature_vector = self.dropout(feature_vector)
+    def forward(self, neck, features):
 
-        # Ego Path Lane MLP
-        ego_path = self.ego_path_layer_0(feature_vector)
-        ego_path = self.dropout_aggressize(ego_path)
-        ego_path = self.GeLU(ego_path)
+        # Decoder upsample block 4
+        # Upsample
+        d7 = self.upsample_layer_3(neck)
+         # Expand and add layer from Encoder
+        d7 = d7 + self.skip_link_layer_3(features[0])
+        # Double convolution
+        d7 = self.decode_layer_6(d7)
+        d7 = self.GeLU(d7)
+        d8 = self.decode_layer_7(d7)
+        d8 = self.GeLU(d8)
 
-        ego_path = self.ego_path_layer_1(ego_path)
-        ego_path = self.dropout_aggressize(ego_path)
-        ego_path = self.GeLU(ego_path)
+        # Decoder upsample block 5
+        # Upsample
+        d8 = self.upsample_layer_4(d8)
+        # Double convolution
+        d8 = self.decode_layer_8(d8)
+        d8 = self.GeLU(d8)
+        d9 = self.decode_layer_9(d8)
+        d10 = self.GeLU(d9)
+        
+        # Prediction
+        output = self.decode_layer_10(d10)
 
-        ego_path = self.ego_path_layer_2(ego_path)
-        ego_path = self.dropout_aggressize(ego_path)
-        ego_path = self.GeLU(ego_path)
-
-        # Final Path Prediction
-        ego_path = self.ego_path_layer_3(ego_path) + 0.5
-
-
-        ego_left_lane_offset = self.ego_left_offset_layer(feature_vector)
-        ego_left_lane_offset = self.sigmoid(ego_left_lane_offset)*0.5
-        ego_left_lane = ego_path - ego_left_lane_offset
-
-        ego_right_lane_offset = self.ego_right_offset_layer(feature_vector)
-        ego_right_lane_offset = self.sigmoid(ego_right_lane_offset)*0.5
-        ego_right_lane = ego_path + ego_right_lane_offset
-
-        return ego_path, ego_left_lane, ego_right_lane
+        return output
