@@ -19,8 +19,8 @@ from Models.data_utils.check_data import CheckData
 VALID_DATASET_LITERALS = Literal[
     # "BDD100K",
     # "COMMA2K19",
-    "CULANE",
-    "CURVELANES",
+    #"CULANE",
+    #"CURVELANES",
     # "ROADWORK",
     "TUSIMPLE"
 ]
@@ -118,28 +118,24 @@ class LoadDataAutoSteer():
     def getItemCount(self):
         return self.N_trains, self.N_vals
     
-    def calcSegMask(self, bev_egoleft, bev_egoright):
+    def calcSegMask(self, egoleft, egoright):
         
         # Left/Right ego lane points defining a contour
         contour_points = []
 
         # Parse egoleft lane
-        for i in range (0, len(bev_egoleft)):
-            point = bev_egoleft[i]
-            point[0] = point[0]*640
-            point[1] = point[1]*1280
-            contour_points.append(point)
+        for i in range (0, len(egoleft)):
+            point = egoleft[i]
+            contour_points.append([point[0]*640, point[1]*320])
 
         # Parse egoright lane
-        for i in range (0, len(bev_egoright)):
-            point = bev_egoright[len(bev_egoright) - i - 1]
-            point[0] = point[0]*640
-            point[1] = point[1]*1280
-            contour_points.append(point)
+        for i in range (0, len(egoright)):
+            point = egoright[len(egoright) - i - 1]
+            contour_points.append([point[0]*640, point[1]*320])
 
         # Get binary segmentation mask
         contour = np.array(contour_points, dtype=np.int32)
-        binary_segmenation = np.zeros([1280, 640], np.uint8)
+        binary_segmenation = np.zeros([320, 640], np.uint8)
         cv2.drawContours(binary_segmenation,[contour],0,(255),-1)
         return binary_segmenation
 
@@ -186,7 +182,7 @@ class LoadDataAutoSteer():
             reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
             # Binary Segmentation Mask
-            binary_seg = self.calcSegMask(bev_egoleft, bev_egoright)
+            binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
            
         else:
 
@@ -228,11 +224,11 @@ class LoadDataAutoSteer():
             reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
             # Binary Segmentation Mask
-            binary_seg = self.calcSegMask(bev_egoleft, bev_egoright)
+            binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
 
         # Convert image to OpenCV/Numpy format for augmentations
         bev_img = np.array(bev_img)
-        
+
         return [
             frame_id, bev_img, binary_seg,
             self.BEV_to_image_transform,
