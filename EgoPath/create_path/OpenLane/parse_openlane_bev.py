@@ -197,3 +197,18 @@ def annotateGT(
         ),
         orig_img
     )
+
+
+def calAngle(line: list[PointCoords]) -> float:
+    """
+    Calculate angle of a line with vertical axis at anchor point.
+    - Vertical upward lane: 0°
+    - Horizontal leftward lane: -90°
+    - Horizontal rightward lane: +90°
+    """
+    return math.degrees(
+        math.atan2(
+            line[1][0] - line[0][0],
+            -(line[1][1] - line[0][1])
+        )
+    )
