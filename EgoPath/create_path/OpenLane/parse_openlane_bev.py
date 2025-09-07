@@ -59,3 +59,141 @@ def drawLine(
         )
 
 
+def annotateGT(
+    img: np.ndarray,
+    orig_img: np.ndarray,
+    frame_id: str,
+    bev_egopath: list,
+    reproj_egopath: list,
+    bev_egoleft: list,
+    reproj_egoleft: list,
+    bev_egoright: list,
+    reproj_egoright: list,
+    raw_dir: str, 
+    visualization_dir: str,
+    normalized: bool
+):
+    """
+    Annotates and saves an image with:
+        - Raw image, in "output_dir/image".
+        - Annotated image with all lanes, in "output_dir/visualization".
+    """
+
+    # =========================== RAW IMAGE =========================== #
+    
+    # Save raw img in raw dir, as PNG
+    cv2.imwrite(
+        os.path.join(
+            raw_dir,
+            f"{frame_id}.png"
+        ),
+        img
+    )
+
+    # =========================== BEV VIS =========================== #
+
+    img_bev_vis = img.copy()
+
+    # Draw egopath
+    if (normalized):
+        renormed_bev_egopath = [
+            (x * BEV_W, y * BEV_H)
+            for x, y in bev_egopath
+        ]
+    else:
+        renormed_bev_egopath = bev_egopath
+    drawLine(
+        img = img_bev_vis,
+        line = renormed_bev_egopath,
+        color = COLOR_EGOPATH
+    )
+
+    # Draw egoleft
+    if (normalized):
+        renormed_bev_egoleft = [
+            (x * BEV_W, y * BEV_H)
+            for x, y in bev_egoleft
+        ]
+    else:
+        renormed_bev_egoleft = bev_egoleft
+    drawLine(
+        img = img_bev_vis,
+        line = renormed_bev_egoleft,
+        color = COLOR_EGOLEFT
+    )
+
+    # Draw egoright
+    if (normalized):
+        renormed_bev_egoright = [
+            (x * BEV_W, y * BEV_H)
+            for x, y in bev_egoright
+        ]
+    else:
+        renormed_bev_egoright = bev_egoright
+    drawLine(
+        img = img_bev_vis,
+        line = renormed_bev_egoright,
+        color = COLOR_EGORIGHT
+    )
+
+    # Save visualization img in vis dir, as JPG (saving storage space)
+    cv2.imwrite(
+        os.path.join(
+            visualization_dir,
+            f"{frame_id}.jpg"
+        ),
+        img_bev_vis
+    )
+
+    # =========================== ORIGINAL VIS =========================== #
+
+    # Draw reprojected egopath
+    if (normalized):
+        renormed_reproj_egopath = [
+            (x * W, y * H) 
+            for x, y in reproj_egopath
+        ]
+    else:
+        renormed_reproj_egopath = reproj_egopath
+    drawLine(
+        img = orig_img,
+        line = renormed_reproj_egopath,
+        color = COLOR_EGOPATH
+    )
+    
+    # Draw reprojected egoleft
+    if (normalized):
+        renormed_reproj_egoleft = [
+            (x * W, y * H) 
+            for x, y in reproj_egoleft
+        ]
+    else:
+        renormed_reproj_egoleft = reproj_egoleft
+    drawLine(
+        img = orig_img,
+        line = renormed_reproj_egoleft,
+        color = COLOR_EGOLEFT
+    )
+
+    # Draw reprojected egoright
+    if (normalized):
+        renormed_reproj_egoright = [
+            (x * W, y * H) 
+            for x, y in reproj_egoright
+        ]
+    else:
+        renormed_reproj_egoright = reproj_egoright
+    drawLine(
+        img = orig_img,
+        line = renormed_reproj_egoright,
+        color = COLOR_EGORIGHT
+    )
+
+    # Save it
+    cv2.imwrite(
+        os.path.join(
+            visualization_dir,
+            f"{frame_id}_orig.jpg"
+        ),
+        orig_img
+    )
