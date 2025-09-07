@@ -456,3 +456,74 @@ def transformBEV(
         mat, 
         True
     )
+
+
+def calTransformedDistance(
+        a: ImagePointCoords | PointCoords,
+        b: ImagePointCoords | PointCoords,
+        homotrans_mat: list[list[float]]
+) -> float:
+
+    pts = np.array([a, b], dtype = np.float32).reshape(-1, 1, 2)
+    pts_bev = cv2.perspectiveTransform(pts, homotrans_mat)
+    a_bev = pts_bev[0][0]
+    b_bev = pts_bev[1][0]
+
+    distance_bev = np.linalg.norm(a_bev - b_bev)
+
+    return distance_bev
+
+
+def calEgoSide(
+        bev_egopath: list[ImagePointCoords],
+        anchor_offset: float,
+        homotrans_mat: list[list[float]]
+    ) -> list[tuple[
+            int,    # x-coord, int
+            int,    # y-coord, int
+            int,    # flag, int
+            int     # validity, int
+    ]]:
+
+    # BEV-egoside
+    bev_egoside = []
+    for point in bev_egopath:
+        x, y = point
+        bev_egoside.append((
+            int(x + anchor_offset), 
+            int(y)
+        ))
+
+    # Original egoside
+    inv_mat = np.linalg.inv(homotrans_mat)
+    orig_egoside = np.array(
+        bev_egoside,
+        dtype = np.float32
+    ).reshape(-1, 1, 2)
+    orig_egoside = cv2.perspectiveTransform(orig_egoside, inv_mat)
+    orig_egoside = [
+        tuple(map(int, point[0])) 
+        for point in orig_egoside
+    ]
+
+    # Flag list
+    egoside_flag_list = [0] * len(bev_egoside)
+    for i in range(len(bev_egoside)):
+        if (not 0 <= bev_egoside[i][0] <= BEV_W):
+            egoside_flag_list[i - 1] = 1
+            break
+    if (not 1 in egoside_flag_list):
+        egoside_flag_list[-1] = 1
+
+    # Validity list
+    egoside_validity_list = [1] * len(bev_egoside)
+    last_valid_index = egoside_flag_list.index(1)
+    for i in range(last_valid_index + 1, len(egoside_validity_list)):
+        egoside_validity_list[i] = 0
+
+    return (
+        bev_egoside, 
+        orig_egoside, 
+        egoside_flag_list, 
+        egoside_validity_list
+    )
