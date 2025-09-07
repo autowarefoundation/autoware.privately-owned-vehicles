@@ -371,3 +371,88 @@ def findSourcePointsBEV(
     sps["ego_h"] = ego_height
 
     return sps
+
+
+def transformBEV(
+    img: np.ndarray,
+    line: list,
+    sps: dict
+):
+    # Renorm/tuplize drivable path
+    line = [
+        (point[0] * W, point[1] * H)
+        for point in line
+        if (point[1] * H >= sps["ego_h"])
+    ]
+    if (not line):
+        return (None, None, None, None, None, None, False)
+
+    # Interp more points for original line
+    line = interpLine(line, MIN_POINTS)
+
+    # Get transformation matrix
+    mat, _ = cv2.findHomography(
+        srcPoints = np.array([
+            sps["LS"],
+            sps["RS"],
+            sps["LE"],
+            sps["RE"]
+        ]),
+        dstPoints = np.array([
+            BEV_PTS["LS"],
+            BEV_PTS["RS"],
+            BEV_PTS["LE"],
+            BEV_PTS["RE"],
+        ])
+    )
+
+    # Transform image
+    im_dst = cv2.warpPerspective(
+        img, mat,
+        np.array([BEV_W, BEV_H])
+    )
+
+    # Transform line
+    bev_line = np.array(
+        line,
+        dtype = np.float32
+    ).reshape(-1, 1, 2)
+    bev_line = cv2.perspectiveTransform(bev_line, mat)
+    bev_line = [
+        tuple(map(int, point[0])) 
+        for point in bev_line
+    ]
+
+    # Polyfit BEV line for certain amount of coords
+    # (should be 11 by default), along with flags
+    bev_line, flag_list, validity_list = polyfit_BEV(
+        bev_line = bev_line,
+        order = POLYFIT_ORDER,
+        y_step = BEV_Y_STEP,
+        y_limit = BEV_H
+    )
+
+    if (not bev_line):
+        return (None, None, None, None, None, None, False)
+    
+    # Now reproject it back to orig space
+    inv_mat = np.linalg.inv(mat)
+    reproj_line = np.array(
+        bev_line,
+        dtype = np.float32
+    ).reshape(-1, 1, 2)
+    reproj_line = cv2.perspectiveTransform(reproj_line, inv_mat)
+    reproj_line = [
+        tuple(map(int, point[0])) 
+        for point in reproj_line
+    ]
+
+    return (
+        im_dst, 
+        bev_line, 
+        reproj_line, 
+        flag_list, 
+        validity_list, 
+        mat, 
+        True
+    )
