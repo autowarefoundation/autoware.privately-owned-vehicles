@@ -19,7 +19,7 @@ ImagePointCoords = tuple[int, int]
 
 def round_line_floats(
     line: list[PointCoords] | list[ImagePointCoords], 
-    ndigits: int = 2
+    ndigits: int = 3
 ):
     """
     Round the coordinates of a line to a specified number of decimal places.
@@ -65,33 +65,41 @@ def normalizeCoords(
 
 
 def getLineAnchor(
-    line: list[PointCoords] | list[ImagePointCoords], 
-    new_img_height: int
+    line: list[PointCoords] | list[ImagePointCoords],
+    verbose: bool = False
 ):
     """
     Determine "anchor" point of a line.
-    Unlike other datasets, since the resolution of each line in this dataset is
-    too fine, I'm taking first point and 11th point.
     """
     (x2, y2) = line[0]
-    (x1, y1) = line[10]
+    (x1, y1) = line[
+        int(len(line) / 5) 
+        if (
+            len(line) > 2 and
+            line[0][1] >= H * 4/5
+        ) else -1
+    ]
+    if (verbose):
+        print(f"Anchor points chosen: ({x1}, {y1}), ({x2}, {y2})")
 
-    for i in range(1, len(line) - 1, 1):
-        if (line[i][0] != x2) & (line[i][1] != y2):
-            (x1, y1) = line[i]
-            break
+    # for i in range(1, len(line) - 1, 1):
+    #     if (line[i][0] != x2) & (line[i][1] != y2):
+    #         (x1, y1) = line[i]
+    #         break
 
     if (x1 == x2) or (y1 == y2):
-        if (x1 == x2):
-            error_lane = "Vertical"
-        elif (y1 == y2):
-            error_lane = "Horizontal"
-        warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
+        # if (x1 == x2):
+        #     error_lane = "Vertical"
+        # elif (y1 == y2):
+        #     error_lane = "Horizontal"
+        # warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
         return (x1, None, None)
     
     a = (y2 - y1) / (x2 - x1)
     b = y1 - a * x1
-    x0 = (new_img_height - b) / a
+    x0 = (H - b) / a
+    if (verbose):
+        print(f"Anchor point computed: (x0 = {x0}, a = {a}, b = {b})")
 
     return (x0, a, b)
 
@@ -131,7 +139,7 @@ def getDrivablePath(
         mid_x = (left_x_interp + right_x_interp) / 2
         # Filter out those points that are not in the common vertical zone between 2 egos
         drivable_path = [
-            [x, y] for x, y in list(zip(mid_x, y_coords_ASSEMBLE))
+            (x, y) for x, y in list(zip(mid_x, y_coords_ASSEMBLE))
             if y <= min(left_ego[0][1], right_ego[0][1])
         ]
 
@@ -152,7 +160,13 @@ def getDrivablePath(
 
     # Extend drivable path to bottom edge of the frame
     if ((len(drivable_path) >= 2) and (drivable_path[0][1] < H - 1)):
-        x1, y1 = drivable_path[1]
+        x1, y1 = drivable_path[
+            int(len(drivable_path) / 5)
+            if (
+                len(drivable_path) > 2 and
+                drivable_path[0][1] >= H * 4/5
+            ) else -1
+        ]
         x2, y2 = drivable_path[0]
         if (x2 == x1):
             x_bottom = x2
@@ -161,52 +175,57 @@ def getDrivablePath(
             x_bottom = x2 + (H - 1 - y2) / a
         drivable_path.insert(0, (x_bottom, H - 1))
 
+    # Drivable path only extends to the shortest ego line
+    drivable_path = [
+        (x, y) for x, y in drivable_path
+        if y >= max(left_ego[-1][1], right_ego[-1][1])
+    ]
+
     # Extend drivable path to be on par with longest ego line
-    # By making it parallel with longer ego line
-    y_top = min(
-        left_ego[-1][1], 
-        right_ego[-1][1]
-    )
+    # # By making it parallel with longer ego line
+    # y_top = min(
+    #     left_ego[-1][1], 
+    #     right_ego[-1][1]
+    # )
 
-    if (
-        (len(drivable_path) >= 2) and 
-        (drivable_path[-1][1] > y_top)
-    ):
-        sign_left_ego = left_ego[-1][0] - left_ego[-2][0]
-        sign_right_ego = right_ego[-1][0] - right_ego[-2][0]
-        sign_val = sign_left_ego * sign_right_ego
+    # if (
+    #     (len(drivable_path) >= 2) and 
+    #     (drivable_path[-1][1] > y_top)
+    # ):
+    #     sign_left_ego = left_ego[-1][0] - left_ego[-2][0]
+    #     sign_right_ego = right_ego[-1][0] - right_ego[-2][0]
+    #     sign_val = sign_left_ego * sign_right_ego
 
-        # 2 egos going the same direction
-        if (sign_val > 0):
-            longer_ego = left_ego if left_ego[-1][1] < right_ego[-1][1] else right_ego
-            if (
-                (len(longer_ego) >= 2) and 
-                (len(drivable_path) >= 2)
-            ):
-                x1, y1 = longer_ego[-1]
-                x2, y2 = longer_ego[-2]
-                if (x2 == x1):
-                    x_top = drivable_path[-1][0]
-                else:
-                    a = (y2 - y1) / (x2 - x1)
-                    x_top = drivable_path[-1][0] + (y_top - drivable_path[-1][1]) / a
+    #     # 2 egos going the same direction
+    #     if (sign_val > 0):
+    #         longer_ego = left_ego if left_ego[-1][1] < right_ego[-1][1] else right_ego
+    #         if (
+    #             (len(longer_ego) >= 2) and 
+    #             (len(drivable_path) >= 2)
+    #         ):
+    #             x1, y1 = longer_ego[-1]
+    #             x2, y2 = longer_ego[-2]
+    #             if (x2 == x1):
+    #                 x_top = drivable_path[-1][0]
+    #             else:
+    #                 a = (y2 - y1) / (x2 - x1)
+    #                 x_top = drivable_path[-1][0] + (y_top - drivable_path[-1][1]) / a
 
-                drivable_path.append((x_top, y_top))
+    #             drivable_path.append((x_top, y_top))
         
-        # 2 egos going opposite directions
-        else:
-            if (len(drivable_path) >= 2):
-                x1, y1 = drivable_path[-1]
-                x2, y2 = drivable_path[-2]
+    #     # 2 egos going opposite directions
+    #     else:
+    #         if (len(drivable_path) >= 2):
+    #             x1, y1 = drivable_path[-1]
+    #             x2, y2 = drivable_path[-2]
 
-                if (x2 == x1):
-                    x_top = x1
-                else:
-                    a = (y2 - y1) / (x2 - x1)
-                    x_top = x1 + (y_top - y1) / a
+    #             if (x2 == x1):
+    #                 x_top = x1
+    #             else:
+    #                 a = (y2 - y1) / (x2 - x1)
+    #                 x_top = x1 + (y_top - y1) / a
 
-                drivable_path.append((x_top, y_top))
-
+    #             drivable_path.append((x_top, y_top))
 
     return drivable_path
 
@@ -214,7 +233,11 @@ def getDrivablePath(
 # ============================== Core functions ============================== #
 
 
-def parseData(json_data: dict[str: Any]):
+def parseData(
+    json_data: dict[str: Any],
+    lane_point_threshold: int = 20,
+    verbose: bool = False
+):
     """
     Parse raw JSON data from OpenLane dataset, then return a dict with:
         - "img_path"        : str, path to the image file.
@@ -223,12 +246,12 @@ def parseData(json_data: dict[str: Any]):
         - "egoright_lane"   : egoright lane in [ (xi, yi) ].
         - "drivable_path"   : drivable path in [ (xi, yi) ].
 
-    All coords are rounded to 2 decimal places (I honestly don't think we need more than that).
+    Since each line in OpenLane has too many points, I implement `lane_point_threshold` 
+    to determine approximately the maximum number of points allowed per lane.
+
+    All coords are rounded to 2 decimal places (honestly we won't need more than that).
     All coords are NOT NORMALIZED (will do it right before saving to JSON).
     """
-
-    global img_id_counter
-    img_id_counter += 1
 
     img_path = json_data["file_path"]
     lane_lines = json_data["lane_lines"]
@@ -239,29 +262,64 @@ def parseData(json_data: dict[str: Any]):
     # Walk thru each lane
     for i, lane in enumerate(lane_lines):
 
-        assert (
-            len(lane["visibility"]) == len(lane["uv"][0]) == len(lane["uv"][1]),
-            warnings.warn(
-                f"Inconsistent number of visibility and UV coords:\n \
-                \t- file_path  : {img_path}\n \
-                \t- lane_index : {i}\n \
-                \t- visibility : {len(lane['visibility'])}\n \
-                \t- u          : {len(lane['uv'][0])}\n \
-                \t- v          : {len(lane['uv'][1])}"
-            )
-        )
+        if not len(lane["uv"][0]) == len(lane["uv"][1]):
+            # warnings.warn(
+            #     f"Inconsistent number of U and V coords:\n \
+            #         - file_path  : {img_path}\n \
+            #         - lane_index : {i}\n \
+            #         - u          : {len(lane['uv'][0])}\n \
+            #         - v          : {len(lane['uv'][1])}"
+            # )
+            continue
 
-        this_lane = [
-            (
-                lane["uv"][0][j], 
-                lane["uv"][1][j]
-            )
-            for j in range(len(lane["uv"][0]))
-            # if lane["visibility"][j]
-        ].sort(
+        if not (len(lane["uv"][0]) >= 10):
+            # warnings.warn(
+            #     f"Lane with insufficient points detected (less than 10 points). Ignored.\n \
+            #         - file_path  : {img_path}\n \
+            #         - lane_index : {i}\n \
+            #         - num_points : {len(lane['uv'][0)]}"
+            # )
+            continue
+
+        # There are adjacent points with the same y-coords. Filtering em out.
+        raw_lane = sorted(
+            [
+                (
+                    int(lane["uv"][0][j]), 
+                    int(lane["uv"][1][j])
+                )
+                for j in range(
+                    0, 
+                    len(lane["uv"][0]), 
+                    (
+                        1 if (len(lane['uv'][0]) < lane_point_threshold) 
+                        else len(lane['uv'][0]) // lane_point_threshold
+                    )
+                )
+            ],
             key = lambda x: x[1],
             reverse = True
         )
+        this_lane = [raw_lane[0]] if raw_lane else []
+        for point in raw_lane[1:]:
+            if (point[1] != this_lane[-1][1]):
+                this_lane.append(point)
+
+        if (len(this_lane) < 2):
+            # warnings.warn(
+            #     f"Lane with insufficient points detected (less than 2 points). Ignored.\n \
+            #         - file_path  : {img_path}\n \
+            #         - lane_index : {i}\n \
+            #         - num_points : {len(this_lane)}"
+            # )
+            continue
+
+        # Add anchor to line, if needed
+        if (this_lane and (this_lane[0][1] < H - 1)):
+            this_lane.insert(0, (
+                getLineAnchor(this_lane, verbose)[0],
+                H - 1
+            ))
 
         this_attribute = lane["attribute"]
 
@@ -273,20 +331,20 @@ def parseData(json_data: dict[str: Any]):
                             4: right-right
         """
         if (this_attribute == 2):
-            if (egoleft_lane):
-                warnings.warn(
-                    f"Multiple egoleft lanes detected. Please check! \n\
-                    \t - file_path: {img_path}"
-                )
-            else:
+            # if (egoleft_lane):
+            #     warnings.warn(
+            #         f"Multiple egoleft lanes detected. Please check! \n\
+            #             - file_path: {img_path}"
+            #     )
+            # else:
                 egoleft_lane = this_lane
         elif (this_attribute == 3):
-            if (egoright_lane):
-                warnings.warn(
-                    f"Multiple egoright lanes detected. Please check! \n\
-                    \t - file_path: {img_path}"
-                )
-            else:
+            # if (egoright_lane):
+            #     warnings.warn(
+            #         f"Multiple egoright lanes detected. Please check! \n\
+            #             - file_path: {img_path}"
+            #     )
+            # else:
                 egoright_lane = this_lane
         else:
             other_lanes.append(this_lane)
@@ -298,17 +356,49 @@ def parseData(json_data: dict[str: Any]):
             y_coords_interp = True
         )
     else:
-        warnings.warn(f"Missing egolines detected: \n\
-        \t - file_path: {img_path} \n")
+    #     warnings.warn(f"Missing egolines detected: \n\
+    #     - file_path: {img_path}")
 
-        if (not egoleft_lane):
-            warnings.warn("\t - Left egoline missing!")
-        if (not egoright_lane):
-            warnings.warn("\t - Right egoline missing!")
-        
+    #     if (not egoleft_lane):
+    #         print("\t- Left egoline missing!")
+    #     if (not egoright_lane):
+    #         print("\t- Right egoline missing!")
+
         return None
     
-    drivable_path = round_line_floats(drivable_path)
+    # Check drivable path validity
+    THRESHOLD_EGOPATH_ANCHOR = 0.25
+    if (len(drivable_path) < 2):
+        # warnings.warn(f"Drivable path with insufficient points detected (less than 2 points). Ignored.\n \
+        #     - file_path  : {img_path}\n \
+        #     - num_points : {len(drivable_path)}"
+        # )
+        return None
+    elif not (THRESHOLD_EGOPATH_ANCHOR * W <= drivable_path[0][0] <= (1 - THRESHOLD_EGOPATH_ANCHOR) * W):
+        # warnings.warn(f"Drivable path anchor too close to edge of frame. Ignored.\n \
+        #     - file_path  : {img_path}\n \
+        #     - anchor_x   : {drivable_path[0][0]}\n \
+        #     - anchor_y   : {drivable_path[0][1]}"
+        # )
+        return None
+    elif not (
+        (egoleft_lane[0][0] < drivable_path[0][0] < egoright_lane[0][0]) and
+        (egoleft_lane[-1][0] < drivable_path[-1][0] < egoright_lane[-1][0])
+    ):
+        # warnings.warn(f"Drivable path not between 2 egolanes. Ignored.\n \
+        #     - file_path      : {img_path}\n \
+        #     - drivable_path  : {drivable_path}\n \
+        #     - egoleft_lane   : {egoleft_lane}\n \
+        #     - egoright_lane  : {egoright_lane}"
+        # )
+        return None
+    elif not (egoright_lane[0][0] - egoleft_lane[0][0] >= egoright_lane[-1][0] - egoleft_lane[-1][0]):
+        # warnings.warn(f"Ego lanes are not parallel logically. Ignored.\n \
+        #     - file_path      : {img_path}\n \
+        #     - egoleft_lane   : {egoleft_lane}\n \
+        #     - egoright_lane  : {egoright_lane}"
+        # )
+        return None
 
     # Assemble all data
     anno_entry = {
@@ -324,6 +414,7 @@ def parseData(json_data: dict[str: Any]):
 
 def annotateGT(
     anno_entry: dict,
+    img_dir: str,
     visualization_dir: str
 ):
     """
@@ -335,9 +426,15 @@ def annotateGT(
     # to preserve my remaining disk space
     save_name = str(img_id_counter).zfill(6) + ".jpg"
 
-    # Draw all lanes & lines
-    raw_img = Image.open(anno_entry["file_path"]).convert("RGB")
+    # Prepping canvas
+    raw_img = Image.open(
+        os.path.join(
+            img_dir, 
+            anno_entry["img_path"]
+        )
+    ).convert("RGB")
     draw = ImageDraw.Draw(raw_img)
+    
     lane_colors = {
         "outer_red": (255, 0, 0), 
         "ego_green": (0, 255, 0), 
@@ -458,6 +555,7 @@ if __name__ == "__main__":
     if (os.path.exists(output_dir)):
         warnings.warn(f"Output directory {output_dir} already exists. Purged")
         shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
 
     for subdir in list_subdirs:
         subdir_path = os.path.join(output_dir, subdir)
@@ -467,13 +565,18 @@ if __name__ == "__main__":
     # ============================== Parsing annotations ============================== #
 
     data_master = {}
-    img_id_counter = -1
+    img_id_counter = 0
+    flag_continue = True
 
     for label_split, list_label_subdirs in LABEL_SPLITS.items():
+        if (not flag_continue):
+            break
         print(f"\nPROCESSING LABEL SPLIT : {label_split}")
         
         for subsplit in list_label_subdirs:
-            print(f"\tPROCESSING SUBSPLIT : {subsplit}")
+            if (not flag_continue):
+                break
+            print(f"PROCESSING SUBSPLIT : {subsplit}")
 
             subsplit_path = os.path.join(
                 dataset_dir,
@@ -483,52 +586,80 @@ if __name__ == "__main__":
 
             for segment in tqdm(
                 sorted(os.listdir(subsplit_path)), 
-                desc = "\t\tProcessing segments",
+                desc = "Processing segments : ",
                 colour = "green"
             ):
+                if (not flag_continue):
+                    break
                 segment_path = os.path.join(subsplit_path, segment)
 
-                for label_file in sorted(os.listdir(segment_path)):    
-                    img_id_counter += 1                
+                for label_file in sorted(os.listdir(segment_path)):
+                    if (not flag_continue):
+                        break
+                                    
                     label_file_path = os.path.join(segment_path, label_file)
 
                     with open(label_file_path, "r") as f:
                         this_label_data = json.load(f)
 
-                    this_label_data = parseData(this_label_data)
+                    this_label_data = parseData(
+                        json_data = this_label_data,
+                        verbose = True if (img_id_counter == 450) else False
+                    )
                     if (this_label_data):
 
                         annotateGT(
                             anno_entry = this_label_data,
-                            visualization_dir = os.path.join(output_dir, "visualization")
+                            img_dir = os.path.join(
+                                dataset_dir,
+                                IMG_DIR
+                            ),
+                            visualization_dir = os.path.join(
+                                output_dir, 
+                                "visualization"
+                            )
                         )
+                        # Debug
+                        if (img_id_counter == 450):
+                            print(f"\nEgoleft: {this_label_data['egoleft_lane']}\n")
+                            print(f"\nDrivable: {this_label_data['drivable_path']}\n")
+                            print(f"\nEgoright: {this_label_data['egoright_lane']}\n")
 
                         img_index = str(str(img_id_counter).zfill(6))
-                        data_master[img_id_counter] = {
+                        data_master[img_index] = {
                             "img_path"      : this_label_data["img_path"],
                             "egoleft_lane"  : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["egoleft_lane"],
+                                    W, H
                                 )
                             ),
                             "egoright_lane" : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["egoright_lane"],
+                                    W, H
                                 )
                             ),
                             "drivable_path" : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["drivable_path"],
+                                    W, H
                                 )
                             )
                         }
 
+                        img_id_counter += 1
+
                     # Early stopping check
                     if (
                         early_stopping and 
-                        (img_id_counter + 1 >= early_stopping)
+                        (img_id_counter >= early_stopping)
                     ):
+                        flag_continue = False
+                        print(f"Early stopping reached at {early_stopping} samples.")
                         break
+
+                print(f"Segment {segment} done, with {len(os.listdir(segment_path))} samples collected.")
 
     # Save master data
     with open(
