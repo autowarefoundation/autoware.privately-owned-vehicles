@@ -16,6 +16,13 @@ ImagePointCoords = tuple[int, int]
 # ============================== Format functions ============================== #
 
 
+def normalizeCoords(line, width, height):
+    """
+    Normalize the coords of line points.
+    """
+    return [(x / width, y / height) for x, y in line]
+
+
 def round_line_floats(line, ndigits = 6):
     line = list(line)
     for i in range(len(line)):
