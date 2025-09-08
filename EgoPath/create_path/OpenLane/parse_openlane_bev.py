@@ -661,6 +661,7 @@ if __name__ == "__main__":
     # For debugging only
     parser.add_argument(
         "--early_stopping",
+        "-e",
         type = int,
         help = "Num. frames you wanna limit, instead of whole set.",
         required = False
@@ -704,7 +705,7 @@ if __name__ == "__main__":
 
         # Acquire frame
         frame_img_path = os.path.join(
-            raw_dir,
+            raw_dir, "images",
             frame_content["img_path"]
         )
         img = cv2.imread(frame_img_path)
@@ -945,7 +946,3 @@ if __name__ == "__main__":
     # Save master data
     with open(BEV_JSON_PATH, "w") as f:
         json.dump(data_master, f, indent = 4)
-
-    # Save skipped frames
-    with open(BEV_SKIPPED_JSON_PATH, "w") as f:
-        json.dump(skipped_dict, f, indent = 4)
