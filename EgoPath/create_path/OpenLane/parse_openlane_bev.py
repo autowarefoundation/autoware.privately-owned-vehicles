@@ -638,9 +638,17 @@ if __name__ == "__main__":
         description = "Generating BEV from OpenLane processed datasets"
     )
     parser.add_argument(
-        "--dataset_dir", 
-        type = str, 
-        help = "Processed OpenLane directory",
+        "--original_dataset_dir",
+        "-o",
+        type = str,
+        help = "Original, raw OpenLane directory",
+        required = True
+    )
+    parser.add_argument(
+        "--processed_dataset_dir",
+        "-p",
+        type = str,
+        help = "Processed OpenLane dataset directory, containing drivable_path.json",
         required = True
     )
     # For debugging only
@@ -653,7 +661,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Parse dataset dir
-    dataset_dir = args.dataset_dir
+    raw_dir = args.original_dataset_dir
+    dataset_dir = args.processed_dataset_dir
     JSON_PATH = os.path.join(dataset_dir, JSON_PATH)
     BEV_JSON_PATH = os.path.join(dataset_dir, BEV_JSON_PATH)
 
@@ -677,3 +686,259 @@ if __name__ == "__main__":
     with open(JSON_PATH, "r") as f:
         json_data = json.load(f)
     data_master = {}    # Dumped later
+
+
+    # MAIN GENERATION LOOP
+
+    counter = 0
+    for frame_id, frame_content in json_data.items():
+
+        counter += 1
+
+        # Acquire frame
+        frame_img_path = os.path.join(
+            raw_dir,
+            frame_content["img_path"]
+        )
+        img = cv2.imread(frame_img_path)
+
+        # Acquire frame data
+        this_frame_data = json_data[frame_id]
+
+        # MAIN ALGORITHM
+
+        try:
+            # Get source points for transform
+            sps_dict = findSourcePointsBEV(
+                h = H,
+                w = W,
+                egoleft = this_frame_data["egoleft_lane"],
+                egoright = this_frame_data["egoright_lane"]
+            )
+
+            # Transform to BEV space
+            success_flag = True
+            
+            # Egopath
+            (
+                im_dst, 
+                bev_egopath, 
+                orig_bev_egopath, 
+                egopath_flag_list, 
+                egopath_validity_list, 
+                mat, 
+                success_egopath
+            ) = transformBEV(
+                img = img,
+                line = this_frame_data["drivable_path"],
+                sps = sps_dict
+            )
+
+            # Egoleft
+            (
+                bev_egoleft, 
+                orig_bev_egoleft, 
+                egoleft_flag_list, 
+                egoleft_validity_list, 
+            ) = calEgoSide(
+                bev_egopath = bev_egopath,
+                anchor_offset = - calTransformedDistance(
+                    sps_dict["LS"],
+                    sps_dict["midanchor_start"],
+                    mat
+                ),
+                homotrans_mat = mat
+            )
+
+            # Egoright
+            (
+                bev_egoright, 
+                orig_bev_egoright, 
+                egoright_flag_list, 
+                egoright_validity_list, 
+            ) = calEgoSide(
+                bev_egopath = bev_egopath,
+                anchor_offset = calTransformedDistance(
+                    sps_dict["RS"],
+                    sps_dict["midanchor_start"],
+                    mat
+                ),
+                homotrans_mat = mat
+            )
+
+            if (not success_egopath):
+                success_flag = False
+
+        except Exception as e:
+            print(f"Unexpected error at frame {frame_id}: {e}")
+            continue
+
+        # ======================== FRAME'S SANITY CHECK ======================== #
+        
+        # Skip if invalid frame
+        if (success_flag == False):
+            warning_msg = "Null EgoPath from BEV transformation algorithm."
+            continue
+
+        # Skip if the polyfit goes horribly wrong
+        if not (
+            (bev_egoleft[0][0] <= bev_egopath[0][0] <= bev_egoright[0][0]) and
+            (bev_egoleft[-1][0] <= bev_egopath[-1][0] <= bev_egoright[-1][0])
+        ):
+            warning_msg = "Polyfit went horribly wrong."
+            continue
+
+        # Distance check
+        if not (
+            (BEV_W * EGO_ANCHOR_DISTANCE_THRESHOLD <= bev_egopath[0][0]) and 
+            (bev_egopath[0][0] <= BEV_W * (1 - EGO_ANCHOR_DISTANCE_THRESHOLD))
+        ):
+            warning_msg = "EgoPath anchor is too far left or right."
+            continue
+
+        # ANGLE CHECK
+        
+        bev_egopath_anchor_angle = calAngle(bev_egopath)
+        bev_egoleft_anchor_angle = calAngle(bev_egoleft)
+        bev_egoright_anchor_angle = calAngle(bev_egoright)
+
+        # Egopath must not be too steep
+        if not (abs(bev_egopath_anchor_angle) <= EGO_ANCHOR_ANGLE_THRESHOLD):
+            warning_msg = f"EgoPath anchor angle is too steep: {bev_egopath_anchor_angle}"
+            continue
+
+        # 3 angles should be same dirs at anchor level
+        if not (
+            (
+                (bev_egopath_anchor_angle > 0) and 
+                (bev_egoleft_anchor_angle > 0) and 
+                (bev_egoright_anchor_angle > 0)
+            ) or (
+                (bev_egopath_anchor_angle < 0) and 
+                (bev_egoleft_anchor_angle < 0) and 
+                (bev_egoright_anchor_angle < 0)
+            )
+        ):
+            warning_msg = "EgoPath/EgoLeft/EgoRight anchor angles are not consistent."
+            continue
+
+        # ======================== SANITY CHECK DONE, CONTINUING ======================== #
+
+        # Save stuffs
+        annotateGT(
+            img = im_dst,
+            orig_img = img,
+            frame_id = frame_id,
+            bev_egopath = bev_egopath,
+            reproj_egopath = orig_bev_egopath,
+            bev_egoleft = bev_egoleft,
+            reproj_egoleft = orig_bev_egoleft,
+            bev_egoright = bev_egoright,
+            reproj_egoright = orig_bev_egoright,
+            raw_dir = BEV_IMG_DIR,
+            visualization_dir = BEV_VIS_DIR,
+            normalized = False
+        )
+
+        # Register this frame GT to master JSON
+        # Each point has tuple format (x, y, flag, valid)
+        data_master[frame_id] = {
+            "bev_egopath" : [
+                (point[0], point[1], flag, valid)
+                for point, flag, valid in list(zip(
+                    round_line_floats(
+                        normalizeCoords(
+                            bev_egopath,
+                            width = BEV_W,
+                            height = BEV_H
+                        )
+                    ), 
+                    egopath_flag_list, 
+                    egopath_validity_list
+                ))
+            ],
+            "reproj_egopath" : [
+                (point[0], point[1], flag, valid)
+                for point, flag, valid in list(zip(
+                    round_line_floats(
+                        normalizeCoords(
+                            orig_bev_egopath,
+                            width = W,
+                            height = H
+                        )
+                    ), 
+                    egopath_flag_list, 
+                    egopath_validity_list
+                ))
+            ],
+            "bev_egoleft" : [
+                (point[0], point[1], flag, valid)
+                for point, flag, valid in list(zip(
+                    round_line_floats(
+                        normalizeCoords(
+                            bev_egoleft,
+                            width = BEV_W,
+                            height = BEV_H
+                        )
+                    ), 
+                    egoleft_flag_list, 
+                    egoleft_validity_list
+                ))
+            ],
+            "reproj_egoleft" : [
+                (point[0], point[1], flag, valid)
+                for point, flag, valid in list(zip(
+                    round_line_floats(
+                        normalizeCoords(
+                            orig_bev_egoleft,
+                            width = W,
+                            height = H
+                        )
+                    ), 
+                    egoleft_flag_list, 
+                    egoleft_validity_list
+                ))
+            ],
+            "bev_egoright" : [
+                (point[0], point[1], flag, valid)
+                for point, flag, valid in list(zip(
+                    round_line_floats(
+                        normalizeCoords(
+                            bev_egoright,
+                            width = BEV_W,
+                            height = BEV_H
+                        )
+                    ), 
+                    egoright_flag_list, 
+                    egoright_validity_list
+                ))
+            ],
+            "reproj_egoright" : [
+                (point[0], point[1], flag, valid)
+                for point, flag, valid in list(zip(
+                    round_line_floats(
+                        normalizeCoords(
+                            orig_bev_egoright,
+                            width = W,
+                            height = H
+                        )
+                    ), 
+                    egoright_flag_list, 
+                    egoright_validity_list
+                ))
+            ],
+            "homomatrix" : mat.tolist()
+        }
+
+        # Break if early_stopping reached
+        if (early_stopping is not None):
+            if (counter >= early_stopping):
+                break
+
+    # Save master data
+    with open(BEV_JSON_PATH, "w") as f:
+        json.dump(data_master, f, indent = 4)
+
+    # Save skipped frames
+    with open(BEV_SKIPPED_JSON_PATH, "w") as f:
+        json.dump(skipped_dict, f, indent = 4)
