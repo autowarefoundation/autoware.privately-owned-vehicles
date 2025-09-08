@@ -238,6 +238,41 @@ def interpX(line, y):
     return float(np.interp(y, list_y, list_x))
 
 
+def interpLine(line: list, points_quota: int):
+    """
+    Interpolates a line of (x, y) points to have at least `point_quota` points.
+    """
+    if len(line) >= points_quota:
+        return line
+
+    # Extract x, y separately then parse to interp
+    x = np.array([pt[0] for pt in line])
+    y = np.array([pt[1] for pt in line])
+    interp_x = np.interp
+    interp_y = np.interp
+
+    # Here I try to interp more points along the line, based on
+    # distance between each subsequent original points. 
+
+    # 1) Use distance along line as param (t)
+    # This is Euclidian distance between each point and the one before it
+    distances = np.cumsum(np.sqrt(
+        np.diff(x, prepend = x[0])**2 + \
+        np.diff(y, prepend = y[0])**2
+    ))
+    # Force first t as zero
+    distances[0] = 0
+
+    # 2) Generate new t evenly spaced along original line
+    evenly_t = np.linspace(distances[0], distances[-1], points_quota)
+
+    # 3) Interp x, y coordinates based on evenly t
+    x_new = interp_x(evenly_t, distances, x)
+    y_new = interp_y(evenly_t, distances, y)
+
+    return list(zip(x_new, y_new))
+
+
 def polyfit_BEV(
     bev_line: list,
     order: int,
