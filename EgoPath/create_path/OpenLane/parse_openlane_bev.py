@@ -527,3 +527,91 @@ def calEgoSide(
         egoside_flag_list, 
         egoside_validity_list
     )
+
+
+# ============================== Main run ============================== #
+
+
+if __name__ == "__main__":
+
+    # DIRECTORY STRUCTURE
+
+    JSON_PATH = "drivable_path.json"
+
+    BEV_IMG_DIR = "image_bev"
+    BEV_VIS_DIR = "visualization_bev"
+    BEV_JSON_PATH = "drivable_path_bev.json"
+
+    # OTHER PARAMS
+
+    MIN_POINTS = 30
+
+    BEV_PTS = {
+        "LS" : [240, 1280],         # Left start
+        "RS" : [400, 1280],         # Right start
+        "LE" : [240, 0],            # Left end
+        "RE" : [400, 0]             # Right end
+    }
+
+    W = 1920
+    H = 1280
+
+    BEV_W = 640
+    BEV_H = 1280
+    BEV_Y_STEP = 128
+    POLYFIT_ORDER = 2
+
+    COLOR_EGOPATH = (0, 255, 255)   # Yellow (BGR)
+    COLOR_EGOLEFT = (0, 128, 0)     # Green (BGR)
+    COLOR_EGORIGHT = (255, 255, 0)  # Cyan (BGR)
+
+    # SANITY CHECK PARAMS
+
+    EGO_ANCHOR_ANGLE_THRESHOLD = 45         # Degrees
+    EGO_ANCHOR_DISTANCE_THRESHOLD = 0.3     # Should not be in 30% left or right
+
+    # PARSING ARGS
+
+    parser = argparse.ArgumentParser(
+        description = "Generating BEV from OpenLane processed datasets"
+    )
+    parser.add_argument(
+        "--dataset_dir", 
+        type = str, 
+        help = "Processed OpenLane directory",
+        required = True
+    )
+    # For debugging only
+    parser.add_argument(
+        "--early_stopping",
+        type = int,
+        help = "Num. frames you wanna limit, instead of whole set.",
+        required = False
+    )
+    args = parser.parse_args()
+
+    # Parse dataset dir
+    dataset_dir = args.dataset_dir
+    JSON_PATH = os.path.join(dataset_dir, JSON_PATH)
+    BEV_JSON_PATH = os.path.join(dataset_dir, BEV_JSON_PATH)
+
+    # Parse early stopping
+    if (args.early_stopping):
+        print(f"Early stopping set, stopping after {args.early_stopping} files.")
+        early_stopping = args.early_stopping
+    else:
+        early_stopping = None
+
+    # Generate new dirs and paths
+    BEV_IMG_DIR = os.path.join(dataset_dir, BEV_IMG_DIR)
+    BEV_VIS_DIR = os.path.join(dataset_dir, BEV_VIS_DIR)
+
+    if not (os.path.exists(BEV_IMG_DIR)):
+        os.makedirs(BEV_IMG_DIR)
+    if not (os.path.exists(BEV_VIS_DIR)):
+        os.makedirs(BEV_VIS_DIR)
+
+    # Preparing data
+    with open(JSON_PATH, "r") as f:
+        json_data = json.load(f)
+    data_master = {}    # Dumped later
