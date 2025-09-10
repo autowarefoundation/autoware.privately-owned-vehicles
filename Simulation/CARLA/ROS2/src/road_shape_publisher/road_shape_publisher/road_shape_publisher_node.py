@@ -9,7 +9,7 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 
 LOOKAHEAD_DISTANCE = 30.0  # meters
-STEP_DISTANCE = 2.0        # distance between waypoints
+STEP_DISTANCE = 1.0        # distance between waypoints
 LANE_WIDTH = 3.5          # meters, typical lane width
 
 def yaw_to_quaternion(yaw_deg):
@@ -53,12 +53,27 @@ class RoadShapePublisher(Node):
             self.get_logger().error('Ego vehicle not found, exiting.')
             rclpy.shutdown()
             return
-
-        timer_period = 0.1
-        self.timer = self.create_timer(timer_period, self.timer_callback)
-        self.egopath_pts = []
-        self.egolaneL_pts = []
-        self.egolaneR_pts = []
+        self.waypoints = self.get_global_waypoints()
+        self.timer = self.create_timer(0.1, self.timer_callback)
+        
+    def get_global_waypoints(self):
+        while True:
+            if self.ego:
+                break
+        
+        curr_wp = self.map.get_waypoint(self.ego.get_transform().location, project_to_road=True, lane_type=carla.LaneType.Driving)
+        waypoints = curr_wp.next_until_lane_end(STEP_DISTANCE)
+        
+        while True:
+            junction_wps = waypoints[-1].next(STEP_DISTANCE)
+            for wp in junction_wps:
+                if wp.road_id!=795 and abs(wp.lane_id) == abs(waypoints[0].lane_id):
+                    print(f'Continuing on lane {wp.lane_id} of road {wp.road_id}')
+                    waypoints += wp.next_until_lane_end(STEP_DISTANCE)
+            if waypoints[0].road_id == waypoints[-1].road_id:
+                break
+        print(f'Starting on lane {curr_wp.lane_id} with {len(waypoints)} waypoints')
+        return waypoints
 
     def _find_ego_vehicle(self):
         for actor in self.world.get_actors().filter('vehicle.*'):
@@ -67,9 +82,10 @@ class RoadShapePublisher(Node):
         self.get_logger().error('Ego vehicle not found')
         return None
         
-    def timer_callback(self):
+    def timer_callback(self): #TODO: extract local segment from global path
         if not self.ego:
             return
+        waypoints = self.waypoints
 
         ego_tf = self.ego.get_transform()
         ego_loc = ego_tf.location
@@ -87,22 +103,19 @@ class RoadShapePublisher(Node):
         ros_time = Time()
         ros_time.sec = int(elapsed)
         ros_time.nanosec = int((elapsed - ros_time.sec) * 1e9)
-
-        curr_wp = self.map.get_waypoint(ego_loc, project_to_road=True, lane_type=carla.LaneType.Driving)
-        total_dist = 0.0
-        
+    
         path_msg = Path()
         path_msg.header.stamp = ros_time
         path_msg.header.frame_id = "hero"
         path_msg.poses = []
-
+            
         left_lane = Path()
         right_lane = Path()
         left_lane.header = path_msg.header
         right_lane.header = path_msg.header
-
-        while total_dist < LOOKAHEAD_DISTANCE and curr_wp is not None:
-            wp_loc = curr_wp.transform.location
+        
+        for wp in waypoints:
+            wp_loc = wp.transform.location
             wp_pos = np.array([wp_loc.x - ego_loc.x,
                             wp_loc.y - ego_loc.y,
                             wp_loc.z - ego_loc.z])
@@ -115,7 +128,7 @@ class RoadShapePublisher(Node):
             ps.pose.position.y = -local_pos[1] # CARLA uses left-handed coordinate system
             ps.pose.position.z = local_pos[2]
 
-            wp_yaw = math.radians(curr_wp.transform.rotation.yaw)
+            wp_yaw = math.radians(wp.transform.rotation.yaw)
             relative_yaw = wp_yaw - ego_yaw
             q = yaw_to_quaternion(math.degrees(relative_yaw))
             ps.pose.orientation.x = q["x"]
@@ -124,15 +137,7 @@ class RoadShapePublisher(Node):
             ps.pose.orientation.w = q["w"]
 
             path_msg.poses.append(ps)
-
-            # Advance
-            next_wps = curr_wp.next(STEP_DISTANCE)
-            if not next_wps:
-                break
-            next_wp = next_wps[0]
-            total_dist += curr_wp.transform.location.distance(next_wp.transform.location)
-            curr_wp = next_wp
-
+            
             # Create left lane
             left_ps = PoseStamped()
             left_ps.header = ps.header
@@ -155,7 +160,7 @@ class RoadShapePublisher(Node):
             self.egoPath_viz_pub_.publish(path_msg)
             self.egoLaneL_viz_pub_.publish(left_lane)
             self.egoLaneR_viz_pub_.publish(right_lane)  
-            self.get_logger().info(f'Publishing egoPath and egoLanes with {len(path_msg.poses)} waypoints')
+            self.get_logger().info(f'Publishing egoPath and egoLanes with {len(path_msg.poses)} waypoints on lane {waypoints[0].lane_id}')
         
 def main(args=None):
     rclpy.init(args=args)
