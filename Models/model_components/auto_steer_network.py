@@ -3,6 +3,7 @@ from .bev_feature_fusion import BEVFeatureFusion
 from .bev_path_context import BEVPathContext
 from .bev_path_neck import BEVPathNeck
 from .ego_path_head import EgoPathHead
+from .auto_steer_head import AutoSteerHead
 
 
 import torch.nn as nn
@@ -25,6 +26,9 @@ class AutoSteerNetwork(nn.Module):
 
         # EgoPath Prediction Head
         self.EgoPathHead = EgoPathHead()
+
+        # AutoSteer Prediction Head
+        self.AutoSteerHead = AutoSteerHead()
     
 
     def forward(self, image):
@@ -33,4 +37,5 @@ class AutoSteerNetwork(nn.Module):
         context = self.BEVPathContext(fused_features)
         neck = self.BEVPathNeck(context, features)
         ego_path = self.EgoPathHead(neck, features)
-        return ego_path
+        path_prediction = self.AutoSteerHead(neck)
+        return ego_path, path_prediction
