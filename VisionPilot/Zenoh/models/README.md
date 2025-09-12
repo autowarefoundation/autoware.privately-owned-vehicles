@@ -37,14 +37,26 @@ After a successful build, you will find two executables in the `build` directory
 
 Subscribe a video from a Zenoh publisher and then publish it to a Zenoh Subscriber.
 
-- Usage the video publisher and subscriber
+- Run the video publisher
 
 ```bash
-# Terminal 1
 ./video_publisher -k video/input
-# Terminal 2
+```
+
+- Run the model you want
+
+```bash
+# SceneSeg
 ./run_model SceneSeg_FP32.onnx -i video/input -o video/output
+# DomainSeg
 ./run_model DomainSeg_FP32.onnx -i video/input -o video/output
-# Terminal 3
+```
+
+- Subscribe the video
+
+```bash
+# Only the output
 ./video_subscriber -k video/output
+# Combine the output and the raw video
+./segment_subscriber -k video/input -s video/output
 ```
