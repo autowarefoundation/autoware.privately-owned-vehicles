@@ -11,10 +11,13 @@
 #include <CLI/CLI.hpp>
 #include <zenoh.h>
 
+#include "masks_visualization_engine.hpp"
+
 using namespace cv; 
 using namespace std; 
 
 #define DEFAULT_KEYEXPR "video/raw"
+#define SEGMENTATION_KEYEXPR "video/segmented"
 
 #define RECV_BUFFER_SIZE 100
 
@@ -51,6 +54,8 @@ int main(int argc, char** argv) {
     // Add options
     std::string keyexpr = DEFAULT_KEYEXPR;
     app.add_option("-k,--key", keyexpr, "The key expression to subscribe to")->default_val(DEFAULT_KEYEXPR);
+    std::string seg_keyexpr = SEGMENTATION_KEYEXPR;
+    app.add_option("-s,--segkey", seg_keyexpr, "The segmentation key expression to subscribe to")->default_val(SEGMENTATION_KEYEXPR);
     CLI11_PARSE(app, argc, argv);
 
     try {
@@ -72,6 +77,16 @@ int main(int argc, char** argv) {
         if (z_declare_subscriber(z_loan(s), &sub, z_loan(ke), z_move(closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(keyexpr));
         }
+        // Declare a Zenoh segmentation subscriber
+        z_owned_subscriber_t seg_sub;
+        z_view_keyexpr_t seg_ke;
+        z_view_keyexpr_from_str(&seg_ke, seg_keyexpr.c_str());
+        z_owned_ring_handler_sample_t seg_handler;
+        z_owned_closure_sample_t seg_closure;
+        z_ring_channel_sample_new(&seg_closure, &seg_handler, RECV_BUFFER_SIZE);
+        if (z_declare_subscriber(z_loan(s), &seg_sub, z_loan(seg_ke), z_move(seg_closure), NULL) < 0) {
+            throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(seg_keyexpr));
+        }
         
         std::cout << "Subscribing to '" << keyexpr << "'..." << std::endl;
         std::cout << "Processing video... Press ESC to stop." << std::endl;
@@ -82,11 +97,30 @@ int main(int argc, char** argv) {
             const uint8_t* ptr = z_slice_data(z_loan(zslice));
             // Release sample
             z_drop(z_move(sample));
+            // Create the frame
+            cv::Mat frame(row, col, type, const_cast<uint8_t*>(ptr));
 
-            // Create the frame and show it
-            cv::Mat frame(row, col, type, (uint8_t *)ptr);
-            cv::imshow("Play video", frame);
-            z_drop(z_move(zslice)); // Release the slice after using its data pointer
+            // Also receive segmentation frame
+            if (Z_OK != z_try_recv(z_loan(seg_handler), &sample)) {
+                std::cerr << "Warning: No segmentation frame received for the current video frame." << std::endl;
+                z_drop(z_move(zslice)); // Release the slice after using its data pointer
+                continue;
+            }
+            z_owned_slice_t seg_zslice = decode_frame_from_sample(sample, row, col, type);
+            const uint8_t* seg_ptr = z_slice_data(z_loan(seg_zslice));
+            // Release sample
+            z_drop(z_move(sample));
+            // Create the frame
+            cv::Mat seg_frame(row, col, type, const_cast<uint8_t*>(seg_ptr));
+
+            std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
+                std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
+            cv::Mat final_frame = viz_engine_->visualize(seg_frame, frame);
+
+            // Release the slice after using its data pointer
+            z_drop(z_move(zslice));
+            z_drop(z_move(seg_zslice));
+
             if (cv::waitKey(1) == 27) { // Stop if 'ESC' is pressed
                 std::cout << "Processing stopped by user." << std::endl;
                 break;
@@ -104,14 +138,13 @@ int main(int argc, char** argv) {
                 frame_count = 0;
                 start_time = current_time;
             }
-
-            // Release sample
-            z_drop(z_move(sample));
         }
 
         // Clean up
         z_drop(z_move(handler));
         z_drop(z_move(sub));
+        z_drop(z_move(seg_handler));
+        z_drop(z_move(seg_sub));
         z_drop(z_move(s));
         cv::destroyAllWindows();
     } catch (const std::exception& e) {
