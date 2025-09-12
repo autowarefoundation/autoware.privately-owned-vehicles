@@ -314,7 +314,7 @@ def main():
                             ).convert("RGB")
 
                             # Assign data
-                            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data\
+                            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data,\
                                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                                 reproj_egoleft, reproj_egoright)
                             
