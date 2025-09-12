@@ -38,7 +38,7 @@ void PurePursuitNode::testComputeSteering(const nav_msgs::msg::Path msg)
   control_msg.manual_gear_shift = false;
   steering_pub_->publish(control_msg);
 
-  RCLCPP_INFO(this->get_logger(), "Computed steering angle: %f", steering_angle);
+  // RCLCPP_INFO(this->get_logger(), "Computed steering angle: %f", steering_angle);
 }
 
 void PurePursuitNode::computeSteering(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
@@ -52,7 +52,23 @@ void PurePursuitNode::computeSteering(const std_msgs::msg::Float32MultiArray::Sh
   double yaw_error = msg->data[7];
   double curvature = msg->data[11];
   double forward_velocity = 10.0; // Placeholder for actual velocity input
-  double steering_angle = pp.computeSteering(cte, yaw_error, curvature, forward_velocity);
+  // double steering_angle = pp.computeSteering(cte, yaw_error, curvature, forward_velocity);
+  double lookahead_distance_ = 5.0;// + forward_velocity * 0.5;
+  double wheelbase = 2.85;
+
+  double b = -std::tan(yaw_error);
+  double a = 0.5 * curvature * std::pow(1.0 + b*b, 1.5);
+  double c = -cte;
+  for (double x = 0; x < lookahead_distance_; x += 0.1) {
+    double y = a * x * x + b * x + c;
+    double dist = std::sqrt(x * x + y * y);
+    if (dist >= lookahead_distance_){
+      yaw_error = std::atan2(y, x);
+      break;
+    }
+  }
+
+  double steering_angle = std::atan2(2 * wheelbase * std::sin(yaw_error), lookahead_distance_);//+ std::atan2(curvature * wheelbase_, 1.0);
 
   auto control_msg = carla_msgs::msg::CarlaEgoVehicleControl();
   control_msg.header.stamp = this->now();

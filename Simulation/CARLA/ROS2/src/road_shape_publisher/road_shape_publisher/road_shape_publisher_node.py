@@ -82,7 +82,7 @@ class RoadShapePublisher(Node):
         self.get_logger().error('Ego vehicle not found')
         return None
         
-    def timer_callback(self): #TODO: extract local segment from global path
+    def timer_callback(self):
         if not self.ego:
             return
         waypoints = self.waypoints
@@ -114,13 +114,27 @@ class RoadShapePublisher(Node):
         left_lane.header = path_msg.header
         right_lane.header = path_msg.header
         
-        for wp in waypoints:
+        # Find nearest waypoint index
+        nearest_idx = None
+        nearest_dist = float('inf')
+        for i, wp in enumerate(waypoints):
+            d = (wp.transform.location.x - ego_loc.x)**2 + (wp.transform.location.y - ego_loc.y)**2
+            if d < nearest_dist:
+                nearest_dist = d
+                nearest_idx = i
+
+        # Extract local horizon waypoints
+        horizon = int(LOOKAHEAD_DISTANCE / STEP_DISTANCE)
+        local_wps = [waypoints[(nearest_idx + i) % len(waypoints)] for i in range(horizon)]
+        print(len(local_wps), "local waypoints extracted")
+        
+        for wp in local_wps:
             wp_loc = wp.transform.location
             wp_pos = np.array([wp_loc.x - ego_loc.x,
                             wp_loc.y - ego_loc.y,
                             wp_loc.z - ego_loc.z])
             local_pos = R_world_to_ego @ wp_pos  # rotate to ego frame
-
+            
             ps = PoseStamped()
             ps.header.stamp = ros_time
             ps.header.frame_id = "hero"
@@ -135,7 +149,7 @@ class RoadShapePublisher(Node):
             ps.pose.orientation.y = q["y"]
             ps.pose.orientation.z = q["z"]
             ps.pose.orientation.w = q["w"]
-
+            
             path_msg.poses.append(ps)
             
             # Create left lane
