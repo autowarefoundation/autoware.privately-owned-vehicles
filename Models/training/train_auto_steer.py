@@ -25,15 +25,15 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH = 'DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)' #args.root
+    ROOT_PATH = '/home/zain/Autoware/Data/AutoSteer/'#'DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)' #args.root
 
     # Model save root path
-    MODEL_SAVE_ROOT_PATH = '{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/models/' #args.model_save_root_path
+    MODEL_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/models/' #'{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/models/' #args.model_save_root_path
     if (not os.path.exists(MODEL_SAVE_ROOT_PATH)):
         os.makedirs(MODEL_SAVE_ROOT_PATH)
 
     # Visualizations save root path
-    VIS_SAVE_ROOT_PATH = '{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/figures/' #args.vis_save_root_path
+    VIS_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/figures/'#'{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/figures/' #args.vis_save_root_path
     if (not os.path.exists(VIS_SAVE_ROOT_PATH)):
         os.makedirs(VIS_SAVE_ROOT_PATH)
 
@@ -105,9 +105,9 @@ def main():
     
     # Training loop parameters
     NUM_EPOCHS = 50
-    LOGSTEP_LOSS = 100
-    LOGSTEP_VIS = 200
-    LOGSTEP_MODEL = 10000
+    LOGSTEP_LOSS = 25
+    LOGSTEP_VIS = 25
+    LOGSTEP_MODEL = 5000
 
     # Val visualization param
     N_VALVIS = 25
@@ -156,8 +156,7 @@ def main():
             msdict[dataset]["completed"] = False
 
         # Loop through data
-        #while (True):
-        for i in range (0,5):
+        while (True):
 
             # Log count
             msdict["sample_counter"] = msdict["sample_counter"] + 1
@@ -329,7 +328,7 @@ def main():
                             trainer.run_model()
 
                             # Get running total of loss value
-                            msdict[dataset]["total_running"] += trainer.get_total_loss()
+                            msdict[dataset]["total_running"] += trainer.get_total_loss_value()
 
                             # Save visualization to Tensorboard
                             if(val_count < N_VALVIS): 
