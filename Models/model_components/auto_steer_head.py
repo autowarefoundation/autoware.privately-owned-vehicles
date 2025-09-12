@@ -64,6 +64,8 @@ class AutoSteerHead(nn.Module):
         ego_path_y_end = self.ego_path_y_end(driving_corridor)
 
         # Prediction
-        path_prediction = torch.cat((ego_left_x_offset, ego_right_x_offset, ego_path_x_offset, angle_start, angle_end, ego_path_x_end, ego_path_y_end), 1)
+        path_prediction = torch.cat((ego_left_x_offset, ego_right_x_offset, ego_path_x_offset, \
+                                     angle_start, angle_end, ego_path_x_end, ego_path_y_end), 1)
+        path_prediction = torch.unsqueeze(path_prediction, 0)
         
         return path_prediction
