@@ -49,12 +49,18 @@ class AutoSteerHead(nn.Module):
         driving_corridor = self.GeLU(driving_corridor)
 
         # Final Outputs
-        ego_left_x_offset = self.ego_left_x_offset(driving_corridor)
-        ego_right_x_offset = self.ego_right_x_offset(driving_corridor)
-        ego_path_x_offset = self.ego_path_x_offset(driving_corridor)
+
+        # Anchor Points
+        ego_path_x_offset = self.ego_path_x_offset(driving_corridor) + 0.5
+        ego_left_x_offset = ego_path_x_offset - 0.5 + self.ego_left_x_offset(driving_corridor) 
+        ego_right_x_offset = ego_path_x_offset + 0.5 + self.ego_right_x_offset(driving_corridor)
+        
+        # Start and End angles
         angle_start = self.angle_start(driving_corridor)
-        angle_end = self.angle_end(driving_corridor)
-        ego_path_x_end = self.ego_path_x_end(driving_corridor)
+        angle_end = self.angle_end(driving_corridor) + angle_start
+
+        # End point
+        ego_path_x_end = self.ego_path_x_end(driving_corridor) + ego_path_x_offset
         ego_path_y_end = self.ego_path_y_end(driving_corridor)
 
         # Prediction
