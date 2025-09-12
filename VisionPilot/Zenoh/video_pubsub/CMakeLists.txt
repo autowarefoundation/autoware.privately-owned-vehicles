@@ -12,8 +12,12 @@ string(APPEND CMAKE_C_FLAGS " -Wall -Wextra")
 option(LIBPNG_ROOTDIR "libpng root dir")
 set(CMAKE_CXX_STANDARD 17)
 
+# set the MODEL_ROOTDIR variable to the path where the model is located
+set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../common")
+
 include_directories(
                      ${OpenCV_INCLUDE_DIRS}    # OpenCV
+                     ${MODEL_ROOTDIR}/include  # Common libraries
                    )
 
 ## Build & Link
@@ -21,3 +25,6 @@ add_executable(video_publisher video_publisher.cpp)
 target_link_libraries(video_publisher PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
 add_executable(video_subscriber video_subscriber.cpp)
 target_link_libraries(video_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+add_executable(segment_subscriber segment_subscriber.cpp
+               ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp)
+target_link_libraries(segment_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)

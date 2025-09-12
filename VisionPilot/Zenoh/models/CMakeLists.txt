@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
-project(deploy_onnx_rt)
+project(zenoh_models)
 
 set(USE_CUDNN OFF)
 set(CAFFE2_USE_CUDNN OFF)
@@ -32,16 +32,21 @@ if(NOT ONNXRUNTIME_ROOTDIR)
     message(STATUS "You must provide an onnx runtime root directory!")
 endif()
 
+# set the MODEL_ROOTDIR variable to the path where the model is located
+set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../common")
+
 # The ORT package has a different include directory structure to a local install via cmake.
 # We added the path for the pre-built package above. Add the path for a local install to support either usage.
 # TODO: If we want to support additional EPs being loadable from a local install we also need to add EP specific
 # directories under /include/onnxruntime/core/providers
-include_directories("${ONNXRUNTIME_ROOTDIR}/include"
-                    "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime"
-                    "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/session"
-                    "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/providers/dnnl"    # DNNL Backend Support
-                    ${OpenCV_INCLUDE_DIRS}                                              # OpenCV
-                    ${TORCH_INCLUDE_DIRS})                                              # Torch
+include_directories(${ONNXRUNTIME_ROOTDIR}/include
+                    ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime
+                    ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/session
+                    ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/providers/dnnl    # DNNL Backend Support
+                    ${OpenCV_INCLUDE_DIRS}                                            # OpenCV
+                    ${TORCH_INCLUDE_DIRS}                                             # Torch
+                    ${MODEL_ROOTDIR}/include                                          # Common libraries
+                   )
 
 link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
 
@@ -50,8 +55,11 @@ if(onnxruntime_USE_CUDA)
 endif()
 
 ## Build & Link
-add_executable(deploy_onnx_rt main.cpp)
-target_link_libraries(deploy_onnx_rt PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_imgcodecs)
-
-add_executable(video_visualization video_visualization.cpp)
-target_link_libraries(video_visualization PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+add_executable(run_model run_model.cpp 
+                         #${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
+                         ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
+                         ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp
+                         ${MODEL_ROOTDIR}/visualizers/depth_visualization_engine.cpp
+              )
+target_compile_definitions(run_model PRIVATE LOG_TYPE=0)
+target_link_libraries(run_model PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
