@@ -65,6 +65,7 @@ class AutoSteerTrainer():
         self.pred_bev_egoleft_lane_tensor = None
         self.pred_bev_egoright_lane_tensor = None
         self.pred_binary_seg_tensor = None
+        self.pred_data_tensor = None
 
         # Losses
         self.BEV_loss = None
@@ -73,6 +74,7 @@ class AutoSteerTrainer():
         self.total_loss = None
         self.BEV_data_loss = None
         self.edge_loss = None
+        self.data_loss = None
 
         self.BEV_FIGSIZE = (4, 8)
         self.ORIG_FIGSIZE = (8, 4)
@@ -239,7 +241,7 @@ class AutoSteerTrainer():
         #self.pred_bev_ego_path_tensor, self.pred_bev_egoleft_lane_tensor, \
         #    self.pred_bev_egoright_lane_tensor, self.pred_binary_seg_tensor = self.model(self.bev_image_tensor)
         
-        self.pred_binary_seg_tensor = self.model(self.perspective_image_tensor)
+        self.pred_binary_seg_tensor, self.pred_data_tensor = self.model(self.perspective_image_tensor)
 
         '''
         # BEV Loss
@@ -264,10 +266,16 @@ class AutoSteerTrainer():
         # Edge Loss
         self.edge_loss = self.calc_multi_cale_edge_loss()
 
-        # Total Loss
-        #self.total_loss = self.BEV_loss + self.reprojected_loss + self.segmentation_loss
+        # Data Loss
+        self.data_loss = self.calc_data_loss()
 
-        self.total_loss = self.edge_loss + self.segmentation_loss
+        self.total_loss = self.edge_loss + self.segmentation_loss + self.data_loss*1.5
+
+    # Data loss
+    def calc_data_loss(self):
+        mAE_loss = nn.L1Loss()
+        data_loss = mAE_loss(self.pred_data_tensor, self.gt_data_tensor)
+        return data_loss
 
     # Segmentation Loss
     def calc_BEV_segmentation_loss(self):
@@ -559,6 +567,9 @@ class AutoSteerTrainer():
 
     def get_edge_loss(self):
         return self.edge_loss.item()
+    
+    def get_data_loss(self):
+        return self.data_loss.item()
 
     # Logging losses - Total, BEV, Reprojected
     def log_loss(self, log_count):
@@ -566,7 +577,8 @@ class AutoSteerTrainer():
             "Training Loss", {
                 "Total_loss" : self.get_total_loss(),
                 "Segmentation_loss": self.get_segmentation_loss(),
-                "Edge_loss": self.get_edge_loss()
+                "Edge_loss": self.get_edge_loss(),
+                "Data_loss": self.get_data_loss()
             },
             (log_count)
         )
