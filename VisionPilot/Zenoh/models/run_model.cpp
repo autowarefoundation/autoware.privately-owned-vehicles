@@ -10,6 +10,7 @@
 #include "inference_backend_base.hpp"
 #include "onnx_runtime_backend.hpp"
 #include "masks_visualization_engine.hpp"
+#include "depth_visualization_engine.hpp"
 
 using namespace cv; 
 using namespace std; 
@@ -127,97 +128,98 @@ int main(int argc, char* argv[]) {
             auto do_inference_time = std::chrono::steady_clock::now() - last_time;
             last_time = std::chrono::steady_clock::now();
 
-            // ----------------
+            // Model-type specific processing
             const float* tensor_data = backend_->getRawTensorData();
             std::vector<int64_t> tensor_shape = backend_->getTensorShape();
             if (tensor_shape.size() != 4) {
                 throw std::runtime_error("Invalid tensor shape");
             }
-            // TODO(CY): Support different model types
-            //// Model-type specific processing
-            //if (model_type_ == "depth") {
-            //  // Depth estimation: output raw depth values (CV_32FC1)
-            //  int height = static_cast<int>(tensor_shape[2]);
-            //  int width = static_cast<int>(tensor_shape[3]);
-            //  
-            //  // Create depth map from tensor data (single channel float)
-            //  cv::Mat depth_map(height, width, CV_32FC1, const_cast<float*>(tensor_data));
-            //  
-            //  // Resize depth map to original image size (use LINEAR for depth)
-            //  cv::Mat resized_depth;
-            //  cv::resize(depth_map, resized_depth, frame.size(), 0, 0, cv::INTER_LINEAR);
-            //  
-            //  // TODO(CY): Update to Zenoh
-            //  //// Publish depth map as CV_32FC1
-            //  //sensor_msgs::msg::Image::SharedPtr out_msg = 
-            //  //  cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::TYPE_32FC1, resized_depth).toImageMsg();
-            //  //pub_.publish(out_msg);
-            //  
-            //} else if (model_type_ == "segmentation") {
-              // Segmentation: create binary masks
-              cv::Mat mask;
-    
-#ifdef CUDA_FOUND
-            // Try CUDA acceleration first
-            bool cuda_success = CudaVisualizationKernels::createMaskFromTensorCUDA(
-              tensor_data, tensor_shape, mask
-            );
-    
-            if (!cuda_success)
-#endif
-            {
-              // CPU fallback: create mask from tensor
+            cv::Mat final_frame;
+            decltype(last_time-last_time) get_output_time;  // Get the type of the duration
+            if (model_type == "depth") {
+              // Depth estimation: output raw depth values (CV_32FC1)
               int height = static_cast<int>(tensor_shape[2]);
               int width = static_cast<int>(tensor_shape[3]);
-              int channels = static_cast<int>(tensor_shape[1]);
+              
+              // Create depth map from tensor data (single channel float)
+              cv::Mat depth_map(height, width, CV_32FC1, const_cast<float*>(tensor_data));
+              
+              // Resize depth map to original image size (use LINEAR for depth)
+              cv::Mat resized_depth;
+              cv::resize(depth_map, resized_depth, frame.size(), 0, 0, cv::INTER_LINEAR);
+              
+              // TODO(CY): Update to Zenoh
+              //// Publish depth map as CV_32FC1
+              //sensor_msgs::msg::Image::SharedPtr out_msg = 
+              //  cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::TYPE_32FC1, resized_depth).toImageMsg();
+              //pub_.publish(out_msg);
+              std::unique_ptr<autoware_pov::common::DepthVisualizationEngine> viz_engine_ = 
+                  std::make_unique<autoware_pov::common::DepthVisualizationEngine>();
+              final_frame = viz_engine_->visualize(resized_depth);
+              
+            } else if (model_type == "segmentation") {
+              cv::Mat mask;
+ 
+              // TODO(CY): Check CUDA later
+#ifdef CUDA_FOUND
+              // Try CUDA acceleration first
+              bool cuda_success = CudaVisualizationKernels::createMaskFromTensorCUDA(
+                tensor_data, tensor_shape, mask
+              );
+    
+              if (!cuda_success)
+#endif
+              {
+                // CPU fallback: create mask from tensor
+                int height = static_cast<int>(tensor_shape[2]);
+                int width = static_cast<int>(tensor_shape[3]);
+                int channels = static_cast<int>(tensor_shape[1]);
       
-              mask = cv::Mat(height, width, CV_8UC1);
+                mask = cv::Mat(height, width, CV_8UC1);
       
-              if (channels > 1) {
-                // Multi-class segmentation: argmax across channels (NCHW format)
-                for (int h = 0; h < height; ++h) {
-                  for (int w = 0; w < width; ++w) {
-                    float max_score = -1e9f;
-                    uint8_t best_class = 0;
-                    for (int c = 0; c < channels; ++c) {
-                      // NCHW format: tensor_data[batch=0][channel=c][height=h][width=w]
-                      float score = tensor_data[c * height * width + h * width + w];
-                      if (score > max_score) {
-                        max_score = score;
-                        best_class = static_cast<uint8_t>(c);
+                if (channels > 1) {
+                  // Multi-class segmentation: argmax across channels (NCHW format)
+                  for (int h = 0; h < height; ++h) {
+                    for (int w = 0; w < width; ++w) {
+                      float max_score = -1e9f;
+                      uint8_t best_class = 0;
+                      for (int c = 0; c < channels; ++c) {
+                        // NCHW format: tensor_data[batch=0][channel=c][height=h][width=w]
+                        float score = tensor_data[c * height * width + h * width + w];
+                        if (score > max_score) {
+                          max_score = score;
+                          best_class = static_cast<uint8_t>(c);
+                        }
                       }
+                      // Convert class IDs for scene segmentation: Class 1 -> 255, others -> 0
+                      mask.at<uint8_t>(h, w) = (best_class == 1) ? 255 : 0;
                     }
-                    // Convert class IDs for scene segmentation: Class 1 -> 255, others -> 0
-                    mask.at<uint8_t>(h, w) = (best_class == 1) ? 255 : 0;
                   }
-                }
-              } else {
-                // Single channel: threshold for binary segmentation
-                for (int h = 0; h < height; ++h) {
-                  for (int w = 0; w < width; ++w) {
-                    float value = tensor_data[h * width + w];
-                    mask.at<uint8_t>(h, w) = (value > 0.0f) ? 255 : 0;
+                } else {
+                  // Single channel: threshold for binary segmentation
+                  for (int h = 0; h < height; ++h) {
+                    for (int w = 0; w < width; ++w) {
+                      float value = tensor_data[h * width + w];
+                      mask.at<uint8_t>(h, w) = (value > 0.0f) ? 255 : 0;
+                    }
                   }
                 }
               }
-            }
     
-            // Resize mask to original image size (use NEAREST for masks)
-            cv::Mat resized_mask;
-            cv::resize(mask, resized_mask, frame.size(), 0, 0, cv::INTER_NEAREST);
-            // ------------------------
+              // Resize mask to original image size (use NEAREST for masks)
+              cv::Mat resized_mask;
+              cv::resize(mask, resized_mask, frame.size(), 0, 0, cv::INTER_NEAREST);
+              // ------------------------
 
-            //// Get processed output from backend (like original architecture)
-            //cv::Mat processed_output;
-            //// TODO(CY): Support different models
-            //backend_->getRawOutput(processed_output, frame.size(), "segmentation");
-            auto get_output_time = std::chrono::steady_clock::now() - last_time;
-            // TODO(CY): Separate the blending logic
-            std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
-                std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
-            cv::Mat final_frame = viz_engine_->visualize(resized_mask, frame);
-
-            // TODO(CY): Add encoding information
+              get_output_time = std::chrono::steady_clock::now() - last_time;
+              // TODO(CY): Separate the blending logic
+              //// Only send out the mask
+              //final_frame = resized_mask;
+              // Show the blended result directly
+              std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
+                  std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
+              final_frame = viz_engine_->visualize(resized_mask, frame);
+            }
 
             // Publish the processed frame via Zenoh
             z_publisher_put_options_t options;

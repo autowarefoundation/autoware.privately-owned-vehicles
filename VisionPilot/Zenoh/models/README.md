@@ -47,9 +47,11 @@ Subscribe a video from a Zenoh publisher and then publish it to a Zenoh Subscrib
 
 ```bash
 # SceneSeg
-./run_model SceneSeg_FP32.onnx -i video/input -o video/output
+./run_model SceneSeg_FP32.onnx -i video/input -o video/output -m "segmentation"
 # DomainSeg
-./run_model DomainSeg_FP32.onnx -i video/input -o video/output
+./run_model DomainSeg_FP32.onnx -i video/input -o video/output -m "segmentation"
+# Scene3D
+./run_model Scene3D_FP32.onnx -i video/input -o video/output -m "depth"
 ```
 
 - Subscribe the video
