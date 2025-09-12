@@ -52,6 +52,7 @@ class AutoSteerTrainer():
         self.binary_seg_tensor = None
 
         # Initializing Ground Truth Tensors
+        self.gt_data_tensor = None
         self.gt_bev_egopath_tensor = None
         self.gt_bev_egoleft_lane_tensor = None
         self.gt_bev_egoright_lane_tensor = None
@@ -170,8 +171,8 @@ class AutoSteerTrainer():
             is_train = is_train, 
             data_type = "KEYPOINTS"
         )
-        aug.setImage(self.bev_image)
-        self.bev_image = aug.applyTransformKeypoint(self.bev_image)
+        #aug.setImage(self.bev_image)
+        #self.bev_image = aug.applyTransformKeypoint(self.bev_image)
         aug.setImage(self.perspective_image)
         self.perspective_image = aug.applyTransformKeypoint(self.perspective_image)
 
@@ -197,6 +198,11 @@ class AutoSteerTrainer():
         binary_seg_tensor = self.binary_seg_loader(self.binary_seg)
         binary_seg_tensor = binary_seg_tensor.unsqueeze(0)
         self.binary_seg_tensor = binary_seg_tensor.to(self.device)
+
+        # Data Tensor
+        data_tensor = torch.from_numpy(self.data)
+        data_tensor = data_tensor.type(torch.FloatTensor)
+        self.gt_data_tensor = data_tensor.to(self.device)
 
         # BEV Egopath
         bev_egopath_tensor = torch.from_numpy(self.bev_egopath)
