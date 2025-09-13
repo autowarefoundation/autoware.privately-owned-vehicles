@@ -3,6 +3,7 @@ from rclpy.node import Node
 
 import carla
 import math
+import numpy as np
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose, Point, Quaternion, Twist, Vector3, TransformStamped
@@ -74,11 +75,16 @@ class CarlaOdomPublisher(Node):
     def timer_callback(self):
         if not self.ego:
             return
-
+    
         transform = self.ego.get_transform()
         velocity = self.ego.get_velocity()
+        yaw = math.radians(transform.rotation.yaw)
+        c, s = math.cos(yaw), math.sin(yaw)
+        R = np.array([[c, -s],
+                    [s, c]])
+        v_xy = R @ np.array([velocity.x, -velocity.y])
+   
         angular_velocity = self.ego.get_angular_velocity()
-
         pose = self.carla_transform_to_ros_pose(transform)
         
         snapshot = self.world.get_snapshot()
@@ -95,8 +101,8 @@ class CarlaOdomPublisher(Node):
         odom_msg.header.frame_id = 'odom'
         odom_msg.child_frame_id = 'hero'
         odom_msg.pose.pose = pose
-        odom_msg.twist.twist.linear = self.flip_vector_y(velocity)
-        odom_msg.twist.twist.angular = self.flip_vector_y(angular_velocity)
+        odom_msg.twist.twist.linear = Vector3(x=v_xy[0], y=v_xy[1], z=0.0)
+        odom_msg.twist.twist.angular = Vector3(x=0.0, y=0.0, z=math.radians(angular_velocity.z))
 
         self.odom_pub_.publish(odom_msg)
 
