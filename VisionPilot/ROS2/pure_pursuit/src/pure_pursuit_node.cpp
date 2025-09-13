@@ -5,7 +5,7 @@ PurePursuitNode::PurePursuitNode(const rclcpp::NodeOptions &options) : Node("pur
 
   this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 10, std::bind(&PurePursuitNode::computeSteering, this, std::placeholders::_1));
-  test_sub_ = this->create_subscription<nav_msgs::msg::Path>("/egoPath", 10, std::bind(&PurePursuitNode::testComputeSteering, this, std::placeholders::_1));
+  test_sub_ = this->create_subscription<nav_msgs::msg::Path>("pathfinder/egoPath", 10, std::bind(&PurePursuitNode::testComputeSteering, this, std::placeholders::_1));
   steering_pub_ = this->create_publisher<carla_msgs::msg::CarlaEgoVehicleControl>("carla/hero/vehicle_control_cmd", 10);
   RCLCPP_INFO(this->get_logger(), "PurePursuit Node started");
 }

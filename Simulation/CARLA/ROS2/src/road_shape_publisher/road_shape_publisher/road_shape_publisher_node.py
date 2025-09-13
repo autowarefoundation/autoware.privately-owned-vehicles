@@ -8,8 +8,8 @@ from builtin_interfaces.msg import Time
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 
-LOOKAHEAD_DISTANCE = 30.0  # meters
-STEP_DISTANCE = 1.0        # distance between waypoints
+LOCAL_PATH_LEN = 20.0     # meters
+STEP_DISTANCE = 0.5       # distance between waypoints
 LANE_WIDTH = 3.5          # meters, typical lane width
 
 def yaw_to_quaternion(yaw_deg):
@@ -55,24 +55,57 @@ class RoadShapePublisher(Node):
             return
         self.waypoints = self.get_global_waypoints()
         self.timer = self.create_timer(0.1, self.timer_callback)
-        
+            
     def get_global_waypoints(self):
         while True:
             if self.ego:
                 break
-        
-        curr_wp = self.map.get_waypoint(self.ego.get_transform().location, project_to_road=True, lane_type=carla.LaneType.Driving)
-        waypoints = curr_wp.next_until_lane_end(STEP_DISTANCE)
-        
-        while True:
-            junction_wps = waypoints[-1].next(STEP_DISTANCE)
-            for wp in junction_wps:
-                if wp.road_id!=795 and abs(wp.lane_id) == abs(waypoints[0].lane_id):
-                    print(f'Continuing on lane {wp.lane_id} of road {wp.road_id}')
-                    waypoints += wp.next_until_lane_end(STEP_DISTANCE)
-            if waypoints[0].road_id == waypoints[-1].road_id:
-                break
-        print(f'Starting on lane {curr_wp.lane_id} with {len(waypoints)} waypoints')
+        allowed_road_lane_ids = [(17 , 1),
+                                 (10 , 1),
+                                 (0  , 1),
+                                 (3  , 1),
+                                 (565, 1),
+                                 (2  , 1),
+                                 (676, 1),
+                                 (1  , 1),
+                                 (8  , 1),
+                                 (4  ,-1),
+                                 (515,-1),
+                                 (5  ,-1),
+                                 (736,-1),
+                                 (6  ,-1),
+                                 (89 ,-1),
+                                 (7  ,-1)]
+        waypoints = []
+        for road_id, lane_id in allowed_road_lane_ids: 
+            wp = self.map.get_waypoint_xodr(road_id, lane_id, 0.0)
+            if wp is None:
+                self.get_logger.error(f"Could not find waypoint for road {road_id}, lane {lane_id}")
+                continue
+            segment = []
+            
+            seg = wp.previous_until_lane_start(STEP_DISTANCE)
+            
+            try: 
+                next = wp.next_until_lane_end(STEP_DISTANCE)
+            except RuntimeError as e:
+                self.get_logger().error(f"Error getting next waypoints for road {road_id}, lane {lane_id}: {e}")
+                tmp = wp.next(STEP_DISTANCE)
+                next = []
+                for t in tmp:
+                    if t.lane_id == lane_id and t.road_id == road_id:
+                        next.append(t)
+            if next:
+                seg.extend(next)
+            if lane_id > 0:
+                seg.reverse()
+            for s in seg:
+                if s.lane_id == lane_id and s.road_id == road_id:
+                    print(f"Road {s.road_id}, lane {s.lane_id}, s {s.s}, loc {s.transform.location}")
+                    segment.append(s)
+            waypoints.extend(segment)
+            
+        print(f"Collected {len(waypoints)} waypoints across {len(allowed_road_lane_ids)} lanes")
         return waypoints
 
     def _find_ego_vehicle(self):
@@ -124,8 +157,9 @@ class RoadShapePublisher(Node):
                 nearest_idx = i
 
         # Extract local horizon waypoints
-        horizon = int(LOOKAHEAD_DISTANCE / STEP_DISTANCE)
-        local_wps = [waypoints[(nearest_idx + i) % len(waypoints)] for i in range(horizon)]
+        horizon = int(LOCAL_PATH_LEN / STEP_DISTANCE)
+        offset_m = int(5 / STEP_DISTANCE) # offset to account for visibility in camera FOV 
+        local_wps = [waypoints[(nearest_idx + i + offset_m) % len(waypoints)] for i in range(horizon)]
         print(len(local_wps), "local waypoints extracted")
         
         for wp in local_wps:
