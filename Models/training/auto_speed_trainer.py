@@ -20,7 +20,7 @@ warnings.filterwarnings("ignore")
 
 def train(args, params):
     # Model
-    model = AutoSpeedNetwork().build_model(version='n', num_classes=5)
+    model = AutoSpeedNetwork().build_model(version='n', num_classes=4)
     model.cuda()
 
     # Optimizer
@@ -236,7 +236,7 @@ def val(args, params, model=None):
 def profile(args, params):
     import thop
     shape = (1, 3, args.input_size, args.input_size)
-    model = AutoSpeedNetwork().build_model(version='n', num_classes=5)
+    model = AutoSpeedNetwork().build_model(version='n', num_classes=4)
     model.eval()
     model(torch.zeros(shape))
 

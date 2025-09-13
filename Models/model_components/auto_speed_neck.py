@@ -1,7 +1,7 @@
 import torch
-from Models.model_components.auto_speed_layers import Conv
-from Models.model_components.auto_speed_layers import C3K2
-from Models.model_components.auto_speed_layers import CSP
+from Models.model_components.auto_speed_layers import (
+    Conv, C3K2, CSP
+)
 
 
 class AutoSpeedNeck(torch.nn.Module):

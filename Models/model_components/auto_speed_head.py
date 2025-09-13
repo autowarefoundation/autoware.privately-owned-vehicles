@@ -1,7 +1,8 @@
 import math
 import torch
-from Models.model_components.auto_speed_layers import Conv
-from Models.model_components.auto_speed_layers import DFL
+from Models.model_components.auto_speed_layers import (
+    Conv, DFL
+)
 
 
 def make_anchors(x, strides, offset=0.5):

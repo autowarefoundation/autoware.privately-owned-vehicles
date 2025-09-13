@@ -1,29 +1,49 @@
 import torch
-from torchvision import transforms
-from torchvision import ops
-
+from torchvision import transforms, ops
+from PIL import Image
 
 class AutoSpeedNetworkInfer():
     def __init__(self, checkpoint_path=''):
-        # Image loader
-        self.train_size = (640, 640)
-        self.image_loader = transforms.Compose([
-            transforms.Resize(self.train_size),
-            transforms.ToTensor(),
-            transforms.ConvertImageDtype(torch.float16),
-        ])
-
-        # Checking devices (GPU vs CPU)
+        self.train_size = (640, 640)  # target width, height
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print(f'Using {self.device} for inference')
+        # print(f'Using {self.device} for inference')
 
-        # Instantiate model, load to device and set to evaluation mode
+        # Load model
         self.model = torch.load(checkpoint_path + "/best.pt", map_location="cpu", weights_only=False)['model']
-        self.model = self.model.to(self.device)
-        self.model = self.model.eval()
+        self.model = self.model.to(self.device).eval()
+
+    def resize_letterbox(self, img: Image.Image):
+        """
+        Resize image maintaining aspect ratio with padding.
+        Returns:
+            padded_img: PIL.Image, resized + padded
+            scale: float, scaling factor applied to original image
+            pad_x: int, horizontal padding
+            pad_y: int, vertical padding
+        """
+        target_w, target_h = self.train_size
+        orig_w, orig_h = img.size
+
+        scale = min(target_w / orig_w, target_h / orig_h)
+        new_w, new_h = int(orig_w * scale), int(orig_h * scale)
+
+        img_resized = img.resize((new_w, new_h), Image.BILINEAR)
+        padded_img = Image.new("RGB", self.train_size, (114, 114, 114))  # gray padding
+
+        pad_x = (target_w - new_w) // 2
+        pad_y = (target_h - new_h) // 2
+        padded_img.paste(img_resized, (pad_x, pad_y))
+
+        return padded_img, scale, pad_x, pad_y
+
+    def image_to_tensor(self, image: Image.Image):
+        """Convert PIL image to tensor and keep scale/padding info."""
+        img, scale, pad_x, pad_y = self.resize_letterbox(image)
+        tensor = transforms.ToTensor()(img).to(self.device).half()
+        return tensor.unsqueeze(0), scale, pad_x, pad_y
 
     def xywh2xyxy(self, x):
-        # Convert [cx, cy, w, h] -> [x1, y1, x2, y2]
+        """Convert [cx, cy, w, h] to [x1, y1, x2, y2]"""
         y = x.clone()
         y[:, 0] = x[:, 0] - x[:, 2] / 2  # x1
         y[:, 1] = x[:, 1] - x[:, 3] / 2  # y1
@@ -32,72 +52,57 @@ class AutoSpeedNetworkInfer():
         return y
 
     def nms(self, preds, iou_thres=0.45):
+        """Apply NMS on predictions tensor [x1,y1,x2,y2,score,class]"""
         if preds.numel() == 0:
             return torch.empty(0, 6)
-
-        # Separate bounding boxes, scores, and class indices
-        boxes = self.xywh2xyxy(preds[:, :4])
-        scores = preds[:, 4]
-        classes = preds[:, 5]
-
-        # Apply torchvision's NMS
-        keep_indices = ops.nms(boxes, scores, iou_thres)
-
-        # Return the detections that were kept
-        kept_preds = preds[keep_indices]
-
-        return kept_preds
-
-    def post_process_predictions(self, raw_preds, conf_thres, iou_thres):
-        # Reshape and permute the tensor
-        preds = raw_preds.squeeze(0).permute(1, 0)
-
-        # Separate bounding boxes and class scores
         boxes = preds[:, :4]
-        class_probs = preds[:, 4:]
+        scores = preds[:, 4]
+        keep = ops.nms(boxes, scores, iou_thres)
+        return preds[keep]
 
-        # Get the best score and class index for each prediction
+    def post_process_predictions(self, raw_predictions, conf_thres=0.6, iou_thres=0.45):
+        """
+        raw_preds: model output tensor
+        Returns filtered predictions [cx,cy,w,h,score,class] after confidence threshold + NMS
+        """
+        predictions = raw_predictions.squeeze(0).permute(1, 0)
+        boxes = predictions[:, :4]
+        class_probs = predictions[:, 4:]
         scores, class_ids = torch.max(class_probs.sigmoid(), dim=1)
-
-        # Apply confidence threshold
-        valid_preds_mask = scores > conf_thres
-        boxes = boxes[valid_preds_mask]
-        scores = scores[valid_preds_mask]
-        class_ids = class_ids[valid_preds_mask]
-
-        if boxes.numel() == 0:
+        mask = scores > conf_thres
+        if mask.sum() == 0:
             return torch.empty(0, 6)
+        combined = torch.cat([
+            boxes[mask],
+            scores[mask].unsqueeze(1),
+            class_ids[mask].float().unsqueeze(1)
+        ], dim=1)
+        return self.nms(combined, iou_thres)
 
-        # Combine into a single tensor for NMS
-        combined_preds = torch.cat([boxes, scores.unsqueeze(1), class_ids.unsqueeze(1).float()], dim=1)
-
-        # Apply your separate NMS function
-        final_preds = self.nms(combined_preds, iou_thres)
-
-        return final_preds
-
-    def inference(self, image):
+    def inference(self, image: Image.Image):
+        """
+        Run inference on a single PIL image.
+        Returns list of predictions: [[x1,y1,x2,y2,score,class], ...] in original image coordinates
+        """
         orig_w, orig_h = image.size
+        image_tensor, scale, pad_x, pad_y = self.image_to_tensor(image)
 
-        image_tensor = self.image_loader(image)
-        image_tensor = image_tensor.unsqueeze(0)
-        image_tensor = image_tensor.to(self.device)
-
-        # Run model
         with torch.no_grad():
-            prediction = self.model(image_tensor)
+            predictions = self.model(image_tensor)
 
-        # Post-processing
-        final_prediction = self.post_process_predictions(prediction, conf_thres=0.60, iou_thres=0.45)
-
-        if final_prediction.numel() == 0:
+        predictions = self.post_process_predictions(predictions)
+        if predictions.numel() == 0:
             return []
 
-        # Rescale boxes to original image size
-        scale_w = orig_w / self.train_size[0] / 2
-        scale_h = orig_h / self.train_size[1] / 2
+        # Convert cx,cy,w,h -> x1,y1,x2,y2 in letterboxed image space
+        predictions[:, :4] = self.xywh2xyxy(predictions[:, :4])
 
-        final_prediction[:, [0, 2]] *= scale_w
-        final_prediction[:, [1, 3]] *= scale_h
+        # Remove padding and rescale to original image size
+        predictions[:, [0, 2]] = (predictions[:, [0, 2]] - pad_x) / scale
+        predictions[:, [1, 3]] = (predictions[:, [1, 3]] - pad_y) / scale
 
-        return final_prediction.tolist()
+        # Clamp boxes to image size
+        predictions[:, [0, 2]] = predictions[:, [0, 2]].clamp(0, orig_w)
+        predictions[:, [1, 3]] = predictions[:, [1, 3]].clamp(0, orig_h)
+
+        return predictions.tolist()
