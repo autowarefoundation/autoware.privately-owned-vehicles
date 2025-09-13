@@ -138,7 +138,7 @@ def main():
         elif(epoch > 20 and epoch < 40):
             trainer.set_learning_rate(0.0001)
         elif(epoch > 40):
-            trainer.set_learning_rate(0.000025)
+            trainer.set_learning_rate(0.00005)
 
         # Augmentation Schedule
         apply_augmentation = True
@@ -198,7 +198,7 @@ def main():
            
             current_dataset = data_list[msdict["data_list_count"]]
             current_dataset_iter = msdict[current_dataset]["iter"]
-            [   frame_id, bev_image, binary_seg,
+            [   frame_id, bev_image, binary_seg, data,
                 homotrans_mat,
                 bev_egopath, reproj_egopath,
                 bev_egoleft, reproj_egoleft,
@@ -226,7 +226,7 @@ def main():
             ).convert("RGB")
           
             # Assign data
-            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, \
+            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data, \
                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                 reproj_egoleft, reproj_egoright)
             
@@ -286,7 +286,7 @@ def main():
                         for val_count in range(0, msdict[dataset]["N_vals"]):
 
                             # Fetch data
-                            [   frame_id, bev_image, binary_seg,
+                            [   frame_id, bev_image, binary_seg, data,
                                 homotrans_mat,
                                 bev_egopath, reproj_egopath,
                                 bev_egoleft, reproj_egoleft,
@@ -314,7 +314,7 @@ def main():
                             ).convert("RGB")
 
                             # Assign data
-                            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, \
+                            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data,\
                                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                                 reproj_egoleft, reproj_egoright)
                             

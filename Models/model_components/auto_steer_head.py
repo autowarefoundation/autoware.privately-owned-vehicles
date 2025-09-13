@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import torch
 import torch.nn as nn
 
 class AutoSteerHead(nn.Module):
@@ -6,48 +7,65 @@ class AutoSteerHead(nn.Module):
         super(AutoSteerHead, self).__init__()
         # Standard
         self.GeLU = nn.GELU()
-        self.dropout = nn.Dropout(p=0.25)
         self.dropout_aggressize = nn.Dropout(p=0.4)
         self.sigmoid = nn.Sigmoid()
-           
-        # Ego Path  Decode layers
-        self.ego_path_layer_0 = nn.Linear(1456, 1280)
-        self.ego_path_layer_1 = nn.Linear(1280, 1024)
-        self.ego_path_layer_2 = nn.Linear(1024, 800)
-        self.ego_path_layer_3 = nn.Linear(800, 11)
-        self.ego_left_offset_layer = nn.Linear(1456, 1)
-        self.ego_right_offset_layer = nn.Linear(1456, 1)
+        self.pool = nn.MaxPool2d(2, stride=2)
+        
+        # Extraction Layers
+        self.path_layer_0 = nn.Conv2d(256, 128, 3, 1, 1)
+        self.path_layer_1 = nn.Conv2d(128, 64, 3, 1, 1)
+        self.path_layer_2 = nn.Conv2d(64, 1, 3, 1, 1)
+
+        # Driving Corridor  Decode layers
+        self.driving_corridor_layer_0 = nn.Linear(3200, 1600)
+        self.driving_corridor_layer_1 = nn.Linear(1600, 1600)
+
+        self.ego_left_x_offset = nn.Linear(1600, 1)
+        self.ego_right_x_offset = nn.Linear(1600, 1)
+        self.ego_path_x_offset = nn.Linear(1600, 1)
+        self.angle_start = nn.Linear(1600, 1)
+        self.angle_end = nn.Linear(1600, 1)
+        self.ego_path_x_end = nn.Linear(1600, 1)
+        self.ego_path_y_end = nn.Linear(1600, 1)
  
 
-    def forward(self, feature_vector):
+    def forward(self, features):
 
-        # Features
-        feature_vector = self.dropout(feature_vector)
+        # Calculating feature vector
+        p0 = self.path_layer_0(features)
+        p0 = self.GeLU(p0)
+        p1 = self.path_layer_1(p0)
+        p1 = self.GeLU(p1)
+        p2 = self.path_layer_2(p1)
+        p2 = self.GeLU(p2)
+        features = self.pool(p2)
+        
+        feature_vector = torch.flatten(features)
 
-        # Ego Path Lane MLP
-        ego_path = self.ego_path_layer_0(feature_vector)
-        ego_path = self.dropout_aggressize(ego_path)
-        ego_path = self.GeLU(ego_path)
+        # Extract Path Information
+        driving_corridor = self.driving_corridor_layer_0(feature_vector)
+        driving_corridor = self.GeLU(driving_corridor)
+        driving_corridor = self.driving_corridor_layer_1(driving_corridor)
+        driving_corridor = self.GeLU(driving_corridor)
 
-        ego_path = self.ego_path_layer_1(ego_path)
-        ego_path = self.dropout_aggressize(ego_path)
-        ego_path = self.GeLU(ego_path)
+        # Final Outputs
 
-        ego_path = self.ego_path_layer_2(ego_path)
-        ego_path = self.dropout_aggressize(ego_path)
-        ego_path = self.GeLU(ego_path)
+        # Anchor Points
+        ego_path_x_offset = self.ego_path_x_offset(driving_corridor) + 0.5
+        ego_left_x_offset = ego_path_x_offset - 0.5 + self.ego_left_x_offset(driving_corridor) 
+        ego_right_x_offset = ego_path_x_offset + 0.5 + self.ego_right_x_offset(driving_corridor)
+        
+        # Start and End angles
+        angle_start = self.angle_start(driving_corridor)
+        angle_end = self.angle_end(driving_corridor) + angle_start
 
-        # Ego Left Lane Offset Prediction
-        ego_left_lane_offset = self.ego_left_offset_layer(feature_vector)
-        ego_left_lane_offset = self.sigmoid(ego_left_lane_offset)*0.5
+        # End point
+        ego_path_x_end = self.ego_path_x_end(driving_corridor) + ego_path_x_offset
+        ego_path_y_end = self.ego_path_y_end(driving_corridor)
 
-        # Ego Right Lane Offset Prediction
-        ego_right_lane_offset = self.ego_right_offset_layer(feature_vector)
-        ego_right_lane_offset = self.sigmoid(ego_right_lane_offset)*0.5
-
-        # Final Path Prediction
-        ego_path = self.ego_path_layer_3(ego_path) + 0.5
-        ego_left_lane = ego_path - ego_left_lane_offset
-        ego_right_lane = ego_path + ego_right_lane_offset
-
-        return ego_path, ego_left_lane, ego_right_lane
+        # Prediction
+        path_prediction = torch.cat((ego_left_x_offset, ego_right_x_offset, ego_path_x_offset, \
+                                     angle_start, angle_end, ego_path_x_end, ego_path_y_end), 1)
+        path_prediction = torch.unsqueeze(path_prediction, 0)
+        
+        return path_prediction

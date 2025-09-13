@@ -4,6 +4,7 @@ import os
 import json
 import pathlib
 import numpy as np
+import math
 import cv2
 import sys
 sys.path.append(os.path.abspath(os.path.join(
@@ -139,6 +140,21 @@ class LoadDataAutoSteer():
         cv2.drawContours(binary_segmenation,[contour],0,(255),-1)
         return binary_segmenation
 
+    def calcData(self, ego_left, ego_right, ego_path):
+        x_left_lane_offset = ego_left[0][0]
+        x_right_lane_offset = ego_right[0][0]
+        x_ego_path_offset = ego_path[0][0]
+
+        start_angle = math.atan((ego_path[1][0] - ego_path[0][0])/(ego_path[1][1] - ego_path[0][1]))
+        end_angle = math.atan((ego_path[-1][0] - ego_path[-2][0])/(ego_path[-1][1] - ego_path[-2][1]))
+
+        x_ego_path_end = ego_path[-1][0]
+        y_ego_path_end = ego_path[-1][1]
+
+        data = [x_left_lane_offset, x_right_lane_offset, x_ego_path_offset, \
+                start_angle, end_angle, x_ego_path_end, y_ego_path_end]
+
+        return data
        
     # Get item at index ith, returning img and EgoPath
     def getItem(self, index, is_train: bool):
@@ -183,6 +199,9 @@ class LoadDataAutoSteer():
 
             # Binary Segmentation Mask
             binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
+
+            # Data vector
+            data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
            
         else:
 
@@ -226,11 +245,14 @@ class LoadDataAutoSteer():
             # Binary Segmentation Mask
             binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
 
+            # Data vector
+            data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
+
         # Convert image to OpenCV/Numpy format for augmentations
         bev_img = np.array(bev_img)
 
         return [
-            frame_id, bev_img, binary_seg,
+            frame_id, bev_img, binary_seg, data,
             self.BEV_to_image_transform,
             bev_egopath, reproj_egopath,
             bev_egoleft, reproj_egoleft,
