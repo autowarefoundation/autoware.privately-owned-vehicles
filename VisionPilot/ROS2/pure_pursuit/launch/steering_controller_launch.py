@@ -23,5 +23,12 @@ def generate_launch_description():
             name='pathfinder_node',
             output='screen'
         ),
+        
+        Node(
+            package='odom_publisher',
+            executable='pub_odom_node',
+            name='pub_odom_node',
+            output='screen'
+        ),
 
     ])

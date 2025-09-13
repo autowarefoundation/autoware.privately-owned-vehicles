@@ -5,6 +5,7 @@
 #include "pure_pursuit.hpp"
 #include <carla_msgs/msg/carla_ego_vehicle_control.hpp>
 #include <nav_msgs/msg/path.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 
 class PurePursuitNode : public rclcpp::Node
 {
@@ -12,11 +13,11 @@ public:
     PurePursuitNode(const rclcpp::NodeOptions &options);
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr sub_;
     rclcpp::Publisher<carla_msgs::msg::CarlaEgoVehicleControl>::SharedPtr steering_pub_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     void computeSteering(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
-    void testComputeSteering(const nav_msgs::msg::Path msg);
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr test_sub_;
-
+    void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
 
 private:
     PurePursuit pp;
+    double curvature_, forward_velocity_, steering_angle_, integral_error_, yaw_error_, lookahead_distance_;
 };

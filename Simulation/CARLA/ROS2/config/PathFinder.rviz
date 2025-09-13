@@ -18,6 +18,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Odometry1/Topic1
       Splitter Ratio: 0.5
     Tree Height: 279
 Visualization Manager:
@@ -52,6 +53,8 @@ Visualization Manager:
           Value: true
         main_cam:
           Value: true
+        odom:
+          Value: true
         radar:
           Value: true
       Marker Scale: 10
@@ -67,6 +70,8 @@ Visualization Manager:
             {}
           radar:
             {}
+        odom:
+          {}
       Update Interval: 0
       Value: true
     - Class: rviz_common/Group
@@ -191,7 +196,7 @@ Visualization Manager:
           Value: true
         Value: true
       Enabled: true
-      Keep: 100
+      Keep: 1000
       Name: Odometry
       Position Tolerance: 0.10000000149011612
       Shape:
@@ -202,7 +207,7 @@ Visualization Manager:
         Head Length: 0.30000001192092896
         Head Radius: 0.10000000149011612
         Shaft Length: 1
-        Shaft Radius: 0.05000000074505806
+        Shaft Radius: 0.5
         Value: Arrow
       Topic:
         Depth: 5
@@ -397,7 +402,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: hero
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -440,25 +445,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/ThirdPersonFollower
-      Distance: 12.984413146972656
+      Distance: 45.82243347167969
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: -4.905002593994141
+        Y: -0.42597198486328125
+        Z: 3.169207775499672e-05
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.26539918780326843
+      Pitch: 0.8553988933563232
       Target Frame: hero
       Value: ThirdPersonFollower (rviz_default_plugins)
-      Yaw: 3.1304008960723877
+      Yaw: 3.0754010677337646
     Saved: ~
 Window Geometry:
   Displays:
