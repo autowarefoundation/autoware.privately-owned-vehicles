@@ -851,6 +851,11 @@ if __name__ == "__main__":
         # Register this frame GT to master JSON
         # Each point has tuple format (x, y, flag, valid)
         data_master[frame_id] = {
+            "perspective_img_path" : os.path.join(
+                os.path.abspath(raw_dir),
+                "images", 
+                frame_content["img_path"]
+            ),
             "bev_egopath" : [
                 (point[0], point[1], flag, valid)
                 for point, flag, valid in list(zip(
