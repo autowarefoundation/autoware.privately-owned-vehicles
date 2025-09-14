@@ -810,7 +810,7 @@ class AutoSteerTrainer():
         axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [310, 310], color='cyan')
         axs_data[0].plot(ego_path_offset_pred, 310, '-yo')
         axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='yellow')
-        axs_data[0].plot(end_delta_x_pred, end_delta_y_pred, '-ro')
+        axs_data[0].plot(end_point_x_pred, end_point_y_pred, '-ro')
         axs_data[0].plot([end_delta_x_pred, end_point_x_pred], [end_delta_y_pred, end_point_y_pred], color='red')
         
         
