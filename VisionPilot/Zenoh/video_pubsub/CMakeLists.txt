@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(video_pubsub)
 
+# Don't remove RPATH while install binaries
+set(CMAKE_SKIP_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 ## Find libraries
 find_package(OpenCV REQUIRED HINTS ${OPENCV_INSTALL_ROOT}/build/ QUIET)
 find_package(zenohc REQUIRED)
@@ -28,3 +32,8 @@ target_link_libraries(video_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio ope
 add_executable(segment_subscriber segment_subscriber.cpp
                ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp)
 target_link_libraries(segment_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+
+# Install
+install(TARGETS video_publisher DESTINATION bin)
+install(TARGETS video_subscriber DESTINATION bin)
+install(TARGETS segment_subscriber DESTINATION bin)

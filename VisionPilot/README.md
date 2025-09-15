@@ -125,6 +125,18 @@ ros2 launch models run_pipeline.launch.py \
   video_path:="../data/video.mp4"
 ```
 
+### Zenoh Implementation
+
+- Install the dependencies in [](Zenoh/README.md) first
+
+```bash
+cd VisionPilot/Zenoh
+just all
+
+# Run SceneSeg
+just run_sceneseg
+```
+
 ### Custom Middleware Integration
 
 To add a new middleware implementation:

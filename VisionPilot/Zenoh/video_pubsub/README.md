@@ -2,29 +2,16 @@
 
 The project demonstrates publishing/subscribing images/videos with Zenoh.
 
-## Build
-
-- Configure with cmake
-
-```shell
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-```
-
-- Build
-
-```shell
-make
-```
-
 ## Usage
+
+- Switch to the install folder
 
 - Publish the Zenoh video
 
 ```shell
-./video_publisher ../../../data/video.mp4
+./video_publisher ../../data/video.mp4
 # Assign the key
-./video_publisher -k video/raw ../../../data/video.mp4
+./video_publisher -k video/raw ../../data/video.mp4
 ```
 
 - Subscribe the Zenoh video

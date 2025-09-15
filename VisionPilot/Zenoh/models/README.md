@@ -4,35 +4,9 @@ This project demonstrates using Zenoh to run various models.
 
 - `video_visualization` (`video_visualization.cpp`): Processes an input video file and saves a new video with the segmentation results overlaid.
 
-## Build
-
-- Environment setup
-
-```shell
-export PATH=/usr/local/cuda/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-```
-
-- Configure with cmake
-
-```shell
-mkdir build && cd build
-cmake .. \
-    -DLIBTORCH_INSTALL_ROOT=/path/to/libtorch/ \
-    -DONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0 \
-    -DUSE_CUDA_BACKEND=True \
-    -DCMAKE_BUILD_TYPE=Release
-```
-
-- Build
-
-```shell
-make
-```
-
 ## Usage
 
-After a successful build, you will find two executables in the `build` directory.
+Switch the install folder
 
 ### Video Visualization
 
@@ -41,18 +15,18 @@ Subscribe a video from a Zenoh publisher and then publish it to a Zenoh Subscrib
 - Run the video publisher
 
 ```bash
-./video_publisher -k video/input
+./video_publisher -k video/input ../../data/video.mp4
 ```
 
 - Run the model you want
 
 ```bash
 # SceneSeg
-./run_model ../../../data/models/SceneSeg_FP32.onnx -i video/input -o video/output -m "segmentation"
+./run_model ../../data/models/SceneSeg_FP32.onnx -i video/input -o video/output -m "segmentation"
 # DomainSeg
-./run_model ../../../data/models/DomainSeg_FP32.onnx -i video/input -o video/output -m "segmentation"
+./run_model ../../data/models/DomainSeg_FP32.onnx -i video/input -o video/output -m "segmentation"
 # Scene3D
-./run_model ../../../data/models/Scene3D_FP32.onnx -i video/input -o video/output -m "depth"
+./run_model ../../data/models/Scene3D_FP32.onnx -i video/input -o video/output -m "depth"
 ```
 
 - Subscribe the video

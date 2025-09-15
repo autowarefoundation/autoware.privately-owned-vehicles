@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(zenoh_models)
 
+# Don't remove RPATH while install binaries
+set(CMAKE_SKIP_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 set(USE_CUDNN OFF)
 set(CAFFE2_USE_CUDNN OFF)
 set(USE_CUSPARSELT OFF)
@@ -63,3 +67,6 @@ add_executable(run_model run_model.cpp
               )
 target_compile_definitions(run_model PRIVATE LOG_TYPE=0)
 target_link_libraries(run_model PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+
+# Install
+install(TARGETS run_model DESTINATION bin)
