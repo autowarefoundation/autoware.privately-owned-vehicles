@@ -857,7 +857,7 @@ class AutoSteerTrainer():
         if(is_train):
             self.writer.add_figure("Train (data)", fig_data, global_step = (log_count))
         else:
-            fig_seg_raw.savefig(vis_path + '_data.png')
+            fig_data.savefig(vis_path + '_data.png')
 
         #plt.close(fig_bev)
         #plt.close(fig_perspective)
