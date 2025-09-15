@@ -20,7 +20,7 @@ def _setup_vehicle(world, config):
 
     return  world.spawn_actor(
         bp,
-        map_.get_spawn_points()[0],
+        map_.get_spawn_points()[5],
         attach_to=None)
 
 
