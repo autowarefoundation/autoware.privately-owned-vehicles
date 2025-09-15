@@ -127,7 +127,7 @@ ros2 launch models run_pipeline.launch.py \
 
 ### Zenoh Implementation
 
-- Install the dependencies in [](Zenoh/README.md) first
+- Install the dependencies in [Zenoh](Zenoh/README.md) first
 
 ```bash
 cd VisionPilot/Zenoh
