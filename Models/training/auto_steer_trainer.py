@@ -5,6 +5,7 @@ from torchvision import transforms
 from torch import optim, nn
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
+import math
 import numpy as np
 import cv2
 from typing import Literal, get_args
@@ -732,8 +733,9 @@ class AutoSteerTrainer():
         '''
 
         # Visualize Binary Segmentation - Ground Truth and Predictions (BEV)
-        fig_bev_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
-        fig_bev_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
+        fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
+        fig_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
+        fig_data, axs_data = plt.subplots(2,1, figsize=(8, 8))
 
         # blend factor
         alpha = 0.5 
@@ -784,24 +786,83 @@ class AutoSteerTrainer():
         axs_seg_raw[1].set_title('Ground Truth',fontweight ="bold") 
         axs_seg_raw[1].imshow(self.binary_seg)
 
+        # Prediction
+        axs_data[0].set_title('Prediction',fontweight ="bold") 
+        axs_data[0].imshow(self.perspective_image)
+
+        # Caclulate params
+        pred_data = self.pred_data_tensor.cpu().detach().numpy()
+        left_lane_offset_pred = pred_data[0]*640
+        right_left_offset_pred = pred_data[1]*640
+        ego_path_offset_pred = pred_data[2]*640
+        start_angle_pred = pred_data[3]
+        start_delta_x_pred = ego_path_offset_pred - 100*math.sin(start_angle_pred)
+        start_delta_y_pred = 319 -(100*math.cos(start_angle_pred))
+        end_angle_pred = pred_data[4]
+        end_point_x_pred = pred_data[5]*640
+        end_point_y_pred = pred_data[6]*320
+        end_delta_x_pred = end_point_x_pred + 30*math.sin(end_angle_pred)
+        end_delta_y_pred = end_point_y_pred + 30*math.cos(end_angle_pred)
+
+        # Plot
+        axs_data[0].plot(left_lane_offset_pred, 310, '-co')
+        axs_data[0].plot(right_left_offset_pred, 310, '-co')
+        axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [310, 310], color='cyan')
+        axs_data[0].plot(ego_path_offset_pred, 310, '-yo')
+        axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='yellow')
+        axs_data[0].plot(end_point_x_pred, end_point_y_pred, '-ro')
+        axs_data[0].plot([end_delta_x_pred, end_point_x_pred], [end_delta_y_pred, end_point_y_pred], color='red')
+        
+        
+        # Ground Truth
+        axs_data[1].set_title('Ground Truth',fontweight ="bold") 
+        axs_data[1].imshow(self.perspective_image)
+
+        # Caclulate params
+        left_lane_offset_gt = self.data[0]*640
+        right_left_offset_gt = self.data[1]*640
+        ego_path_offset_gt = self.data[2]*640
+        start_angle_gt = self.data[3]
+        start_delta_x = ego_path_offset_gt - 100*math.sin(start_angle_gt)
+        start_delta_y = 319 -(100*math.cos(start_angle_gt))
+        end_angle_gt = self.data[4]
+        end_point_x_gt = self.data[5]*640
+        end_point_y_gt = self.data[6]*320
+        end_delta_x = end_point_x_gt + 30*math.sin(end_angle_gt)
+        end_delta_y = end_point_y_gt + 30*math.cos(end_angle_gt)
+
+        # Plot
+        axs_data[1].plot(left_lane_offset_gt, 310, '-co')
+        axs_data[1].plot(right_left_offset_gt, 310, '-co')
+        axs_data[1].plot([left_lane_offset_gt, right_left_offset_gt], [310, 310], color='cyan')
+        axs_data[1].plot(ego_path_offset_gt, 310, '-yo')
+        axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='yellow')
+        axs_data[1].plot(end_point_x_gt, end_point_y_gt, '-ro')
+        axs_data[1].plot([end_delta_x, end_point_x_gt], [end_delta_y, end_point_y_gt], color='red')
+
         # Save figure to Tensorboard
         if(is_train):
-            self.writer.add_figure("Train (Seg)", fig_bev_seg, global_step = (log_count))
+            self.writer.add_figure("Train (Seg)", fig_seg, global_step = (log_count))
         else:
-            fig_bev_seg.savefig(vis_path + '_seg.png')
+            fig_seg.savefig(vis_path + '_seg.png')
 
 
         # Save figure to Tensorboard
         if(is_train):
-            self.writer.add_figure("Train (Seg RAW)", fig_bev_seg_raw, global_step = (log_count))
+            self.writer.add_figure("Train (Seg RAW)", fig_seg_raw, global_step = (log_count))
         else:
-            fig_bev_seg_raw.savefig(vis_path + '_seg_raw.png')
+            fig_seg_raw.savefig(vis_path + '_seg_raw.png')
 
+        # Save figure to Tensorboard
+        if(is_train):
+            self.writer.add_figure("Train (data)", fig_data, global_step = (log_count))
+        else:
+            fig_seg_raw.savefig(vis_path + '_data.png')
 
         #plt.close(fig_bev)
         #plt.close(fig_perspective)
-        plt.close(fig_bev_seg)
-        plt.close(fig_bev_seg_raw)
+        plt.close(fig_seg)
+        plt.close(fig_seg_raw)
     
     # Log validation loss for each dataset to TensorBoard
     def log_validation_dataset(self, dataset, validation_loss_dataset_total, log_count):
