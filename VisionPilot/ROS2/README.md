@@ -72,8 +72,8 @@ sudo apt install cmake build-essential
 ### 1. Clone and Build
 
 ```bash
-cd ~/your_workspace
-colcon build --packages-select sensors models visualization \
+cd VisionPilot/ROS2
+colcon build --symlink-install --packages-select sensors models visualization \
   --cmake-args \
   -DONNXRUNTIME_ROOTDIR=/path/to/onnxruntime \
   -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 \
@@ -93,7 +93,7 @@ source install/setup.bash
 ```bash
 ros2 run sensors video_publisher_node_exe \
   --ros-args \
-  -p video_path:=data/your_video.mp4 \
+  -p video_path:=../data/video.mp4 \
   -p output_topic:=/sensors/video/image_raw \
   -p frame_rate:=30.0
 ```
@@ -145,7 +145,7 @@ ros2 launch visualization visualize_depth.launch.py
 ```bash
 ros2 launch models run_pipeline.launch.py \
   pipeline:=scene_seg \
-  video_path:="data/your_video.mp4"
+  video_path:="../data/video.mp4"
 ```
 
 #### Full Depth Pipeline  
@@ -153,7 +153,7 @@ ros2 launch models run_pipeline.launch.py \
 ```bash
 ros2 launch models run_pipeline.launch.py \
   pipeline:=scene_3d \
-  video_path:="data/your_video.mp4"
+  video_path:="../data/video.mp4"
 ```
 
 ## Configuration
@@ -167,7 +167,7 @@ All model parameters are controlled via YAML files - **single source of truth**:
 ```yaml
 scene_seg_model:
   ros__parameters:
-    model_path: "data/models/SceneSeg_FP32-infer.onnx"
+    model_path: "../data/models/SceneSeg_FP32.onnx"
     backend: "tensorrt"      # onnxruntime | tensorrt
     precision: "fp16"        # fp16 | fp32 | cpu | cuda
     model_type: "segmentation"
@@ -177,7 +177,7 @@ scene_seg_model:
 
 domain_seg_model:
   ros__parameters:
-    model_path: "data/models/DomainSeg_FP32.onnx"
+    model_path: "../data/models/DomainSeg_FP32.onnx"
     backend: "tensorrt"
     precision: "fp32"
     model_type: "segmentation"
@@ -191,7 +191,7 @@ domain_seg_model:
 ```yaml
 scene3d_model:
   ros__parameters:
-    model_path: "data/models/Scene3D_FP32.onnx"
+    model_path: "../data/models/Scene3D_FP32.onnx"
     backend: "tensorrt"
     precision: "fp16"
     model_type: "depth"
@@ -307,13 +307,13 @@ backend: "onnxruntime"
 
 ```bash
 # Verify model file exists
-ls -la data/models/
+ls -la ../data/models/
 
 # Check YAML configuration
 cat models/config/autoseg.yaml
 
 # Verify file permissions
-chmod 644 data/models/*.onnx
+chmod 644 ../data/models/*.onnx
 ```
 
 #### Performance Issues
@@ -336,7 +336,7 @@ ros2 node info /scene_seg_model
 ```bash
 # Terminal 1: Video publisher
 ros2 run sensors video_publisher_node_exe \
-  --ros-args -p video_path:=data/video.mp4
+  --ros-args -p video_path:=../data/video.mp4
 
 # Terminal 2: Scene segmentation
 ros2 launch models auto_seg.launch.py model_name:=scene_seg_model
@@ -358,7 +358,7 @@ ros2 launch visualization visualize_domain_seg.launch.py
    ```yaml
    your_model:
      ros__parameters:
-       model_path: "data/models/YourModel.onnx"
+       model_path: "../data/models/YourModel.onnx"
        model_type: "segmentation"  # or "depth" 
        # ... other parameters
    ```

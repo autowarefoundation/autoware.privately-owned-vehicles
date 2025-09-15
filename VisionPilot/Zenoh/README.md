@@ -20,8 +20,6 @@ scene3d -- Zenoh --> vsub
 
 ## Supported Pipelines
 
-Please download the models from [the Models folder](/Models) first.
-
 ### Segmentation
 
 - **Scene Segmentation**: Binary foreground/background separation

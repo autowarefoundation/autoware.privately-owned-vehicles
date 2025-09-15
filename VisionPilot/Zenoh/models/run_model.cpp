@@ -135,6 +135,7 @@ int main(int argc, char* argv[]) {
                 throw std::runtime_error("Invalid tensor shape");
             }
             cv::Mat final_frame;
+            // TODO(CY): Run processing time
             decltype(last_time-last_time) get_output_time;  // Get the type of the duration
             if (model_type == "depth") {
               // Depth estimation: output raw depth values (CV_32FC1)

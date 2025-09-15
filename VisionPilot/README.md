@@ -79,17 +79,39 @@ Framework-agnostic engines providing:
 
 ## Quick Start
 
+### Download models
+
+You need to create a folder for models and video first.
+
+- Models: Download the models from [the Models folder](/Models).
+- Video: You can get any dash cam video from YouTube.
+
+```bash
+# Create folder
+mkdir -p data && cd data
+# Put your video into data, assuming its name is video.mp4
+# Download the models
+## Tool to download from Google Drive
+pipx install gdown
+## SceneSeg
+gdown -O models/ 'https://docs.google.com/uc?export=download&id=1l-dniunvYyFKvLD7k16Png3AsVTuMl9f'
+## Scene3D
+gdown -O models/ 'https://docs.google.com/uc?export=download&id=19gMPt_1z4eujo4jm5XKuH-8eafh-wJC6'
+## DomainSeg
+gdown -O models/ 'https://docs.google.com/uc?export=download&id=1zCworKw4aQ9_hDBkHfj1-sXitAAebl5Y'
+```
+
 ### ROS2 Implementation
 
 ```bash
 cd VisionPilot/ROS2
-colcon build --packages-select sensors models visualization
+colcon build --symlink-install --packages-select sensors models visualization
 source install/setup.bash
 
 # Run complete pipeline
 ros2 launch models run_pipeline.launch.py \
   pipeline:=scene_seg \
-  video_path:="data/your_video.mp4"
+  video_path:="../data/video.mp4"
 ```
 
 ### Custom Middleware Integration
