@@ -26,17 +26,6 @@ The ROS2 layer acts as a thin wrapper around common engines:
 - **`models/`** - ROS2 inference nodes + common AI backends  
 - **`visualization/`** - ROS2 visualization nodes + common rendering engines
 
-## Supported Pipelines
-
-### Segmentation
-
-- **Scene Segmentation**: Binary foreground/background separation
-- **Domain Segmentation**: Road/off-road classification  
-
-### Depth Estimation
-
-- **Scene 3D**: Monocular depth estimation
-
 ## Core Features
 
 - **Framework Agnostic Core**: All AI processing handled by `VisionPilot/common` engines

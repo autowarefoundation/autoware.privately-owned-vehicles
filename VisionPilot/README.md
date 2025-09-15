@@ -77,6 +77,17 @@ Framework-agnostic engines providing:
 - Visualization rendering (segmentation masks, depth maps)
 - Sensor input processing (video streams, camera feeds)
 
+## Supported Pipelines
+
+### Segmentation
+
+- **Scene Segmentation**: Binary foreground/background separation
+- **Domain Segmentation**: Road/off-road classification  
+
+### Depth Estimation
+
+- **Scene 3D**: Monocular depth estimation
+
 ## Quick Start
 
 ### Download models

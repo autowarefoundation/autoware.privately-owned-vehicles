@@ -20,7 +20,8 @@ mkdir build && cd build
 cmake .. \
     -DLIBTORCH_INSTALL_ROOT=/path/to/libtorch/ \
     -DONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0 \
-    -DUSE_CUDA_BACKEND=True
+    -DUSE_CUDA_BACKEND=True \
+    -DCMAKE_BUILD_TYPE=Release
 ```
 
 - Build

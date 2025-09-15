@@ -18,17 +18,6 @@ vpub -- Zenoh --> scene3d["Scene 3D"]
 scene3d -- Zenoh --> vsub
 ```
 
-## Supported Pipelines
-
-### Segmentation
-
-- **Scene Segmentation**: Binary foreground/background separation
-- **Domain Segmentation**: Road/off-road classification  
-
-### Depth Estimation
-
-- **Scene 3D**: Monocular depth estimation
-
 ## Dependencies
 
 - **OpenCV**: For image and video processing.

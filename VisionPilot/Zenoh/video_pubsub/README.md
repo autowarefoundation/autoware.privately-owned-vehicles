@@ -8,7 +8,7 @@ The project demonstrates publishing/subscribing images/videos with Zenoh.
 
 ```shell
 mkdir build && cd build
-cmake ..
+cmake .. -DCMAKE_BUILD_TYPE=Release
 ```
 
 - Build
