@@ -7,23 +7,37 @@ import json
 import argparse
 import warnings
 import numpy as np
-from PIL import Image, ImageDraw
 
 PointCoords = tuple[float, float]
 ImagePointCoords = tuple[int, int]
+Line = list[PointCoords] | list[ImagePointCoords]
 
 
 # ============================== Format functions ============================== #
 
 
-def normalizeCoords(line, width, height):
+def normalizeCoords(
+        line: Line, 
+        width: int, 
+        height: int
+) -> Line:
     """
     Normalize the coords of line points.
     """
-    return [(x / width, y / height) for x, y in line]
+    return [
+        (x / width, y / height) 
+        for x, y in line
+    ]
 
 
-def round_line_floats(line, ndigits = 6):
+def round_line_floats(
+        line: Line, 
+        ndigits: int = 6
+) -> Line:
+    """
+    Round all floats in a line to certain decimal places.
+    """
+
     line = list(line)
     for i in range(len(line)):
         line[i] = [
@@ -39,10 +53,14 @@ def imagePointTuplize(point: PointCoords) -> ImagePointCoords:
     Parse all coords of an (x, y) point to int, making it
     suitable for image operations.
     """
+
     return (int(point[0]), int(point[1]))
 
 
 def custom_warning_format(message, category, filename, lineno, line = None):
+    """
+    Meh just my cleaner warning format.
+    """
     return f"WARNING : {message}\n"
 
 warnings.formatwarning = custom_warning_format
@@ -52,11 +70,14 @@ warnings.formatwarning = custom_warning_format
 
 
 def drawLine(
-    img: np.ndarray, 
-    line: list,
-    color: tuple,
-    thickness: int = 2
+        img: np.ndarray, 
+        line: Line,
+        color: tuple,
+        thickness: int = 2
 ):
+    """
+    Simply draw a line on an image.
+    """
     for i in range(1, len(line)):
         pt1 = (
             int(line[i - 1][0]), 
@@ -90,8 +111,8 @@ def annotateGT(
 ):
     """
     Annotates and saves an image with:
-        - Raw image, in "output_dir/image".
-        - Annotated image with all lanes, in "output_dir/visualization".
+        - Raw BEV image, in "output_dir/image_bev".
+        - Annotated BEV image with all lanes, in "output_dir/visualization_bev".
     """
 
     # =========================== RAW IMAGE =========================== #
@@ -214,13 +235,14 @@ def annotateGT(
     )
 
 
-def calAngle(line: list[PointCoords]) -> float:
+def calAngle(line: Line) -> float:
     """
     Calculate angle of a line with vertical axis at anchor point.
     - Vertical upward lane: 0°
     - Horizontal leftward lane: -90°
     - Horizontal rightward lane: +90°
     """
+
     return math.degrees(
         math.atan2(
             line[1][0] - line[0][0],
@@ -229,10 +251,14 @@ def calAngle(line: list[PointCoords]) -> float:
     )
 
 
-def interpX(line, y):
+def interpX(
+        line: Line, 
+        y: float
+) -> float:
     """
-    Interpolate x-value of a point on a line, given y-value
+    Interpolate x-value of a point on a line, given y-value.
     """
+    
     points = np.array(line)
     list_x = points[:, 0]
     list_y = points[:, 1]
@@ -245,10 +271,14 @@ def interpX(line, y):
     return float(np.interp(y, list_y, list_x))
 
 
-def interpLine(line: list, points_quota: int):
+def interpLine(
+        line: Line, 
+        points_quota: int
+) -> Line:
     """
     Interpolates a line of (x, y) points to have at least `point_quota` points.
     """
+
     if len(line) >= points_quota:
         return line
 
@@ -280,10 +310,18 @@ def interpLine(line: list, points_quota: int):
     return list(zip(x_new, y_new))
 
 
-def getLineAnchor(line, new_img_height):
+def getLineAnchor(
+        line: Line, 
+        img_height: int
+) -> tuple[
+        float | None, 
+        float | None, 
+        float | None
+]:
     """
     Determine "anchor" point of a line.
     """
+
     (x2, y2) = line[0]
     (x1, y1) = line[1]
 
@@ -302,7 +340,7 @@ def getLineAnchor(line, new_img_height):
     
     a = (y2 - y1) / (x2 - x1)
     b = y1 - a * x1
-    x0 = (new_img_height - b) / a
+    x0 = (img_height - b) / a
 
     return (x0, a, b)
 
@@ -313,6 +351,11 @@ def polyfit_BEV(
     y_step: int,
     y_limit: int
 ):
+    """
+    Polyfit a BEV line to certain amount of coords (should be 11 by default),
+    along with flags.
+    """
+
     valid_line = [
         point for point in bev_line
         if (
@@ -365,14 +408,15 @@ def polyfit_BEV(
 
 
 def findSourcePointsBEV(
-    h: int,
-    w: int,
-    egoleft: list,
-    egoright: list,
+        h: int,
+        w: int,
+        egoleft: list,
+        egoright: list,
 ) -> dict:
     """
     Find 4 source points for the BEV homography transform.
     """
+
     sps = {}
 
     # Renorm 2 egolines
@@ -447,6 +491,10 @@ def transformBEV(
     line: list,
     sps: dict
 ):
+    """
+    Transform an image and a line to BEV space.
+    """
+    
     # Renorm/tuplize drivable path
     line = [
         (point[0] * W, point[1] * H)
@@ -532,6 +580,9 @@ def calTransformedDistance(
         b: ImagePointCoords | PointCoords,
         homotrans_mat: list[list[float]]
 ) -> float:
+    """
+    Calculate distance between 2 points after BEV transformation.
+    """
 
     pts = np.array([a, b], dtype = np.float32).reshape(-1, 1, 2)
     pts_bev = cv2.perspectiveTransform(pts, homotrans_mat)
@@ -544,15 +595,18 @@ def calTransformedDistance(
 
 
 def calEgoSide(
-        bev_egopath: list[ImagePointCoords],
+        bev_egopath: Line,
         anchor_offset: float,
         homotrans_mat: list[list[float]]
-    ) -> list[tuple[
-            int,    # x-coord, int
-            int,    # y-coord, int
-            int,    # flag, int
-            int     # validity, int
-    ]]:
+) -> list[tuple[
+        int,    # x-coord, int
+        int,    # y-coord, int
+        int,    # flag, int
+        int     # validity, int
+]]:
+    """
+    Calculate the ego side points in BEV space.
+    """
 
     # BEV-egoside
     bev_egoside = []
