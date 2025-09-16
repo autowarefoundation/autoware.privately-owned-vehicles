@@ -18,6 +18,10 @@ vpub -- Zenoh --> scene3d["Scene 3D"]
 scene3d -- Zenoh --> vsub
 ```
 
+## System Requirements
+
+- Ubuntu 22.04
+
 ## Dependencies
 
 - **OpenCV**: For image and video processing.
@@ -35,7 +39,6 @@ scene3d -- Zenoh --> vsub
 
 - **CLI11**: Used for the command line interface.
   - Ubuntu: `sudo apt install libcli11-dev`
-
 - **CUDA**: Optional for GPU processing.
 - **OpenCV**: For image and video processing.
   - Ubuntu: `sudo apt install libopencv-dev`
@@ -43,7 +46,6 @@ scene3d -- Zenoh --> vsub
   - Download from [the GitHub release](https://github.com/microsoft/onnxruntime/releases)
 - **LibTorch**: For tensor manipulation capabilities.
   - Download from [the PyTorch website](https://pytorch.org/get-started/locally/)
-
 - **just**: Simplify the command.
 
   ```shell
@@ -67,8 +69,6 @@ scene3d -- Zenoh --> vsub
 
 ```shell
 # Build all
-export PATH=/usr/local/cuda/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 export LIBTORCH_INSTALL_ROOT=/path/to/libtorch/
 export ONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0
 just all

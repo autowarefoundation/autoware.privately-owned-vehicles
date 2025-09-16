@@ -114,9 +114,16 @@ gdown -O models/ 'https://docs.google.com/uc?export=download&id=1zCworKw4aQ9_hDB
 
 ### ROS2 Implementation
 
+- Install the dependencies in [ROS2](ROS2/README.md) first
+
 ```bash
 cd VisionPilot/ROS2
-colcon build --symlink-install --packages-select sensors models visualization
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-select sensors models visualization \
+  --cmake-args \
+  -DONNXRUNTIME_ROOTDIR=/path/to/onnxruntime \
+  -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 \
+  -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
 
 # Run complete pipeline
@@ -131,6 +138,9 @@ ros2 launch models run_pipeline.launch.py \
 
 ```bash
 cd VisionPilot/Zenoh
+# Set the environment variable
+export LIBTORCH_INSTALL_ROOT=/path/to/libtorch/
+export ONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0
 just all
 
 # Run SceneSeg
