@@ -1,20 +1,19 @@
 #include "../include/tensorrt_backend.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include <NvOnnxParser.h>
 #include <cuda_runtime_api.h>
 #include <fstream>
 #include <numeric>
 #include <stdexcept>
 
-#define CUDA_CHECK(status)                                           \
-  do {                                                               \
-    auto ret = (status);                                             \
-    if (ret != 0) {                                                  \
-      RCLCPP_ERROR(                                                  \
-        rclcpp::get_logger("tensorrt_backend"), "Cuda failure: %s",   \
-        cudaGetErrorString(ret));                                    \
-      throw std::runtime_error("Cuda failure");                      \
-    }                                                                \
+#define CUDA_CHECK(status)                         \
+  do {                                             \
+    auto ret = (status);                           \
+    if (ret != 0) {                                \
+      LOG_ERROR(                                   \
+        "[tensorrt_backend] Cuda failure: %s",     \
+        cudaGetErrorString(ret));                  \
+      throw std::runtime_error("Cuda failure");    \
+    }                                              \
   } while (0)
 
 namespace autoware_pov::vision
@@ -24,11 +23,11 @@ void Logger::log(Severity severity, const char * msg) noexcept
 {
   if (severity <= Severity::kWARNING) {
     if (severity == Severity::kERROR) {
-      RCLCPP_ERROR(rclcpp::get_logger("tensorrt_backend"), "%s", msg);
+      LOG_ERROR("[tensorrt_backend] %s", msg);
     } else if (severity == Severity::kWARNING) {
-      RCLCPP_WARN(rclcpp::get_logger("tensorrt_backend"), "%s", msg);
+      LOG_WARN("[tensorrt_backend] %s", msg);
     } else {
-      RCLCPP_INFO(rclcpp::get_logger("tensorrt_backend"), "%s", msg);
+      LOG_INFO("[tensorrt_backend] %s", msg);
     }
   }
 }
@@ -42,19 +41,13 @@ TensorRTBackend::TensorRTBackend(
   std::ifstream engine_file(engine_path, std::ios::binary);
 
   if (engine_file) {
-    RCLCPP_INFO(
-      rclcpp::get_logger("tensorrt_backend"), "Found pre-built %s engine at %s", 
-      precision.c_str(), engine_path.c_str());
+    LOG_INFO("[tensorrt_backend] Found pre-built %s engine at %s", precision.c_str(), engine_path.c_str());
     loadEngine(engine_path);
   } else {
-    RCLCPP_INFO(
-      rclcpp::get_logger("tensorrt_backend"),
-      "No pre-built %s engine found. Building from ONNX model: %s", 
-      precision.c_str(), model_path.c_str());
+    LOG_INFO("[tensorrt_backend] No pre-built %s engine found. Building from ONNX model: %s", precision.c_str(), model_path.c_str());
     buildEngineFromOnnx(model_path, precision);
     
-    RCLCPP_INFO(rclcpp::get_logger("tensorrt_backend"), "Saving %s engine to %s", 
-                precision.c_str(), engine_path.c_str());
+    LOG_INFO("[tensorrt_backend] Saving %s engine to %s", precision.c_str(), engine_path.c_str());
     std::unique_ptr<nvinfer1::IHostMemory> model_stream{engine_->serialize()};
     std::ofstream out_file(engine_path, std::ios::binary);
     out_file.write(reinterpret_cast<const char *>(model_stream->data()), model_stream->size());
@@ -128,9 +121,9 @@ void TensorRTBackend::buildEngineFromOnnx(
   
   if (precision == "fp16" && builder->platformHasFastFp16()) {
     config->setFlag(nvinfer1::BuilderFlag::kFP16);
-    RCLCPP_INFO(rclcpp::get_logger("tensorrt_backend"), "Building TensorRT engine with FP16 precision");
+    LOG_INFO("[tensorrt_backend] Building TensorRT engine with FP16 precision");
   } else {
-    RCLCPP_INFO(rclcpp::get_logger("tensorrt_backend"), "Building TensorRT engine with FP32 precision");
+    LOG_INFO("[tensorrt_backend] Building TensorRT engine with FP32 precision");
   }
 
   std::unique_ptr<nvinfer1::IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
@@ -188,7 +181,7 @@ bool TensorRTBackend::doInference(const cv::Mat & input_image)
   bool status = context_->enqueueV3(static_cast<cudaStream_t>(stream_));
 
   if (!status) {
-    RCLCPP_ERROR(rclcpp::get_logger("tensorrt_backend"), "TensorRT inference failed");
+    LOG_ERROR("[tensorrt_backend] TensorRT inference failed");
     return false;
   }
 

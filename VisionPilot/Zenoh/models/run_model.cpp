@@ -9,6 +9,7 @@
 
 #include "inference_backend_base.hpp"
 #include "onnx_runtime_backend.hpp"
+#include "tensorrt_backend.hpp"
 #include "masks_visualization_engine.hpp"
 #include "depth_visualization_engine.hpp"
 
@@ -55,7 +56,14 @@ int main(int argc, char* argv[]) {
     try {
         // Initialize the segmentation engine
         // TODO(CY): Support TensorRT backends
-        std::unique_ptr<InferenceBackend> backend_ = std::make_unique<OnnxRuntimeBackend>(model_path, precision, gpu_id);
+        std::unique_ptr<InferenceBackend> backend_;
+        if (backend == "onnxruntime") {
+          backend_ = std::make_unique<OnnxRuntimeBackend>(model_path, precision, gpu_id);
+        } else if (backend == "tensorrt") {
+          backend_ = std::make_unique<TensorRTBackend>(model_path, precision, gpu_id);
+        } else {
+          throw std::invalid_argument("Unknown backend type.");
+        }
 
         // Zenoh Initialization
         // Create Zenoh session

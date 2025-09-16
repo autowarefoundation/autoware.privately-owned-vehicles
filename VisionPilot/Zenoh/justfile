@@ -27,22 +27,40 @@ run_video_pubsub:
              "./install/bin/video_subscriber -k video/raw"
 
 run_sceneseg:
+    # TensorRT
     parallel --verbose --lb ::: \
              "./install/bin/video_publisher -k video/input ../data/video.mp4" \
-             "./install/bin/run_model ../data/models/SceneSeg_FP32.onnx -i video/input -o video/output -m segmentation" \
+             "./install/bin/run_model ../data/models/SceneSeg_FP32.onnx -i video/input -o video/output -m segmentation -b tensorrt -p fp16" \
              "./install/bin/video_subscriber -k video/output"
+    # ONNX Runtime
+    #parallel --verbose --lb ::: \
+    #         "./install/bin/video_publisher -k video/input ../data/video.mp4" \
+    #         "./install/bin/run_model ../data/models/SceneSeg_FP32.onnx -i video/input -o video/output -m segmentation" \
+    #         "./install/bin/video_subscriber -k video/output"
 
 run_domainseg:
+    # TensorRT
     parallel --verbose --lb ::: \
              "./install/bin/video_publisher -k video/input ../data/video.mp4" \
-             "./install/bin/run_model ../data/models/DomainSeg_FP32.onnx -i video/input -o video/output -m segmentation" \
+             "./install/bin/run_model ../data/models/DomainSeg_FP32.onnx -i video/input -o video/output -m segmentation -b tensorrt -p fp16" \
              "./install/bin/video_subscriber -k video/output"
+    # ONNX Runtime
+    #parallel --verbose --lb ::: \
+    #         "./install/bin/video_publisher -k video/input ../data/video.mp4" \
+    #         "./install/bin/run_model ../data/models/DomainSeg_FP32.onnx -i video/input -o video/output -m segmentation" \
+    #         "./install/bin/video_subscriber -k video/output"
 
 run_scene3d:
+    # TensorRT
     parallel --verbose --lb ::: \
              "./install/bin/video_publisher -k video/input ../data/video.mp4" \
-             "./install/bin/run_model ../data/models/Scene3D_FP32.onnx -i video/input -o video/output -m depth" \
+             "./install/bin/run_model ../data/models/Scene3D_FP32.onnx -i video/input -o video/output -m depth -b tensorrt -p fp16" \
              "./install/bin/video_subscriber -k video/output"
+    # ONNX Runtime
+    #parallel --verbose --lb ::: \
+    #         "./install/bin/video_publisher -k video/input ../data/video.mp4" \
+    #         "./install/bin/run_model ../data/models/Scene3D_FP32.onnx -i video/input -o video/output -m depth" \
+    #         "./install/bin/video_subscriber -k video/output"
 
 clean:
     rm -rf install video_pubsub/build models/build

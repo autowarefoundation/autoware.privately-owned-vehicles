@@ -25,7 +25,7 @@ find_package(zenohc REQUIRED)
 string(APPEND CMAKE_CXX_FLAGS " -Wall -Wextra")
 string(APPEND CMAKE_C_FLAGS " -Wall -Wextra")
 
-## ONNX Runtime Providers
+## ONNX Runtime Configuration
 option(onnxruntime_USE_CUDA "Build with CUDA support" OFF)
 option(onnxruntime_USE_TENSORRT "Build with TensorRT support" OFF)
 option(LIBPNG_ROOTDIR "libpng root dir")
@@ -34,6 +34,14 @@ set(CMAKE_CXX_STANDARD 17)
 
 if(NOT ONNXRUNTIME_ROOTDIR)
     message(STATUS "You must provide an onnx runtime root directory!")
+endif()
+
+## TensorRT Configuration
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS /usr/include/x86_64-linux-gnu/ /opt/tensorrt/include)
+find_library(TENSORRT_LIBRARY nvinfer HINTS /usr/lib/x86_64-linux-gnu/)
+find_library(TENSORRT_ONNXPARSER_LIBRARY nvonnxparser HINTS /usr/lib/x86_64-linux-gnu/)
+if(NOT TENSORRT_INCLUDE_DIR OR NOT TENSORRT_LIBRARY)
+    message(FATAL_ERROR "Failed to find TensorRT.")
 endif()
 
 # set the MODEL_ROOTDIR variable to the path where the model is located
@@ -60,13 +68,22 @@ endif()
 
 ## Build & Link
 add_executable(run_model run_model.cpp 
-                         #${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
+                         ${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
                          ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
                          ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp
                          ${MODEL_ROOTDIR}/visualizers/depth_visualization_engine.cpp
               )
 target_compile_definitions(run_model PRIVATE LOG_TYPE=0)
-target_link_libraries(run_model PRIVATE onnxruntime ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+target_link_libraries(run_model PRIVATE onnxruntime
+                                        ${TENSORRT_LIBRARY}
+                                        ${TENSORRT_ONNXPARSER_LIBRARY}
+                                        ${TORCH_LIBRARIES}
+                                        ${OpenCV_LIBS}
+                                        opencv_videoio
+                                        opencv_imgproc
+                                        opencv_highgui
+                                        zenohc::lib
+                                       )
 
 # Install
 install(TARGETS run_model DESTINATION bin)
