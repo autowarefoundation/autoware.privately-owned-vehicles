@@ -6,7 +6,7 @@ ROS2-specific implementation that wraps framework-agnostic core engines from `Vi
 
 The ROS2 layer acts as a thin wrapper around common engines:
 
-```
+```raw
 ┌─────────────┐    ┌──────────────┐    ┌─────────────────┐
 │   SENSORS   │───▶│    MODELS    │───▶│ VISUALIZATION   │
 │             │    │              │    │                 │
