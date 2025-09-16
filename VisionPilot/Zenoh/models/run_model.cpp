@@ -55,7 +55,6 @@ int main(int argc, char* argv[]) {
 
     try {
         // Initialize the segmentation engine
-        // TODO(CY): Support TensorRT backends
         std::unique_ptr<InferenceBackend> backend_;
         if (backend == "onnxruntime") {
           backend_ = std::make_unique<OnnxRuntimeBackend>(model_path, precision, gpu_id);
@@ -157,11 +156,6 @@ int main(int argc, char* argv[]) {
               cv::Mat resized_depth;
               cv::resize(depth_map, resized_depth, frame.size(), 0, 0, cv::INTER_LINEAR);
               
-              // TODO(CY): Update to Zenoh
-              //// Publish depth map as CV_32FC1
-              //sensor_msgs::msg::Image::SharedPtr out_msg = 
-              //  cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::TYPE_32FC1, resized_depth).toImageMsg();
-              //pub_.publish(out_msg);
               std::unique_ptr<autoware_pov::common::DepthVisualizationEngine> viz_engine_ = 
                   std::make_unique<autoware_pov::common::DepthVisualizationEngine>();
               final_frame = viz_engine_->visualize(resized_depth);
@@ -218,16 +212,15 @@ int main(int argc, char* argv[]) {
               // Resize mask to original image size (use NEAREST for masks)
               cv::Mat resized_mask;
               cv::resize(mask, resized_mask, frame.size(), 0, 0, cv::INTER_NEAREST);
-              // ------------------------
 
               get_output_time = std::chrono::steady_clock::now() - last_time;
-              // TODO(CY): Separate the blending logic
+
               //// Only send out the mask
-              //final_frame = resized_mask;
-              // Show the blended result directly
-              std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
-                  std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
-              final_frame = viz_engine_->visualize(resized_mask, frame);
+              final_frame = resized_mask;
+              //// Debug: Show the blended result directly
+              //std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
+              //    std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
+              //final_frame = viz_engine_->visualize(resized_mask, frame);
             }
 
             // Publish the processed frame via Zenoh

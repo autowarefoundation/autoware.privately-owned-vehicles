@@ -31,24 +31,24 @@ run_sceneseg:
     parallel --verbose --lb ::: \
              "./install/bin/video_publisher -k video/input ../data/video.mp4" \
              "./install/bin/run_model ../data/models/SceneSeg_FP32.onnx -i video/input -o video/output -m segmentation -b tensorrt -p fp16" \
-             "./install/bin/video_subscriber -k video/output"
+             "./install/bin/segment_subscriber -k video/input -s video/output"
     # ONNX Runtime
     #parallel --verbose --lb ::: \
     #         "./install/bin/video_publisher -k video/input ../data/video.mp4" \
     #         "./install/bin/run_model ../data/models/SceneSeg_FP32.onnx -i video/input -o video/output -m segmentation" \
-    #         "./install/bin/video_subscriber -k video/output"
+    #         "./install/bin/segment_subscriber -k video/input -s video/output"
 
 run_domainseg:
     # TensorRT
     parallel --verbose --lb ::: \
              "./install/bin/video_publisher -k video/input ../data/video.mp4" \
              "./install/bin/run_model ../data/models/DomainSeg_FP32.onnx -i video/input -o video/output -m segmentation -b tensorrt -p fp16" \
-             "./install/bin/video_subscriber -k video/output"
+             "./install/bin/segment_subscriber -k video/input -s video/output"
     # ONNX Runtime
     #parallel --verbose --lb ::: \
     #         "./install/bin/video_publisher -k video/input ../data/video.mp4" \
     #         "./install/bin/run_model ../data/models/DomainSeg_FP32.onnx -i video/input -o video/output -m segmentation" \
-    #         "./install/bin/video_subscriber -k video/output"
+    #         "./install/bin/segment_subscriber -k video/input -s video/output"
 
 run_scene3d:
     # TensorRT
