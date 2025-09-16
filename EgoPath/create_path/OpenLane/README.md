@@ -253,3 +253,11 @@ python3 EgoPath/create_path/OpenLane/parse_openlane_bev.py --dataset_dir ../pov_
     - `bev_egopath` (list): Polyfitted BEV path.
     - `flag_list` (list): Validity flags.
     - `mat` (np.ndarray): Homography matrix.
+
+
+## IV. Running All at Once
+
+```bash
+python3 EgoPath/create_path/OpenLane/process_openlane.py --dataset_dir ../pov_datasets/OpenLane --output_dir ../pov_datasets/OpenLane_Processed
+python3 EgoPath/create_path/OpenLane/parse_openlane_bev.py --dataset_dir ../pov_datasets/OpenLane_Processed
+```
