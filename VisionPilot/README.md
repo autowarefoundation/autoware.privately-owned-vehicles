@@ -6,7 +6,7 @@ A modular, hardware and middleware-independent vision processing framework desig
 
 VisionPilot separates core AI processing from middleware-specific implementations, enabling seamless deployment across different robotic frameworks:
 
-```
+```raw
 ┌─────────────────────────────────────────────────────────┐
 │                    MIDDLEWARE LAYER                     │
 ├─────────────────────┬───────────────────┬───────────────┤
@@ -148,11 +148,11 @@ To add a new middleware implementation:
 
 ## Repository Structure
 
-```
+```raw
 VisionPilot/
 ├── common/         # Framework-agnostic core engines
 ├── ROS2/           # ROS2-specific implementation  
-├── Zenoh/          # Future Zenoh implementation
+├── Zenoh/          # Zenoh-specific implementation
 └── README.md       # This file
 ```
 
