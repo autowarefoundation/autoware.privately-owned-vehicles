@@ -54,46 +54,97 @@ python3 EgoPath/create_path/OpenLane/process_openlane.py --dataset_dir ../pov_da
 - **Returns**: a dictionary with processed lanes, ego lanes, and drivable path.
 
 ### 2. `normalizeCoords(lane, width, height)`
-- **Description**: Normalizes lane coordinates to the `[0, 1]` range based on image dimensions.
+- **Description**: normalizes lane coordinates to the `[0, 1]` range based on image dimensions.
 - **Parameters**:
-    - `lane` (list of tuples): List of `(x, y)` points.
-    - `width` (int): Image width.
-    - `height` (int): Image height.
-- **Returns**: List of normalized `(x, y)` points.
+    - `lane` (list of tuples): list of `(x, y)` points.
+    - `width` (int): image width.
+    - `height` (int): image height.
+- **Returns**: list of normalized `(x, y)` points.
 
 ### 3. `getLineAnchor(lane, img_height)`
-- **Description**: Computes the anchor point and linear fit parameters for a lane at the bottom of the image.
+- **Description**: computes the anchor point and linear fit parameters for a lane at the bottom of the image.
 - **Parameters**:
-    - `lane` (list of tuples): Lane points.
-    - `img_height` (int): Image height.
-- **Returns**: Tuple `(x0, a, b)` for anchor and line fit.
+    - `lane` (list of tuples): lane points.
+    - `img_height` (int): image height.
+- **Returns**: tuple `(x0, a, b)` for anchor and line fit.
 
 ### 4. `getEgoIndexes(anchors, img_width)`
-- **Description**: Identifies the left and right ego lanes from sorted anchors.
+- **Description**: identifies the left and right ego lanes from sorted anchors.
 - **Parameters**:
-    - `anchors` (list of tuples): Lane anchors sorted by x-coordinate.
-    - `img_width` (int): Image width.
-- **Returns**: Tuple `(left_ego_idx, right_ego_idx)`.
+    - `anchors` (list of tuples): lane anchors sorted by x-coordinate.
+    - `img_width` (int): image width.
+- **Returns**: tuple `(left_ego_idx, right_ego_idx)`.
 
 ### 5. `getDrivablePath(left_ego, right_ego, img_height, img_width, y_coords_interp=False)`
 - **Description**: Computes the drivable path as the midpoint between left and right ego lanes.
 - **Parameters**:
-    - `left_ego` (list of tuples): Left ego lane points.
-    - `right_ego` (list of tuples): Right ego lane points.
-    - `img_height` (int): Image height.
-    - `img_width` (int): Image width.
-    - `y_coords_interp` (bool): Whether to interpolate y-coordinates for smoother curves.
-- **Returns**: List of `(x, y)` points for the drivable path.
+    - `left_ego` (list of tuples): left ego lane points.
+    - `right_ego` (list of tuples): right ego lane points.
+    - `img_height` (int): image height.
+    - `img_width` (int): image width.
+    - `y_coords_interp` (bool): whether to interpolate y-coordinates for smoother curves.
+- **Returns**: list of `(x, y)` points for the drivable path.
 
 ### 6. `annotateGT(raw_img, anno_entry, raw_dir, visualization_dir, mask_dir, img_width, img_height, normalized=True)`
-- **Description**: Annotates and saves an image with lane markings, drivable path, and segmentation mask.
+- **Description**: annotates and saves an image with lane markings, drivable path, and segmentation mask.
 - **Parameters**:
-    - `raw_img` (PIL.Image): Original image.
-    - `anno_entry` (dict): Processed annotation data.
-    - `raw_dir` (str): Directory for raw images.
-    - `visualization_dir` (str): Directory for annotated images.
-    - `mask_dir` (str): Directory for segmentation masks.
-    - `img_width` (int): Image width.
-    - `img_height` (int): Image height.
-    - `normalized` (bool): Whether coordinates are normalized.
-- **Returns**: None
+    - `raw_img` (PIL.Image): original image.
+    - `anno_entry` (dict): processed annotation data.
+    - `raw_dir` (str): directory for raw images.
+    - `visualization_dir` (str): directory for annotated images.
+    - `mask_dir` (str): directory for segmentation masks.
+    - `img_width` (int): image width.
+    - `img_height` (int): image height.
+    - `normalized` (bool): whether coordinates are normalized.
+- **Returns**: none
+
+
+# OpenLane Dataset BEV (Bird-Eye-View) Processing Script
+
+## Overview
+
+This script processes OpenLane dataset frames to generate BEV representations of the drivable path. It reads per-frame image and lane data, computes the BEV transform using ego-lane boundaries, projects the drivable path into BEV space, and saves both the transformed images and path data for downstream use (training, visualization, etc.).
+
+## I. Algorithm
+
+### From EgoPath dataset
+
+For each frame, the following ground-truth information is available:
+- Left and right ego lanes.
+- Drivable path (algorithmically derived).
+- Other lanes (not used for BEV transformation).
+
+To perform BEV transformation, four frustum points are required:
+- Left start (`LS`)
+- Right start (`RS`)
+- Left end (`LE`)
+- Right end (`RE`)
+
+### Step 1
+
+Obtain anchors for left and right ego lanes:
+- Left anchor: $(x_{0L}, a_L, b_L)$ at $(x_{0L}, h)$
+- Right anchor: $(x_{0R}, a_R, b_R)$ at $(x_{0R}, h)$
+
+These serve as `LS` and `RS`.
+
+### Step 2
+
+- Compute the midpoint `MS` at $x_{M_S} = (x_{0L} + x_{0R}) / 2$.
+- Compute average tangent $a_M$ at `MS`.
+
+### Step 3
+
+- Extend from `MS` along $a_M$ to the height of the shorter ego lane (`lower_ego_y`), yielding `ME`.
+
+### Step 4
+
+- Calculate the width between ego lanes at $y = lower_ego_y$, denoted as $𝚫D = 2𝚫d$.
+
+### Step 5
+
+- At $y = lower_ego_y$, compute $x = x_{M_E} ± 𝚫d$ for `LE` and `RE`.
+
+### Step 6
+
+With `LS`, `RS`, `LE`, and `RE` defined, perform the BEV transformation using a homography.
