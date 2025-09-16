@@ -118,6 +118,13 @@ void TensorRTBackend::buildEngineFromOnnx(
   }
   
   config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 1 << 30);
+
+  // Set optimization profile (min, opt, max) for dynamic shapes
+  nvinfer1::IOptimizationProfile* profile = builder->createOptimizationProfile();
+  profile->setDimensions("input", nvinfer1::OptProfileSelector::kMIN, nvinfer1::Dims4(1, 3, 320, 640));
+  profile->setDimensions("input", nvinfer1::OptProfileSelector::kOPT, nvinfer1::Dims4(1, 3, 320, 640));
+  profile->setDimensions("input", nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims4(1, 3, 320, 640));
+  config->addOptimizationProfile(profile);
   
   if (precision == "fp16" && builder->platformHasFastFp16()) {
     config->setFlag(nvinfer1::BuilderFlag::kFP16);
