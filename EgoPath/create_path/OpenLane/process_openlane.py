@@ -16,9 +16,10 @@ from PIL import Image, ImageDraw
 
 PointCoords = tuple[float, float]
 ImagePointCoords = tuple[int, int]
+Line = list[PointCoords] | list[ImagePointCoords]
 
 def round_line_floats(
-    line: list[PointCoords] | list[ImagePointCoords], 
+    line: Line, 
     ndigits: int = 3
 ):
     """
@@ -51,7 +52,7 @@ warnings.formatwarning = custom_warning_format
 
 
 def normalizeCoords(
-    line: list[PointCoords] | list[ImagePointCoords], 
+    line: Line, 
     width: int, 
     height: int
 ):
@@ -65,7 +66,7 @@ def normalizeCoords(
 
 
 def getLineAnchor(
-    line: list[PointCoords] | list[ImagePointCoords],
+    line: Line,
     verbose: bool = False
 ):
     """
@@ -82,17 +83,7 @@ def getLineAnchor(
     if (verbose):
         print(f"Anchor points chosen: ({x1}, {y1}), ({x2}, {y2})")
 
-    # for i in range(1, len(line) - 1, 1):
-    #     if (line[i][0] != x2) & (line[i][1] != y2):
-    #         (x1, y1) = line[i]
-    #         break
-
     if (x1 == x2) or (y1 == y2):
-        # if (x1 == x2):
-        #     error_lane = "Vertical"
-        # elif (y1 == y2):
-        #     error_lane = "Horizontal"
-        # warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
         return (x1, None, None)
     
     a = (y2 - y1) / (x2 - x1)
@@ -105,8 +96,8 @@ def getLineAnchor(
 
 
 def getDrivablePath(
-    left_ego        : list[PointCoords] | list[ImagePointCoords], 
-    right_ego       : list[PointCoords] | list[ImagePointCoords], 
+    left_ego        : Line, 
+    right_ego       : Line, 
     y_coords_interp : bool = False
 ):
     """
@@ -263,22 +254,24 @@ def parseData(
     for i, lane in enumerate(lane_lines):
 
         if not len(lane["uv"][0]) == len(lane["uv"][1]):
-            # warnings.warn(
-            #     f"Inconsistent number of U and V coords:\n \
-            #         - file_path  : {img_path}\n \
-            #         - lane_index : {i}\n \
-            #         - u          : {len(lane['uv'][0])}\n \
-            #         - v          : {len(lane['uv'][1])}"
-            # )
+            if (verbose):
+                warnings.warn(
+                    f"Inconsistent number of U and V coords:\n \
+                        - file_path  : {img_path}\n \
+                        - lane_index : {i}\n \
+                        - u          : {len(lane['uv'][0])}\n \
+                        - v          : {len(lane['uv'][1])}"
+                )
             continue
 
         if not (len(lane["uv"][0]) >= 10):
-            # warnings.warn(
-            #     f"Lane with insufficient points detected (less than 10 points). Ignored.\n \
-            #         - file_path  : {img_path}\n \
-            #         - lane_index : {i}\n \
-            #         - num_points : {len(lane['uv'][0)]}"
-            # )
+            if (verbose):
+                warnings.warn(
+                    f"Lane with insufficient points detected (less than 10 points). Ignored.\n \
+                        - file_path  : {img_path}\n \
+                        - lane_index : {i}\n \
+                        - num_points : {len(lane['uv'][0])}"
+                )
             continue
 
         # There are adjacent points with the same y-coords. Filtering em out.
@@ -306,12 +299,13 @@ def parseData(
                 this_lane.append(point)
 
         if (len(this_lane) < 2):
-            # warnings.warn(
-            #     f"Lane with insufficient points detected (less than 2 points). Ignored.\n \
-            #         - file_path  : {img_path}\n \
-            #         - lane_index : {i}\n \
-            #         - num_points : {len(this_lane)}"
-            # )
+            if (verbose):
+                warnings.warn(
+                    f"Lane with insufficient unique y-coords detected (less than 2 points). Ignored.\n \
+                        - file_path  : {img_path}\n \
+                        - lane_index : {i}\n \
+                        - num_points : {len(this_lane)}"
+                )
             continue
 
         # Add anchor to line, if needed
@@ -331,20 +325,20 @@ def parseData(
                             4: right-right
         """
         if (this_attribute == 2):
-            # if (egoleft_lane):
-            #     warnings.warn(
-            #         f"Multiple egoleft lanes detected. Please check! \n\
-            #             - file_path: {img_path}"
-            #     )
-            # else:
+            if (egoleft_lane and verbose):
+                warnings.warn(
+                    f"Multiple egoleft lanes detected. Please check! \n\
+                        - file_path: {img_path}"
+                )
+            else:
                 egoleft_lane = this_lane
         elif (this_attribute == 3):
-            # if (egoright_lane):
-            #     warnings.warn(
-            #         f"Multiple egoright lanes detected. Please check! \n\
-            #             - file_path: {img_path}"
-            #     )
-            # else:
+            if (egoright_lane and verbose):
+                warnings.warn(
+                    f"Multiple egoright lanes detected. Please check! \n\
+                        - file_path: {img_path}"
+                )
+            else:
                 egoright_lane = this_lane
         else:
             other_lanes.append(this_lane)
@@ -356,48 +350,59 @@ def parseData(
             y_coords_interp = True
         )
     else:
-    #     warnings.warn(f"Missing egolines detected: \n\
-    #     - file_path: {img_path}")
+        if (verbose):
+            warnings.warn(f"Missing egolines detected: \n\
+            - file_path: {img_path}")
 
-    #     if (not egoleft_lane):
-    #         print("\t- Left egoline missing!")
-    #     if (not egoright_lane):
-    #         print("\t- Right egoline missing!")
+            if (not egoleft_lane):
+                print("\t- Left egoline missing!")
+            if (not egoright_lane):
+                print("\t- Right egoline missing!")
 
         return None
     
     # Check drivable path validity
     THRESHOLD_EGOPATH_ANCHOR = 0.25
+
     if (len(drivable_path) < 2):
-        # warnings.warn(f"Drivable path with insufficient points detected (less than 2 points). Ignored.\n \
-        #     - file_path  : {img_path}\n \
-        #     - num_points : {len(drivable_path)}"
-        # )
+        if (verbose):
+            warnings.warn(f"Drivable path with insufficient points detected (less than 2 points). Ignored.\n \
+                - file_path  : {img_path}\n \
+                - num_points : {len(drivable_path)}"
+            )
         return None
-    elif not (THRESHOLD_EGOPATH_ANCHOR * W <= drivable_path[0][0] <= (1 - THRESHOLD_EGOPATH_ANCHOR) * W):
-        # warnings.warn(f"Drivable path anchor too close to edge of frame. Ignored.\n \
-        #     - file_path  : {img_path}\n \
-        #     - anchor_x   : {drivable_path[0][0]}\n \
-        #     - anchor_y   : {drivable_path[0][1]}"
-        # )
+    
+    elif not (
+        THRESHOLD_EGOPATH_ANCHOR * W <= drivable_path[0][0] <= (1 - THRESHOLD_EGOPATH_ANCHOR) * W
+    ):
+        if (verbose):
+            warnings.warn(f"Drivable path anchor too close to edge of frame. Ignored.\n \
+                - file_path  : {img_path}\n \
+                - anchor_x   : {drivable_path[0][0]}\n \
+                - anchor_y   : {drivable_path[0][1]}"
+            )
         return None
+    
     elif not (
         (egoleft_lane[0][0] < drivable_path[0][0] < egoright_lane[0][0]) and
         (egoleft_lane[-1][0] < drivable_path[-1][0] < egoright_lane[-1][0])
     ):
-        # warnings.warn(f"Drivable path not between 2 egolanes. Ignored.\n \
-        #     - file_path      : {img_path}\n \
-        #     - drivable_path  : {drivable_path}\n \
-        #     - egoleft_lane   : {egoleft_lane}\n \
-        #     - egoright_lane  : {egoright_lane}"
-        # )
+        if (verbose):
+            warnings.warn(f"Drivable path not between 2 egolanes. Ignored.\n \
+                - file_path      : {img_path}\n \
+                - drivable_path  : {drivable_path}\n \
+                - egoleft_lane   : {egoleft_lane}\n \
+                - egoright_lane  : {egoright_lane}"
+            )
         return None
+    
     elif not (egoright_lane[0][0] - egoleft_lane[0][0] >= egoright_lane[-1][0] - egoleft_lane[-1][0]):
-        # warnings.warn(f"Ego lanes are not parallel logically. Ignored.\n \
-        #     - file_path      : {img_path}\n \
-        #     - egoleft_lane   : {egoleft_lane}\n \
-        #     - egoright_lane  : {egoright_lane}"
-        # )
+        if (verbose):
+            warnings.warn(f"Ego lanes are not parallel logically. Ignored.\n \
+                - file_path      : {img_path}\n \
+                - egoleft_lane   : {egoleft_lane}\n \
+                - egoright_lane  : {egoright_lane}"
+            )
         return None
 
     # Assemble all data
@@ -619,11 +624,6 @@ if __name__ == "__main__":
                                 "visualization"
                             )
                         )
-                        # Debug
-                        if (img_id_counter == 450):
-                            print(f"\nEgoleft: {this_label_data['egoleft_lane']}\n")
-                            print(f"\nDrivable: {this_label_data['drivable_path']}\n")
-                            print(f"\nEgoright: {this_label_data['egoright_lane']}\n")
 
                         img_index = str(str(img_id_counter).zfill(6))
                         data_master[img_index] = {
