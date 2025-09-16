@@ -20,6 +20,8 @@ endif()
 ## Find OpenCV installation
 find_package(OpenCV REQUIRED HINTS ${OPENCV_INSTALL_ROOT}/build/ QUIET)
 find_package(Torch REQUIRED HINTS ${LIBTORCH_INSTALL_ROOT}/share/cmake/Torch/ QUIET)
+
+## Find Zenoh-C installation
 find_package(zenohc REQUIRED)
 
 string(APPEND CMAKE_CXX_FLAGS " -Wall -Wextra")
@@ -47,10 +49,7 @@ endif()
 # set the MODEL_ROOTDIR variable to the path where the model is located
 set(MODEL_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../common")
 
-# The ORT package has a different include directory structure to a local install via cmake.
-# We added the path for the pre-built package above. Add the path for a local install to support either usage.
-# TODO: If we want to support additional EPs being loadable from a local install we also need to add EP specific
-# directories under /include/onnxruntime/core/providers
+# Set the include directories for ONNX Runtime, OpenCV, Torch, and common libraries
 include_directories(${ONNXRUNTIME_ROOTDIR}/include
                     ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime
                     ${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/session
@@ -74,16 +73,17 @@ add_executable(run_model run_model.cpp
                          ${MODEL_ROOTDIR}/visualizers/depth_visualization_engine.cpp
               )
 target_compile_definitions(run_model PRIVATE LOG_TYPE=0)
-target_link_libraries(run_model PRIVATE onnxruntime
-                                        ${TENSORRT_LIBRARY}
-                                        ${TENSORRT_ONNXPARSER_LIBRARY}
-                                        ${TORCH_LIBRARIES}
-                                        ${OpenCV_LIBS}
-                                        opencv_videoio
-                                        opencv_imgproc
-                                        opencv_highgui
-                                        zenohc::lib
-                                       )
+target_link_libraries(run_model PRIVATE
+                            onnxruntime
+                            ${TENSORRT_LIBRARY}
+                            ${TENSORRT_ONNXPARSER_LIBRARY}
+                            ${TORCH_LIBRARIES}
+                            ${OpenCV_LIBS}
+                            opencv_videoio
+                            opencv_imgproc
+                            opencv_highgui
+                            zenohc::lib
+                     )
 
 # Install
 install(TARGETS run_model DESTINATION bin)
