@@ -1,4 +1,5 @@
 import os
+import re
 import copy
 import csv
 import warnings
@@ -14,11 +15,12 @@ import auto_speed_util as util
 from Models.data_utils.load_data_auto_speed import LoadDataAutoSpeed
 from Models.model_components.auto_speed_network import AutoSpeedNetwork
 
+from torch.utils.tensorboard import SummaryWriter
 
 warnings.filterwarnings("ignore")
 
 
-def train(args, params):
+def train(args, params, run_dir, log_writer):
     # Model
     model = AutoSpeedNetwork().build_model(version='n', num_classes=4)
     model.cuda()
@@ -60,110 +62,102 @@ def train(args, params):
     amp_scale = torch.amp.GradScaler()
     criterion = util.ComputeLoss(model, params)
 
-    with open('weights/step.csv', 'w') as log:
+    for epoch in range(args.epochs):
+        model.train()
+        if args.distributed:
+            sampler.set_epoch(epoch)
+        if args.epochs - epoch == 10:
+            loader.dataset.mosaic = False
+
+        p_bar = enumerate(loader)
+
         if args.local_rank == 0:
-            logger = csv.DictWriter(log, fieldnames=['epoch',
-                                                     'box', 'cls', 'dfl',
-                                                     'Recall', 'Precision', 'mAP@50', 'mAP'])
-            logger.writeheader()
+            print(('\n' + '%10s' * 5) % ('epoch', 'memory', 'box', 'cls', 'dfl'))
+            p_bar = tqdm.tqdm(p_bar, total=num_steps)
 
-        for epoch in range(args.epochs):
-            model.train()
-            if args.distributed:
-                sampler.set_epoch(epoch)
-            if args.epochs - epoch == 10:
-                loader.dataset.mosaic = False
+        optimizer.zero_grad()
+        avg_box_loss = util.AverageMeter()
+        avg_cls_loss = util.AverageMeter()
+        avg_dfl_loss = util.AverageMeter()
+        for i, (samples, targets) in p_bar:
 
-            p_bar = enumerate(loader)
+            step = i + num_steps * epoch
+            scheduler.step(step, optimizer)
 
+            samples = samples.cuda().float() / 255
+
+            # Forward
+            with torch.amp.autocast('cuda'):
+                outputs = model(samples)  # forward
+                loss_box, loss_cls, loss_dfl = criterion(outputs, targets)
+
+            avg_box_loss.update(loss_box.item(), samples.size(0))
+            avg_cls_loss.update(loss_cls.item(), samples.size(0))
+            avg_dfl_loss.update(loss_dfl.item(), samples.size(0))
+
+            loss_box *= args.batch_size  # loss scaled by batch_size
+            loss_cls *= args.batch_size  # loss scaled by batch_size
+            loss_dfl *= args.batch_size  # loss scaled by batch_size
+            loss_box *= args.world_size  # gradient averaged between devices in DDP mode
+            loss_cls *= args.world_size  # gradient averaged between devices in DDP mode
+            loss_dfl *= args.world_size  # gradient averaged between devices in DDP mode
+
+            # Backward
+            amp_scale.scale(loss_box + loss_cls + loss_dfl).backward()
+
+            # Optimize
+            if step % accumulate == 0:
+                # amp_scale.unscale_(optimizer)  # unscale gradients
+                # util.clip_gradients(model)  # clip gradients
+                amp_scale.step(optimizer)  # optimizer.step
+                amp_scale.update()
+                optimizer.zero_grad()
+                if ema:
+                    ema.update(model)
+
+            torch.cuda.synchronize()
+
+            # Log
             if args.local_rank == 0:
-                print(('\n' + '%10s' * 5) % ('epoch', 'memory', 'box', 'cls', 'dfl'))
-                p_bar = tqdm.tqdm(p_bar, total=num_steps)
+                memory = f'{torch.cuda.memory_reserved() / 1E9:.4g}G'  # (GB)
+                s = ('%10s' * 2 + '%10.3g' * 3) % (f'{epoch + 1}/{args.epochs}', memory,
+                                                   avg_box_loss.avg, avg_cls_loss.avg, avg_dfl_loss.avg)
+                p_bar.set_description(s)
 
-            optimizer.zero_grad()
-            avg_box_loss = util.AverageMeter()
-            avg_cls_loss = util.AverageMeter()
-            avg_dfl_loss = util.AverageMeter()
-            for i, (samples, targets) in p_bar:
+        if args.local_rank == 0:
+            # mAP
+            last = val(args, params, run_dir, ema.ema)
 
-                step = i + num_steps * epoch
-                scheduler.step(step, optimizer)
+            log_writer.add_scalar("Loss/box", avg_box_loss.avg, epoch + 1)
+            log_writer.add_scalar("Loss/cls", avg_cls_loss.avg, epoch + 1)
+            log_writer.add_scalar("Loss/dfl", avg_dfl_loss.avg, epoch + 1)
 
-                samples = samples.cuda().float() / 255
+            log_writer.add_scalar("Metrics/mAP", last[0], epoch + 1)
+            log_writer.add_scalar("Metrics/mAP@50", last[1], epoch + 1)
+            log_writer.add_scalar("Metrics/Recall", last[2], epoch + 1)
+            log_writer.add_scalar("Metrics/Precision", last[3], epoch + 1)
 
-                # Forward
-                with torch.amp.autocast('cuda'):
-                    outputs = model(samples)  # forward
-                    loss_box, loss_cls, loss_dfl = criterion(outputs, targets)
+            # Update best mAP
+            if last[0] > best:
+                best = last[0]
 
-                avg_box_loss.update(loss_box.item(), samples.size(0))
-                avg_cls_loss.update(loss_cls.item(), samples.size(0))
-                avg_dfl_loss.update(loss_dfl.item(), samples.size(0))
+            # Save model
+            save = {'epoch': epoch + 1,
+                    'model': copy.deepcopy(ema.ema)}
 
-                loss_box *= args.batch_size  # loss scaled by batch_size
-                loss_cls *= args.batch_size  # loss scaled by batch_size
-                loss_dfl *= args.batch_size  # loss scaled by batch_size
-                loss_box *= args.world_size  # gradient averaged between devices in DDP mode
-                loss_cls *= args.world_size  # gradient averaged between devices in DDP mode
-                loss_dfl *= args.world_size  # gradient averaged between devices in DDP mode
-
-                # Backward
-                amp_scale.scale(loss_box + loss_cls + loss_dfl).backward()
-
-                # Optimize
-                if step % accumulate == 0:
-                    # amp_scale.unscale_(optimizer)  # unscale gradients
-                    # util.clip_gradients(model)  # clip gradients
-                    amp_scale.step(optimizer)  # optimizer.step
-                    amp_scale.update()
-                    optimizer.zero_grad()
-                    if ema:
-                        ema.update(model)
-
-                torch.cuda.synchronize()
-
-                # Log
-                if args.local_rank == 0:
-                    memory = f'{torch.cuda.memory_reserved() / 1E9:.4g}G'  # (GB)
-                    s = ('%10s' * 2 + '%10.3g' * 3) % (f'{epoch + 1}/{args.epochs}', memory,
-                                                       avg_box_loss.avg, avg_cls_loss.avg, avg_dfl_loss.avg)
-                    p_bar.set_description(s)
-
-            if args.local_rank == 0:
-                # mAP
-                last = val(args, params, ema.ema)
-
-                logger.writerow({'epoch': str(epoch + 1).zfill(3),
-                                 'box': str(f'{avg_box_loss.avg:.3f}'),
-                                 'cls': str(f'{avg_cls_loss.avg:.3f}'),
-                                 'dfl': str(f'{avg_dfl_loss.avg:.3f}'),
-                                 'mAP': str(f'{last[0]:.3f}'),
-                                 'mAP@50': str(f'{last[1]:.3f}'),
-                                 'Recall': str(f'{last[2]:.3f}'),
-                                 'Precision': str(f'{last[3]:.3f}')})
-                log.flush()
-
-                # Update best mAP
-                if last[0] > best:
-                    best = last[0]
-
-                # Save model
-                save = {'epoch': epoch + 1,
-                        'model': copy.deepcopy(ema.ema)}
-
-                # Save last, best and delete
-                torch.save(save, f='weights/last.pt')
-                if best == last[0]:
-                    torch.save(save, f='weights/best.pt')
-                del save
+            # Save last, best and delete
+            torch.save(save, f=f'{run_dir}/weights/last.pt')
+            if best == last[0]:
+                torch.save(save, f=f'{run_dir}/weights/best.pt')
+            del save
 
     if args.local_rank == 0:
-        util.strip_optimizer('weights/best.pt')  # strip optimizers
-        util.strip_optimizer('weights/last.pt')  # strip optimizers
+        util.strip_optimizer(f'{run_dir}/weights/best.pt')  # strip optimizers
+        util.strip_optimizer(f'{run_dir}/weights/last.pt')  # strip optimizers
 
 
 @torch.no_grad()
-def val(args, params, model=None):
+def val(args, params, run_dir, model=None):
     current_dir = Path(args.dataset + "/images/val/")
     filenames = [f.as_posix() for f in current_dir.rglob("*") if f.is_file()]
 
@@ -174,7 +168,7 @@ def val(args, params, model=None):
     plot = False
     if not model:
         plot = True
-        model = torch.load(f='weights/best.pt', map_location='cuda')
+        model = torch.load(f=f'{run_dir}/weights/best.pt', map_location='cuda')
         model = model['model'].float().fuse()
 
     model.half()
@@ -249,6 +243,22 @@ def profile(args, params):
         print(f'Number of FLOPs: {flops}')
 
 
+def get_next_run(path="."):
+    subdirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+
+    # Extract numbers from names like run1, run2, ...
+    run_ids = []
+    for d in subdirs:
+        match = re.match(r"run(\d+)$", d)
+        if match:
+            run_ids.append(int(match.group(1)))
+
+    if not run_ids:
+        return 1  # If no runs exist yet, start with run1
+
+    return max(run_ids) + 1
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--dataset', help="dataset directory path")
@@ -257,13 +267,24 @@ if __name__ == "__main__":
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--local_rank', default=0, type=int)
     # parser.add_argument('--epochs', default=30, type=int)
-    parser.add_argument('--epochs', default=3, type=int)
+    parser.add_argument('--runs_dir', default="runs", type=str)
+    parser.add_argument('--epochs', default=10, type=int)
 
     args = parser.parse_args()
 
     args.local_rank = int(os.getenv('LOCAL_RANK', 0))
     args.world_size = int(os.getenv('WORLD_SIZE', 1))
     args.distributed = int(os.getenv('WORLD_SIZE', 1)) > 1
+
+    # Prepare training directory
+    if not os.path.exists(args.runs_dir):
+        os.makedirs(args.runs_dir)
+    next_run = get_next_run(args.runs_dir)
+    run_dir = f"{args.runs_dir}/run{next_run}"
+    weights_dir = f"{run_dir}/weights"
+    if not os.path.exists(weights_dir):
+        os.makedirs(weights_dir)
+    log_writer = SummaryWriter(log_dir=run_dir)
 
     if args.distributed:
         torch.cuda.set_device(device=args.local_rank)
@@ -281,7 +302,7 @@ if __name__ == "__main__":
 
     profile(args, params)
 
-    train(args, params)
+    train(args, params, run_dir, log_writer)
 
     # Clean
     if args.distributed:
