@@ -145,8 +145,8 @@ class LoadDataAutoSteer():
         x_right_lane_offset = ego_right[0][0]
         x_ego_path_offset = ego_path[0][0]
 
-        start_angle = math.atan((ego_path[1][0] - ego_path[0][0])/(ego_path[1][1] - ego_path[0][1]))
-        end_angle = math.atan((ego_path[-1][0] - ego_path[-2][0])/(ego_path[-1][1] - ego_path[-2][1]))
+        start_angle = math.atan((ego_path[2][0]*640 - ego_path[0][0]*640)/abs((ego_path[2][1]*320 - ego_path[0][1]*320)))
+        end_angle = math.atan((ego_path[-1][0]*640 - ego_path[-3][0]*640)/abs((ego_path[-1][1]*320 - ego_path[-3][1]*320)))
 
         x_ego_path_end = ego_path[-1][0]
         y_ego_path_end = ego_path[-1][1]
