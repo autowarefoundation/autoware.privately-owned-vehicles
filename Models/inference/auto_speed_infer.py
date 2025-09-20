@@ -60,7 +60,7 @@ class AutoSpeedNetworkInfer():
         keep = ops.nms(boxes, scores, iou_thres)
         return preds[keep]
 
-    def post_process_predictions(self, raw_predictions, conf_thres=0.6, iou_thres=0.45):
+    def post_process_predictions(self, raw_predictions, conf_thres=0.65, iou_thres=0.45):
         """
         raw_preds: model output tensor
         Returns filtered predictions [cx,cy,w,h,score,class] after confidence threshold + NMS

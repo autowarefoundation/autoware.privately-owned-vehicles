@@ -268,7 +268,7 @@ if __name__ == "__main__":
     parser.add_argument('--local_rank', default=0, type=int)
     # parser.add_argument('--epochs', default=30, type=int)
     parser.add_argument('--runs_dir', default="runs", type=str)
-    parser.add_argument('--epochs', default=10, type=int)
+    parser.add_argument('--epochs', default=3, type=int)
 
     args = parser.parse_args()
 
