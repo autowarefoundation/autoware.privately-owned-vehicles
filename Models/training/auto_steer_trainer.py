@@ -863,6 +863,7 @@ class AutoSteerTrainer():
         #plt.close(fig_perspective)
         plt.close(fig_seg)
         plt.close(fig_seg_raw)
+        plt.close(fig_data)
     
     # Log validation loss for each dataset to TensorBoard
     def log_validation_dataset(self, dataset, validation_loss_dataset_total, log_count):
