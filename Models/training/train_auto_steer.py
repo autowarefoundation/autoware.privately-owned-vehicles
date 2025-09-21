@@ -310,7 +310,8 @@ def main():
                             
                             # BEV
                             perspective_image = Image.open(
-                                os.path.join(
+                                raw_img_path if current_dataset in ["OPENLANE"]
+                                else os.path.join(
                                     msdict[dataset]["path_perspective_image"],
                                     f"{frame_id}.png"
                                 )
