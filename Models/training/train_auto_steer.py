@@ -25,17 +25,27 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH = '/home/zain/Autoware/Data/AutoSteer/'#'DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)' #args.root
+    ROOT_PATH   = "DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)"
+    POV_PATH    = "PATH TO POV PROJECT ROOT"
 
     # Model save root path
-    MODEL_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/models/' #'{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/models/' #args.model_save_root_path
-    if (not os.path.exists(MODEL_SAVE_ROOT_PATH)):
-        os.makedirs(MODEL_SAVE_ROOT_PATH)
+    MODEL_SAVE_ROOT_PATH = os.path.join(
+        POV_PATH, "Models/saves/AutoSteer/models/"
+    )
+    os.makedirs(
+        MODEL_SAVE_ROOT_PATH, 
+        exist_ok = True
+    )
 
     # Visualizations save root path
-    VIS_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/figures/'#'{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/figures/' #args.vis_save_root_path
-    if (not os.path.exists(VIS_SAVE_ROOT_PATH)):
-        os.makedirs(VIS_SAVE_ROOT_PATH)
+    VIS_SAVE_ROOT_PATH = os.path.join(
+        POV_PATH, 
+        "Models/saves/AutoSteer/figures/"
+    )
+    os.makedirs(
+        VIS_SAVE_ROOT_PATH, 
+        exist_ok = True
+    )
 
     # Init metadata for datasets
     msdict = {}
@@ -104,10 +114,10 @@ def main():
     trainer.zero_grad()
     
     # Training loop parameters
-    NUM_EPOCHS = 50
-    LOGSTEP_LOSS = 25
-    LOGSTEP_VIS = 25
-    LOGSTEP_MODEL = 5000
+    NUM_EPOCHS = 10
+    LOGSTEP_LOSS = 250
+    LOGSTEP_VIS = 1000
+    LOGSTEP_MODEL = 30000
 
     # Val visualization param
     N_VALVIS = 25
@@ -133,16 +143,16 @@ def main():
         #    batch_size = 4
       
         # Learning Rate Schedule
-        if(epoch <= 20):
+        if (epoch <= 3):
             trainer.set_learning_rate(0.0005)
-        elif(epoch > 20 and epoch < 40):
+        elif(epoch > 3 and epoch <= 7):
             trainer.set_learning_rate(0.0001)
-        elif(epoch > 40):
+        elif(epoch > 7):
             trainer.set_learning_rate(0.00005)
 
         # Augmentation Schedule
         apply_augmentation = True
-        if (epoch > 35):
+        if (epoch > 7):
             apply_augmentation = False
 
         # Shuffle overall data list at start of epoch
@@ -198,8 +208,8 @@ def main():
            
             current_dataset = data_list[msdict["data_list_count"]]
             current_dataset_iter = msdict[current_dataset]["iter"]
-            [   frame_id, bev_image, binary_seg, data,
-                homotrans_mat,
+            [   frame_id, bev_image, raw_img_path,
+                binary_seg, data, homotrans_mat,
                 bev_egopath, reproj_egopath,
                 bev_egoleft, reproj_egoleft,
                 bev_egoright, reproj_egoright,
@@ -211,7 +221,8 @@ def main():
 
             # Perspective image
             perspective_image = Image.open(
-                os.path.join(
+                raw_img_path if current_dataset in ["OPENLANE"]
+                else os.path.join(
                     msdict[current_dataset]["path_perspective_image"],
                     f"{frame_id}.png"
                 )
@@ -286,8 +297,8 @@ def main():
                         for val_count in range(0, msdict[dataset]["N_vals"]):
 
                             # Fetch data
-                            [   frame_id, bev_image, binary_seg, data,
-                                homotrans_mat,
+                            [   frame_id, bev_image, raw_img_path,
+                                binary_seg, data, homotrans_mat,
                                 bev_egopath, reproj_egopath,
                                 bev_egoleft, reproj_egoleft,
                                 bev_egoright, reproj_egoright,
