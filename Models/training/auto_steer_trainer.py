@@ -791,7 +791,7 @@ class AutoSteerTrainer():
         axs_data[0].imshow(self.perspective_image)
 
         # Caclulate params
-        pred_data = self.pred_data_tensor.cpu().detach().numpy()
+        pred_data = self.pred_data_tensor.cpu().detach().numpy()[0]
         left_lane_offset_pred = pred_data[0]*640
         right_left_offset_pred = pred_data[1]*640
         ego_path_offset_pred = pred_data[2]*640
@@ -863,6 +863,7 @@ class AutoSteerTrainer():
         #plt.close(fig_perspective)
         plt.close(fig_seg)
         plt.close(fig_seg_raw)
+        plt.close(fig_data)
     
     # Log validation loss for each dataset to TensorBoard
     def log_validation_dataset(self, dataset, validation_loss_dataset_total, log_count):
