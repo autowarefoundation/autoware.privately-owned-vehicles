@@ -21,9 +21,10 @@ VALID_DATASET_LITERALS = Literal[
     # "BDD100K",
     # "COMMA2K19",
     #"CULANE",
-    #"CURVELANES",
+    "CURVELANES",
     # "ROADWORK",
-    "TUSIMPLE"
+    "TUSIMPLE",
+    "OPENLANE"
 ]
 VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
 
@@ -33,7 +34,8 @@ FIXED_HOMOTRANS_DATASETS = [
 ]
 
 DYNAMIC_HOMOTRANS_DATASETS = [
-    "CURVELANES"
+    "CURVELANES",
+    "OPENLANE"
 ]
 
 
@@ -166,6 +168,13 @@ class LoadDataAutoSteer():
             # Frame ID
             frame_id = self.train_ids[index]
 
+            # Raw image path
+            raw_img_path = (
+                self.train_labels[index]["perspective_img_path"]
+                if self.dataset_name in ["OPENLANE"]
+                else None
+            )
+
             # BEV-to-image transform
             bev_to_image_transform = (
                 self.BEV_to_image_transform
@@ -211,6 +220,13 @@ class LoadDataAutoSteer():
             # Frame ID
             frame_id = self.val_ids[index]
 
+            # Raw image path
+            raw_img_path = (
+                self.val_labels[index]["perspective_img_path"]
+                if self.dataset_name in ["OPENLANE"]
+                else None
+            )
+
             # BEV-to-image transform
             bev_to_image_transform = (
                 self.BEV_to_image_transform
@@ -252,7 +268,8 @@ class LoadDataAutoSteer():
         bev_img = np.array(bev_img)
 
         return [
-            frame_id, bev_img, binary_seg, data,
+            frame_id, bev_img, raw_img_path,
+            binary_seg, data,
             self.BEV_to_image_transform,
             bev_egopath, reproj_egopath,
             bev_egoleft, reproj_egoleft,
