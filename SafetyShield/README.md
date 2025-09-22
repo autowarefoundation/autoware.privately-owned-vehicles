@@ -12,6 +12,7 @@ filterpy
 
 
 ## Tree
+```
 ├── dataset
 │   ├── cipo
 │   │   ├── cipo
@@ -21,6 +22,7 @@ filterpy
 ├── output
 │   └── test_output
 └── scripts
+```
 
 
 The folder contains a dataset folder which should contain the OpenLane dataset cipo labels and the corrresponding datarecords (from Waymo). Note that the filenames of the records must match the cipo labels names as the original naming convention.
