@@ -98,6 +98,7 @@ You need to create a folder for models and video first.
 - Video: You can get any dash cam video from YouTube.
 
 ```bash
+cd VisionPilot/ROS2
 # Create folder
 mkdir -p data && cd data
 # Put your video into data, assuming its name is video.mp4

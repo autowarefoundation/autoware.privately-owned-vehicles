@@ -46,9 +46,12 @@ scene3d -- Zenoh --> vsub
   - Download from [the GitHub release](https://github.com/microsoft/onnxruntime/releases)
 - **LibTorch**: For tensor manipulation capabilities.
   - Download from [the PyTorch website](https://pytorch.org/get-started/locally/)
+- **TensorRT**: Improve the inference performance.
+  - Download from [the website](https://developer.nvidia.com/tensorrt)
+  - Follow [the tutorial](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) to install.
 - **just**: Simplify the command.
 
-  ```shell
+  ```bash
   # If you are using Ubuntu 22.04
   wget -qO - 'https://proget.makedeb.org/debian-feeds/prebuilt-mpr.pub' | gpg --dearmor | sudo tee /usr/share/keyrings/prebuilt-mpr-archive-keyring.gpg 1> /dev/null
   echo "deb [arch=all,$(dpkg --print-architecture) signed-by=/usr/share/keyrings/prebuilt-mpr-archive-keyring.gpg] https://proget.makedeb.org prebuilt-mpr $(lsb_release -cs)" | sudo tee /etc/apt/sources.list.d/prebuilt-mpr.list
@@ -59,7 +62,7 @@ scene3d -- Zenoh --> vsub
 
 - **parallel**: Run commands in parallel
 
-  ```shell
+  ```bash
   sudo apt install parallel
   ```
 
@@ -67,7 +70,7 @@ scene3d -- Zenoh --> vsub
 
 - Build
 
-```shell
+```bash
 # Build all
 export LIBTORCH_INSTALL_ROOT=/path/to/libtorch/
 export ONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0
@@ -79,7 +82,7 @@ just models
 
 - Run pipelines
 
-```shell
+```bash
 # Original video pub/sub
 just run_video_pubsub
 # SceneSeg
@@ -92,6 +95,6 @@ just run_scene3d
 
 - Clean the project
 
-```shell
+```bash
 just clean
 ```
