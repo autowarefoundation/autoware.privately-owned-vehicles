@@ -50,15 +50,15 @@ void FpsTimer::printResults() const {
     auto overallDuration = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - startTime).count();
     double fps = (overallDuration > 0) ? (static_cast<double>(frameCount) / overallDuration) : 0.0;
 
-    LOG_INFO("--------------------------\n");
-    LOG_INFO("--- Performance Metrics ---\n");
-    LOG_INFO("* Total frames processed: %lld\n", frameCount);
-    LOG_INFO("* Current FPS: %.2f\n", fps);
-    LOG_INFO("--- Per-frame Timing (microseconds) ---\n");
-    LOG_INFO("* Total processing time: %ld us\n", totalFrameDuration);
-    LOG_INFO("* Preprocessing time: %ld us\n", preprocessDuration);
-    LOG_INFO("* Inference time: %ld us\n", inferenceDuration);
-    LOG_INFO("* Output time: %ld us\n", outputDuration);
-    LOG_INFO("--------------------------\n");
+    LOG_INFO("--------------------------");
+    LOG_INFO("--- Performance Metrics ---");
+    LOG_INFO("* Total frames processed: %lld", frameCount);
+    LOG_INFO("* Current FPS: %.2f", fps);
+    LOG_INFO("--- Per-frame Timing (microseconds) ---");
+    LOG_INFO("* Total processing time: %ld us", totalFrameDuration);
+    LOG_INFO("* Preprocessing time: %ld us", preprocessDuration);
+    LOG_INFO("* Inference time: %ld us", inferenceDuration);
+    LOG_INFO("* Output time: %ld us", outputDuration);
+    LOG_INFO("--------------------------");
     fflush(stdout);
 }

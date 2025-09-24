@@ -18,7 +18,7 @@
     RCLCPP_ERROR(rclcpp::get_logger("common"), __VA_ARGS__)
 #else
   #include <cstdio>
-  #define LOG_INFO(...) printf(__VA_ARGS__)
+  #define LOG_INFO(...) printf(__VA_ARGS__);printf("\n")
   #define LOG_WARN(...) printf(__VA_ARGS__)
   #define LOG_ERROR(...) printf(__VA_ARGS__)
 #endif
