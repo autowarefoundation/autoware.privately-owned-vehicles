@@ -60,23 +60,26 @@ class AutoSpeedNetworkInfer():
         keep = ops.nms(boxes, scores, iou_thres)
         return preds[keep]
 
-    def post_process_predictions(self, raw_predictions, conf_thres=0.65, iou_thres=0.45):
-        """
-        raw_preds: model output tensor
-        Returns filtered predictions [cx,cy,w,h,score,class] after confidence threshold + NMS
-        """
+    def post_process_predictions(self, raw_predictions, conf_thres=0.6, iou_thres=0.45):
         predictions = raw_predictions.squeeze(0).permute(1, 0)
-        boxes = predictions[:, :4]
+        boxes = predictions[:, :4]  # model gives cx,cy,w,h
         class_probs = predictions[:, 4:]
+
+        # --- confidence filter ---
         scores, class_ids = torch.max(class_probs.sigmoid(), dim=1)
         mask = scores > conf_thres
         if mask.sum() == 0:
             return torch.empty(0, 6)
+
+        # --- convert to xyxy before NMS ---
+        boxes_xyxy = self.xywh2xyxy(boxes[mask])
+
         combined = torch.cat([
-            boxes[mask],
+            boxes_xyxy,
             scores[mask].unsqueeze(1),
             class_ids[mask].float().unsqueeze(1)
         ], dim=1)
+
         return self.nms(combined, iou_thres)
 
     def inference(self, image: Image.Image):
@@ -94,14 +97,11 @@ class AutoSpeedNetworkInfer():
         if predictions.numel() == 0:
             return []
 
-        # Convert cx,cy,w,h -> x1,y1,x2,y2 in letterboxed image space
-        predictions[:, :4] = self.xywh2xyxy(predictions[:, :4])
-
-        # Remove padding and rescale to original image size
+        # --- adjust from letterboxed to original coords ---
         predictions[:, [0, 2]] = (predictions[:, [0, 2]] - pad_x) / scale
         predictions[:, [1, 3]] = (predictions[:, [1, 3]] - pad_y) / scale
 
-        # Clamp boxes to image size
+        # clamp to image bounds
         predictions[:, [0, 2]] = predictions[:, [0, 2]].clamp(0, orig_w)
         predictions[:, [1, 3]] = predictions[:, [1, 3]].clamp(0, orig_h)
 

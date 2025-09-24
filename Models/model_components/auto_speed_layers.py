@@ -253,16 +253,17 @@ class ASC(torch.nn.Module):
         b, c, h, w = x.size()
 
         # Pooling and averaging channel layers to get a single vector
-        y = torch.mean(x, dim=[2, 3])
+        y = torch.mean(x, dim=[2, 3], keepdim=True)
 
         # Expansion
-        c0 = self.exp0(y.unsqueeze(2))
+        # c0 = self.exp0(y.unsqueeze(2))
+        c0 = self.exp0(y.squeeze(-1))
         c0 = self.GeLU(c0)
-        c1 = c0.view(b, self.h, self.w)
+        c1 = c0.view(b, 1, self.h, self.w)
         c1 = self.GeLU(c1)
 
         # Context
-        c2 = self.ctx0(c1.unsqueeze(1))
+        c2 = self.ctx0(c1)
         c2 = self.GeLU(c2)
         c3 = self.ctx1(c2)
         c4 = self.GeLU(c3)

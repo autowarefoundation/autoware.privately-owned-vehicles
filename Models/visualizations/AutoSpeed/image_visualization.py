@@ -3,16 +3,26 @@ import cv2
 from PIL import Image
 from Models.inference.auto_speed_infer import AutoSpeedNetworkInfer
 
+color_map = {
+    1: (0, 0, 255),  # red
+    2: (0, 255, 255),  # yellow
+    3: (255, 255, 0)  # cyan
+}
+
 
 def make_visualization(prediction, input_image_filepath):
     img_cv = cv2.imread(input_image_filepath)
     for pred in prediction:
         x1, y1, x2, y2, conf, cls = pred
+
+        # Pick color, fallback to white if unknown class
+        color = color_map.get(int(cls), (255, 255, 255))
+
         x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
         # cv2.rectangle(img_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.rectangle(img_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
-        label = f"Class: {int(cls)} | Score: {conf:.2f}"
-        cv2.putText(img_cv, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.rectangle(img_cv, (x1, y1), (x2, y2), color, 2)
+        # label = f"Class: {int(cls)} | Score: {conf:.2f}"
+        # cv2.putText(img_cv, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
     cv2.imshow('Prediction Objects', img_cv)
     cv2.waitKey(0)
