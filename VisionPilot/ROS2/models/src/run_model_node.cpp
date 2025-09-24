@@ -29,7 +29,6 @@ RunModelNode::RunModelNode(const rclcpp::NodeOptions & options)
   const std::string input_topic = this->declare_parameter<std::string>("input_topic", "/sensors/camera/image_raw");
   output_topic_str_ = this->declare_parameter<std::string>("output_topic");
   model_type_ = this->declare_parameter<std::string>("model_type");
-  measure_latency_ = this->declare_parameter<bool>("measure_latency", true);
   gpu_backend_ = this->declare_parameter<std::string>("gpu_backend", "cuda"); // "cuda" or "hip"
 
   // Instantiate the backend
@@ -41,6 +40,9 @@ RunModelNode::RunModelNode(const rclcpp::NodeOptions & options)
     RCLCPP_ERROR(this->get_logger(), "Unknown backend: %s", backend_str.c_str());
     throw std::invalid_argument("Unknown backend type.");
   }
+
+  // Benchmark: Output results at a certain frequency
+  timer_ = FpsTimer(BENCHMARK_OUTPUT_FREQUENCY);
 
   // Setup publisher and subscriber
   pub_ = image_transport::create_publisher(this, output_topic_str_);
@@ -56,6 +58,9 @@ RunModelNode::RunModelNode(const rclcpp::NodeOptions & options)
 
 void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
 {
+  // Benchmark: Receive new frame
+  timer_.startNewFrame();
+
   cv_bridge::CvImagePtr in_image_ptr;
   try {
     in_image_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
@@ -64,28 +69,13 @@ void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
     return;
   }
 
-  // --- Latency Watcher Start ---
-  if (measure_latency_ && (++frame_count_ % LATENCY_SAMPLE_INTERVAL == 0)) {
-    inference_start_time_ = std::chrono::steady_clock::now();
-  }
-  // -----------------------------
+  // Benchmark: Preprocess done
+  timer_.recordPreprocessEnd();
 
   if (!backend_->doInference(in_image_ptr->image)) {
     RCLCPP_WARN(this->get_logger(), "Inference failed.");
     return;
   }
-
-  // --- Latency Watcher End & Report ---
-  if (measure_latency_ && (frame_count_ % LATENCY_SAMPLE_INTERVAL == 0)) {
-    auto inference_end_time = std::chrono::steady_clock::now();
-    auto latency_ms =
-      std::chrono::duration<double, std::milli>(inference_end_time - inference_start_time_)
-        .count();
-    RCLCPP_INFO(
-      this->get_logger(), "Frame %zu: Inference Latency: %.2f ms (%.1f FPS)", frame_count_,
-      latency_ms, 1000.0 / latency_ms);
-  }
-  // ------------------------------------
 
   // Get tensor data from backend
   const float* tensor_data = backend_->getRawTensorData();
@@ -117,9 +107,6 @@ void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
   } else if (model_type_ == "segmentation") {
     // Segmentation: create binary masks
     cv::Mat mask;
-    
-    // --- Mask Generation Timing Start ---
-    auto mask_start_time = std::chrono::steady_clock::now();
     
     bool gpu_success = false;
     
@@ -175,23 +162,20 @@ void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
       }
     }
     
-    // --- Mask Generation Timing End & Report ---
-    auto mask_end_time = std::chrono::steady_clock::now();
-    auto mask_time_ms = std::chrono::duration<double, std::milli>(mask_end_time - mask_start_time).count();
-    
-    if (measure_latency_ && (frame_count_ % LATENCY_SAMPLE_INTERVAL == 0)) {
-      RCLCPP_INFO(this->get_logger(), "Frame %zu: Get mask time: %.2f ms", frame_count_, mask_time_ms);
-    }
-    // ---------------------------------------------
-    
     // Resize mask to original image size (use NEAREST for masks)
     cv::Mat resized_mask;
     cv::resize(mask, resized_mask, in_image_ptr->image.size(), 0, 0, cv::INTER_NEAREST);
     
+    // Benchmark: Inference done
+    timer_.recordInferenceEnd();
+
     // Publish binary mask as MONO8
     sensor_msgs::msg::Image::SharedPtr out_msg = 
       cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, resized_mask).toImageMsg();
     pub_.publish(out_msg);
+
+    // Benchmark: Output done
+    timer_.recordOutputEnd();
   }
 }
 
