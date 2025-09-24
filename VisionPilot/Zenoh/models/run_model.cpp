@@ -12,6 +12,7 @@
 #include "tensorrt_backend.hpp"
 #include "masks_visualization_engine.hpp"
 #include "depth_visualization_engine.hpp"
+#include "fps_timer.hpp"
 
 using namespace cv; 
 using namespace std; 
@@ -25,6 +26,7 @@ using namespace autoware_pov::vision;
 #define DEFAULT_GPU_ID 0
 #define MODEL_TYPE "segmentation"
 
+#define BENCHMARK_OUTPUT_FREQUENCY 100
 #define RECV_BUFFER_SIZE 100
 
 int main(int argc, char* argv[]) {
@@ -95,12 +97,12 @@ int main(int argc, char* argv[]) {
         std::cout << "Publishing results to '" << output_keyexpr << "'..." << std::endl;
         z_owned_sample_t sample;
 
-        // For performance estimation
-        int frame_count = 0;
-        auto start_time = std::chrono::steady_clock::now();
+        // Benchmark: Output results at a certain frequency
+        FpsTimer timer(BENCHMARK_OUTPUT_FREQUENCY);
 
         while (Z_OK == z_recv(z_loan(handler), &sample)) {
-            auto processing_start_time = std::chrono::steady_clock::now();
+            // Benchmark: Receive new frame
+            timer.startNewFrame();
 
             // Get the loaned sample and extract the payload
             const z_loaned_sample_t* loaned_sample = z_loan(sample);
@@ -127,13 +129,13 @@ int main(int argc, char* argv[]) {
 
             cv::Mat frame(row, col, type, (uint8_t *)ptr);
 
+            // Benchmark: Preprocess done
+            timer.recordPreprocessEnd();
+
             // Run inference
-            auto last_time = std::chrono::steady_clock::now();
             if (!backend_->doInference(frame)) {
                 throw std::runtime_error("Failed to run inference on the frame");
             }
-            auto do_inference_time = std::chrono::steady_clock::now() - last_time;
-            last_time = std::chrono::steady_clock::now();
 
             // Model-type specific processing
             const float* tensor_data = backend_->getRawTensorData();
@@ -142,8 +144,6 @@ int main(int argc, char* argv[]) {
                 throw std::runtime_error("Invalid tensor shape");
             }
             cv::Mat final_frame;
-            // TODO(CY): Run processing time
-            decltype(last_time-last_time) get_output_time;  // Get the type of the duration
             if (model_type == "depth") {
                 // Depth estimation: output raw depth values (CV_32FC1)
                 int height = static_cast<int>(tensor_shape[2]);
@@ -211,8 +211,6 @@ int main(int argc, char* argv[]) {
                 cv::Mat resized_mask;
                 cv::resize(mask, resized_mask, frame.size(), 0, 0, cv::INTER_NEAREST);
 
-                get_output_time = std::chrono::steady_clock::now() - last_time;
-
                 //// Only send out the mask
                 final_frame = resized_mask;
                 //// Debug: Show the blended result directly
@@ -220,6 +218,9 @@ int main(int argc, char* argv[]) {
                 //    std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
                 //final_frame = viz_engine_->visualize(resized_mask, frame);
             }
+
+            // Benchmark: Inference done
+            timer.recordInferenceEnd();
 
             // Publish the processed frame via Zenoh
             z_publisher_put_options_t options;
@@ -236,21 +237,8 @@ int main(int argc, char* argv[]) {
             z_bytes_copy_from_buf(&payload_out, pixelPtr, dataSize);
             z_publisher_put(z_loan(pub), z_move(payload_out), &options);
 
-            // Estimate processing time and frequency
-            auto processing_end_time = std::chrono::steady_clock::now();
-            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(processing_end_time - processing_start_time).count();
-            frame_count++;
-            auto current_time = std::chrono::steady_clock::now();
-            auto elapsed_s = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
-            if (elapsed_s >= 1) {
-                double fps = static_cast<double>(frame_count) / elapsed_s;
-                std::cout << "Processing time: " << elapsed_ms << "ms, FPS: " << fps << std::endl;
-                std::cout << "Inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(do_inference_time).count() << "ms, "
-                          << "Get output time: " << std::chrono::duration_cast<std::chrono::milliseconds>(get_output_time).count() << "ms" << std::endl;
-                // Reset frame count and start time for the next second
-                frame_count = 0;
-                start_time = current_time;
-            }
+            // Benchmark: Output done
+            timer.recordOutputEnd();
         }
         
         // Cleanup

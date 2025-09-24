@@ -71,6 +71,7 @@ add_executable(run_model run_model.cpp
                          ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
                          ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp
                          ${MODEL_ROOTDIR}/visualizers/depth_visualization_engine.cpp
+                         ${MODEL_ROOTDIR}/benchmark/fps_timer.cpp
               )
 target_compile_definitions(run_model PRIVATE LOG_TYPE=0)
 target_link_libraries(run_model PRIVATE
