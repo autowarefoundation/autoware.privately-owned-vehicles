@@ -1,0 +1,4 @@
+# Ignore the temporary build folder
+build
+# Ignore install folder
+install

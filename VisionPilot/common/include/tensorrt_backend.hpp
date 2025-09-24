@@ -6,6 +6,8 @@
 #include <memory>
 #include <vector>
 
+#include "logging.hpp"
+
 namespace autoware_pov::vision
 {
 
