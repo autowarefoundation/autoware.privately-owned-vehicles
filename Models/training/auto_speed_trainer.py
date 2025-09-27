@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore")
 
 def train(args, params, run_dir, log_writer):
     # Model
-    model = AutoSpeedNetwork().build_model(version='n', num_classes=4)
+    model = AutoSpeedNetwork().build_model(version=args.version, num_classes=4)
     model.cuda()
 
     # Optimizer
@@ -230,7 +230,7 @@ def val(args, params, run_dir, model=None):
 def profile(args, params):
     import thop
     shape = (1, 3, args.input_size, args.input_size)
-    model = AutoSpeedNetwork().build_model(version='n', num_classes=4)
+    model = AutoSpeedNetwork().build_model(version=args.version, num_classes=4)
     model.eval()
     model(torch.zeros(shape))
 
@@ -266,6 +266,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch-size', default=32, type=int)
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--local_rank', default=0, type=int)
+    parser.add_argument('--version', default='n', type=str)
     # parser.add_argument('--epochs', default=30, type=int)
     parser.add_argument('--runs_dir', default="runs", type=str)
     parser.add_argument('--epochs', default=30, type=int)
