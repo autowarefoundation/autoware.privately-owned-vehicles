@@ -1,9 +1,6 @@
 #include "pure_pursuit_node.hpp"
 
-double sigmoid(double x)
-{
-  return 58.0 / (1.0 + (x != 0) ? exp(-0.2 * x + 5.0) : 1.0);
-}
+//TODO; rename package, separate core cpp implementation from ROS2 node
 
 PurePursuitNode::PurePursuitNode(const rclcpp::NodeOptions &options) : Node("pure_pursuit_node", "", options), pp(2.85)
 {
@@ -28,7 +25,7 @@ void PurePursuitNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   // ------------------------------
   // PI Controller for throttle
   // ------------------------------
-  double v_ref = 15; // [m/s]
+  double v_ref = 22.22; // [m/s]
   double error = v_ref - vx;
 
   // Integrator update (with anti-windup)
@@ -44,7 +41,10 @@ void PurePursuitNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 
   auto control_msg = carla_msgs::msg::CarlaEgoVehicleControl();
   control_msg.header.stamp = this->now();
-  control_msg.steer = std::clamp(-(180.0 / M_PI) * (steering_angle_ / 70.0), -1.0, 1.0);
+  // TODO: ackermann model with 48deg and 70deg, turning radius seems to be f(steering_angle, speed)
+  // control_msg.steer = std::clamp((180.0 / M_PI) * (steering_angle_ / 49.0), -1.0, 1.0); // 49deg is for low speeds 0.5m/s
+  
+  control_msg.steer = std::clamp((180.0 / M_PI) * (steering_angle_ / 49.0), -1.0, 1.0);
 
   control_msg.throttle = throttle_cmd;
   control_msg.brake = brake_cmd;
@@ -65,24 +65,19 @@ void PurePursuitNode::computeSteering(const std_msgs::msg::Float32MultiArray::Sh
   yaw_error_ = msg->data[7];
   curvature_ = msg->data[11];
   // double steering_angle = pp.computeSteering(cte, yaw_error, curvature, forward_velocity);
-  double lookahead_distance_ = 5.0 ;//+ sigmoid(forward_velocity_);
-  RCLCPP_INFO(this->get_logger(), "Lookahead Distance: %.2f ", lookahead_distance_);
+
   double wheelbase = 2.85;
 
-  double b = -std::tan(yaw_error_);
-  double a = 0.5 * curvature_ * std::pow(1.0 + b * b, 1.5);
-  double c = -cte;
-  for (double x = 0; x < lookahead_distance_; x += 0.1)
-  {
-    double y = a * x * x + b * x + c;
-    double dist = std::sqrt(x * x + y * y);
-    if (dist >= lookahead_distance_)
-    {
-      yaw_error_ = std::atan2(y, x);
-      break;
-    }
-  }
-  steering_angle_ = std::atan2(2 * wheelbase * std::sin(yaw_error_), lookahead_distance_) + std::atan2(curvature_ * wheelbase, 1.0);
+  // it is observed that turning radius increases with speed, with the same steering angle command
+  // velocity m/s, turning radius m
+  // <=2.5 , 3.0
+  // 5.0   , 3.5
+  // 7.5   , 4
+
+  // Stanley + curvature feedforward
+  double k = 2.8; // control gain
+  steering_angle_ = 2.0 * yaw_error_ + std::atan(k * cte / (forward_velocity_ + 1))  - 4.0 * std::atan(curvature_ * wheelbase);
+
 }
 
 int main(int argc, char *argv[])
