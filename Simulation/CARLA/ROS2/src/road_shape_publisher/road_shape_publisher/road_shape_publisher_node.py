@@ -11,6 +11,7 @@ from nav_msgs.msg import Path
 LOCAL_PATH_LEN = 20.0     # meters
 STEP_DISTANCE = 0.5       # distance between waypoints
 LANE_WIDTH = 3.5          # meters, typical lane width
+FRONT2BASE = 1.425        # meters, distance from front of vehicle to hero base link
 
 def yaw_to_quaternion(yaw_deg):
     yaw = math.radians(yaw_deg)
@@ -171,9 +172,9 @@ class RoadShapePublisher(Node):
             
             ps = PoseStamped()
             ps.header.stamp = ros_time
-            ps.header.frame_id = "hero"
-            ps.pose.position.x = local_pos[0]
-            ps.pose.position.y = -local_pos[1] # CARLA uses left-handed coordinate system
+            ps.header.frame_id = "hero_front"  # relative to front of ego vehicle
+            ps.pose.position.x = local_pos[0] - np.cos(ego_yaw) * FRONT2BASE
+            ps.pose.position.y = -local_pos[1] - np.sin(ego_yaw) * FRONT2BASE # CARLA uses left-handed coordinate system
             ps.pose.position.z = local_pos[2]
 
             wp_yaw = math.radians(wp.transform.rotation.yaw)
