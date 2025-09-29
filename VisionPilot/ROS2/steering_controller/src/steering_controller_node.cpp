@@ -1,14 +1,22 @@
-#include "pure_pursuit_node.hpp"
+#include "steering_controller_node.hpp"
 
-//TODO; rename package, separate core cpp implementation from ROS2 node
 
-PurePursuitNode::PurePursuitNode(const rclcpp::NodeOptions &options) : Node("pure_pursuit_node", "", options), pp(2.85)
+  // it is observed that turning radius increases with speed, with the same steering angle command
+  // velocity m/s, turning radius m
+  // <=2.5 , 3.0
+  // 5.0   , 3.5
+  // 7.5   , 4
+
+// TODO: separate core cpp implementation from ROS2 node
+
+SteeringControllerNode::SteeringControllerNode(const rclcpp::NodeOptions &options) : Node("steering_controller_node", "", options),
+                                                                                    sc(2.85, 2.0, 2.8, 1.0, 4.0)
 {
   this->set_parameter(rclcpp::Parameter("use_sim_time", true));
-  sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 10, std::bind(&PurePursuitNode::computeSteering, this, std::placeholders::_1));
-  odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 10, std::bind(&PurePursuitNode::odomCallback, this, std::placeholders::_1));
+  sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 10, std::bind(&SteeringControllerNode::stateCallback, this, std::placeholders::_1));
+  odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 10, std::bind(&SteeringControllerNode::odomCallback, this, std::placeholders::_1));
   steering_pub_ = this->create_publisher<carla_msgs::msg::CarlaEgoVehicleControl>("carla/hero/vehicle_control_cmd", 10);
-  RCLCPP_INFO(this->get_logger(), "PurePursuit Node started");
+  RCLCPP_INFO(this->get_logger(), "SteeringController Node started");
   curvature_ = 0.0;
   forward_velocity_ = 0.0;
   steering_angle_ = 0.0;
@@ -16,7 +24,7 @@ PurePursuitNode::PurePursuitNode(const rclcpp::NodeOptions &options) : Node("pur
   yaw_error_ = 0.0;
 }
 
-void PurePursuitNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
+void SteeringControllerNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
   double vx = msg->twist.twist.linear.x;
   double vy = msg->twist.twist.linear.y;
@@ -43,7 +51,7 @@ void PurePursuitNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   control_msg.header.stamp = this->now();
   // TODO: ackermann model with 48deg and 70deg, turning radius seems to be f(steering_angle, speed)
   // control_msg.steer = std::clamp((180.0 / M_PI) * (steering_angle_ / 49.0), -1.0, 1.0); // 49deg is for low speeds 0.5m/s
-  
+
   control_msg.steer = std::clamp((180.0 / M_PI) * (steering_angle_ / 49.0), -1.0, 1.0);
 
   control_msg.throttle = throttle_cmd;
@@ -54,7 +62,7 @@ void PurePursuitNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   steering_pub_->publish(control_msg);
 }
 
-void PurePursuitNode::computeSteering(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
+void SteeringControllerNode::stateCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg)
 {
   if (msg->data.size() < 13)
   {
@@ -64,26 +72,17 @@ void PurePursuitNode::computeSteering(const std_msgs::msg::Float32MultiArray::Sh
   double cte = msg->data[3];
   yaw_error_ = msg->data[7];
   curvature_ = msg->data[11];
-  // double steering_angle = pp.computeSteering(cte, yaw_error, curvature, forward_velocity);
+  double steering_angle_1 = sc.computeSteering(cte, yaw_error_, curvature_, forward_velocity_);
+  //TODO: debug why the two methods give different results
 
-  double wheelbase = 2.85;
-
-  // it is observed that turning radius increases with speed, with the same steering angle command
-  // velocity m/s, turning radius m
-  // <=2.5 , 3.0
-  // 5.0   , 3.5
-  // 7.5   , 4
-
-  // Stanley + curvature feedforward
-  double k = 2.8; // control gain
-  steering_angle_ = 2.0 * yaw_error_ + std::atan(k * cte / (forward_velocity_ + 1))  - 4.0 * std::atan(curvature_ * wheelbase);
-
+  steering_angle_ = 2.0 * yaw_error_ + std::atan(2.8 * cte / (forward_velocity_ + 1)) - 4.0 * std::atan(curvature_ * 2.85);
+  std::cout << "steering_angle_1: " << steering_angle_1 * 180.0 / M_PI << ", steering_angle_2: " << steering_angle_ * 180.0 / M_PI << std::endl;
 }
 
 int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<PurePursuitNode>(rclcpp::NodeOptions()));
+  rclcpp::spin(std::make_shared<SteeringControllerNode>(rclcpp::NodeOptions()));
   rclcpp::shutdown();
   return 0;
 }
