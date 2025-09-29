@@ -1,4 +1,0 @@
-# Ignore ROS 2 intermediate files
-build
-install
-log
