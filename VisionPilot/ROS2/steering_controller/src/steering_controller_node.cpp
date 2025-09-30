@@ -1,13 +1,12 @@
 #include "steering_controller_node.hpp"
 
-
   // it is observed that turning radius increases with speed, with the same steering angle command
   // velocity m/s, turning radius m
   // <=2.5 , 3.0
   // 5.0   , 3.5
   // 7.5   , 4
 
-// TODO: separate core cpp implementation from ROS2 node
+// TODO: separate longitudinal PI controller core cpp implementation from ROS2 node
 
 SteeringControllerNode::SteeringControllerNode(const rclcpp::NodeOptions &options) : Node("steering_controller_node", "", options),
                                                                                     sc(2.85, 2.0, 2.8, 1.0, 4.0)
@@ -17,6 +16,7 @@ SteeringControllerNode::SteeringControllerNode(const rclcpp::NodeOptions &option
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 10, std::bind(&SteeringControllerNode::odomCallback, this, std::placeholders::_1));
   steering_pub_ = this->create_publisher<carla_msgs::msg::CarlaEgoVehicleControl>("carla/hero/vehicle_control_cmd", 10);
   RCLCPP_INFO(this->get_logger(), "SteeringController Node started");
+  cte_ = 0.0;
   curvature_ = 0.0;
   forward_velocity_ = 0.0;
   steering_angle_ = 0.0;
@@ -69,14 +69,10 @@ void SteeringControllerNode::stateCallback(const std_msgs::msg::Float32MultiArra
     RCLCPP_WARN(this->get_logger(), "Received message with insufficient data size: %zu", msg->data.size());
     return;
   }
-  double cte = msg->data[3];
+  cte_ = msg->data[3];
   yaw_error_ = msg->data[7];
   curvature_ = msg->data[11];
-  double steering_angle_1 = sc.computeSteering(cte, yaw_error_, curvature_, forward_velocity_);
-  //TODO: debug why the two methods give different results
-
-  steering_angle_ = 2.0 * yaw_error_ + std::atan(2.8 * cte / (forward_velocity_ + 1)) - 4.0 * std::atan(curvature_ * 2.85);
-  std::cout << "steering_angle_1: " << steering_angle_1 * 180.0 / M_PI << ", steering_angle_2: " << steering_angle_ * 180.0 / M_PI << std::endl;
+  steering_angle_ = sc.computeSteering(cte_, yaw_error_, forward_velocity_, curvature_);
 }
 
 int main(int argc, char *argv[])

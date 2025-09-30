@@ -19,5 +19,5 @@ public:
 
 private:
     SteeringController sc;
-    double curvature_, forward_velocity_, steering_angle_, integral_error_, yaw_error_;
+    double cte_,curvature_, forward_velocity_, steering_angle_, integral_error_, yaw_error_;
 };
