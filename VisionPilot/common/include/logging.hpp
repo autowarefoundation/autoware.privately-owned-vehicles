@@ -19,8 +19,8 @@
 #else
   #include <cstdio>
   #define LOG_INFO(...) printf(__VA_ARGS__);printf("\n")
-  #define LOG_WARN(...) printf(__VA_ARGS__)
-  #define LOG_ERROR(...) printf(__VA_ARGS__)
+  #define LOG_WARN(...) printf(__VA_ARGS__);printf("\n")
+  #define LOG_ERROR(...) printf(__VA_ARGS__);printf("\n")
 #endif
 
 #endif // LOGGING_HPP_
