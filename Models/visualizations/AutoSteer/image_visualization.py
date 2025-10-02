@@ -1,8 +1,8 @@
-import cv2
+import os
 import sys
 import math
 import numpy as np
-from PIL import ImageDraw
+from PIL import Image, ImageDraw
 from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
@@ -104,3 +104,75 @@ def make_visualization(
     # Return visualized image
     vis_image = np.array(image)
     return vis_image
+
+
+def main(): 
+
+    parser = ArgumentParser()
+    parser.add_argument(
+        "-p", 
+        "--model_checkpoint_path", 
+        dest = "model_checkpoint_path", 
+        help = "Path to Pytorch checkpoint file to load model dict",
+        required = False
+    )
+    parser.add_argument(
+        "-i", 
+        "--input_image_dirpath", 
+        dest = "input_image_dirpath", 
+        help = "Path to input image directory which will be processed by AutoSteer",
+        required = True
+    )
+    parser.add_argument(
+        "-o",
+        "--output_image_dirpath",
+        dest = "output_image_dirpath",
+        help = "Path to output image directory where visualizations will be saved",
+        required = True
+    )
+    args = parser.parse_args()
+
+    input_image_dirpath = args.input_image_dirpath
+    output_image_dirpath = args.output_image_dirpath
+    if (not os.path.exists(output_image_dirpath)):
+        os.makedirs(output_image_dirpath)
+
+    # Saved model checkpoint path
+    model_checkpoint_path = (
+        args.model_checkpoint_path 
+        if args.model_checkpoint_path is not None 
+        else ""
+    )
+    model = AutoSteerNetworkInfer(
+        checkpoint_path = model_checkpoint_path
+    )
+    print("AutoSteer model successfully loaded!")
+
+    # Process through input image dir
+    for filename in sorted(os.listdir(input_image_dirpath)):
+        if (filename.endswith((".png", ".jpg", ".jpeg"))):
+
+            # Fetch image
+            input_image_filepath = os.path.join(
+                input_image_dirpath, filename
+            )
+            print(f"Reading Image: {input_image_filepath}")
+            image = Image.open(input_image_filepath).convert("RGB")
+            # Convert image to Numpy array
+            np_image = np.array(image)
+
+            # Inference + visualization
+            prediction = model.inference(np_image)
+            vis_image = make_visualization(np_image, prediction)
+            output_image_filepath = os.path.join(
+                output_image_dirpath, filename
+            )
+            Image.fromarray(vis_image).save(output_image_filepath)
+
+        else:
+            print(f"Skipping non-image file: {filename}")
+            continue
+
+
+if __name__ == "__main__":
+    main()
