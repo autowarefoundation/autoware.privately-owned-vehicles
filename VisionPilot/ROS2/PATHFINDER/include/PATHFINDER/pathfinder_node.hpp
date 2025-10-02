@@ -32,7 +32,7 @@ private:
     Estimator bayesFilter;
     const double proc_SD = 0.2;
     const double meas_SD = 0.2;
-    const double epsilon = 0.05;
+    const double epsilon = 0.01;
     std::array<double, 3UL> left_coeff;
     std::array<double, 3UL> right_coeff;
     std::array<double, 3UL> path_coeff;
