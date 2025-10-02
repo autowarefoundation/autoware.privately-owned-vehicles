@@ -31,9 +31,9 @@ def make_visualization(
     POINT_R = 4
     LINE_W = 3
     DOWN_MARGIN = 310
-    COLOR_OFFSET = (255, 0, 0)      # Blue
+    COLOR_OFFSET = (0, 255, 255)    # Cyan
     COLOR_EGOPATH = (255, 255, 0)   # Yellow
-    COLOR_END = (255, 0, 255)       # Red
+    COLOR_END = (255, 0, 0)         # Red
 
     # Offsets
     draw.ellipse(
