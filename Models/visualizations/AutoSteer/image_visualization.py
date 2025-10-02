@@ -28,8 +28,8 @@ def make_visualization(
 
     # Start drawing
     draw = ImageDraw.Draw(image)
-    POINT_R = 3
-    LINE_W = 2
+    POINT_R = 4
+    LINE_W = 3
     DOWN_MARGIN = 310
     COLOR_OFFSET = (255, 0, 0)      # Blue
     COLOR_EGOPATH = (255, 255, 0)   # Yellow
@@ -165,7 +165,7 @@ def main():
             img_id = filename.split(".")[0].zfill(3)
             output_image_filepath = os.path.join(
                 output_image_dirpath,
-                f"{img_id}.jpg"
+                f"{img_id}.png"
             )
             vis_image.save(output_image_filepath)
 
