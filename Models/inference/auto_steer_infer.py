@@ -14,7 +14,6 @@ class AutoSteerNetworkInfer():
         # Image loader
         self.image_loader = transforms.Compose(
             [
-                transforms.Resize((320, 640)),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean = [0.485, 0.456, 0.406], 
@@ -57,6 +56,7 @@ class AutoSteerNetworkInfer():
         prediction = self.model(image_tensor)
 
         # Get output
-        prediction = prediction.squeeze(0).cpu().detach().numpy()[0]
+        _, path_prediction = prediction
+        path_prediction = path_prediction.squeeze(0).cpu().detach().numpy()
 
-        return prediction
+        return path_prediction

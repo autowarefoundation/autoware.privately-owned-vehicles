@@ -9,7 +9,7 @@ from inference.auto_steer_infer import AutoSteerNetworkInfer
 
     
 def make_visualization(
-        image: np.ndarray,
+        image: Image,
         prediction: np.ndarray
 ):
 
@@ -102,8 +102,7 @@ def make_visualization(
     )
 
     # Return visualized image
-    vis_image = np.array(image)
-    return vis_image
+    return image
 
 
 def main(): 
@@ -158,16 +157,17 @@ def main():
             )
             print(f"Reading Image: {input_image_filepath}")
             image = Image.open(input_image_filepath).convert("RGB")
-            # Convert image to Numpy array
-            np_image = np.array(image)
+            image = image.resize((640, 320))
 
             # Inference + visualization
-            prediction = model.inference(np_image)
-            vis_image = make_visualization(np_image, prediction)
+            prediction = model.inference(image)
+            vis_image = make_visualization(image, prediction)
+            img_id = filename.split(".")[0].zfill(3)
             output_image_filepath = os.path.join(
-                output_image_dirpath, filename
+                output_image_dirpath,
+                f"{img_id}.jpg"
             )
-            Image.fromarray(vis_image).save(output_image_filepath)
+            vis_image.save(output_image_filepath)
 
         else:
             print(f"Skipping non-image file: {filename}")
