@@ -28,8 +28,8 @@ def make_visualization(
 
     # Start drawing
     draw = ImageDraw.Draw(image)
-    POINT_R = 4
-    LINE_W = 3
+    POINT_R = 3
+    LINE_W = 2
     DOWN_MARGIN = 310
     COLOR_OFFSET = (0, 255, 255)    # Cyan
     COLOR_EGOPATH = (255, 255, 0)   # Yellow
