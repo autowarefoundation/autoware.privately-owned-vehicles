@@ -5,12 +5,12 @@ import torch
 import onnx
 from argparse import ArgumentParser
 import sys
-sys.path.append('../..')
+sys.path.append('..')
 from model_components.scene_seg_network import SceneSegNetwork
 from model_components.scene_3d_network import Scene3DNetwork
 from model_components.ego_path_network import EgoPathNetwork
 from model_components.domain_seg_network import DomainSegNetwork
-
+from model_components.auto_speed_network import AutoSpeedNetwork
 def main():
 
     # Argument parser for data root path and save path
@@ -53,21 +53,36 @@ def main():
         print('Processing DomainSeg Network')
         sceneSegNetwork = SceneSegNetwork()
         model = DomainSegNetwork(sceneSegNetwork)
+    elif (model_name == 'AutoSpeed'):
+        print('Processing AutoSpeed Network')
+        autospeed_builder = AutoSpeedNetwork()
+        model = autospeed_builder.build_model(version='n', num_classes=4)
     else:
         raise Exception("Model name not specified correctly, please check")
     
     # Loading Pytorch checkpoint
     print('Loading Network')
     if(len(model_checkpoint_path) > 0):
-            model.load_state_dict(torch.load \
-                (model_checkpoint_path, weights_only=True, map_location=device))
+            checkpoint = torch.load(model_checkpoint_path, weights_only=False, map_location=device)
+            # Handle different checkpoint formats
+            if isinstance(checkpoint, dict) and 'model' in checkpoint:
+                # If checkpoint['model'] is a model object, extract its state_dict
+                if hasattr(checkpoint['model'], 'state_dict'):
+                    model.load_state_dict(checkpoint['model'].state_dict())
+                else:
+                    model.load_state_dict(checkpoint['model'])
+            else:
+                model.load_state_dict(checkpoint)
     else:
         raise ValueError('No path to checkpiont file provided in class initialization')
     model = model.to(device)
     model = model.eval()
 
-    # Fake input data
-    input_shape=(1, 3, 320, 640)
+    # Fake input data (AutoSpeed uses 640x640)
+    if model_name == 'AutoSpeed':
+        input_shape=(1, 3, 640, 640)
+    else:
+        input_shape=(1, 3, 320, 640)
     input_data = torch.randn(input_shape)
     input_data = input_data.to(device)
 
