@@ -55,7 +55,7 @@ class Augmentations():
 
         self.transform_shape_bev = A.Compose(
             [
-                A.Resize(width = 640, height = 1280),
+                A.Resize(width = 640, height = 320),
             ]
         )
 

@@ -4,6 +4,7 @@
 import os
 import random
 import torch
+import matplotlib.pyplot as plt
 from PIL import Image
 from typing import Literal, get_args
 import sys
@@ -24,15 +25,15 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH = 'DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)' #args.root
+    ROOT_PATH = '/home/zain/Autoware/Data/AutoSteer/'#'DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)' #args.root
 
     # Model save root path
-    MODEL_SAVE_ROOT_PATH = '{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/models/' #args.model_save_root_path
+    MODEL_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/models/' #'{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/models/' #args.model_save_root_path
     if (not os.path.exists(MODEL_SAVE_ROOT_PATH)):
         os.makedirs(MODEL_SAVE_ROOT_PATH)
 
     # Visualizations save root path
-    VIS_SAVE_ROOT_PATH = '{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/figures/' #args.vis_save_root_path
+    VIS_SAVE_ROOT_PATH = '/home/zain/Autoware/Privately_Owned_Vehicles/Models/saves/AutoSteer/figures/'#'{PATH TO POV PROJECT ROOT}/Models/saves/AutoSteer/figures/' #args.vis_save_root_path
     if (not os.path.exists(VIS_SAVE_ROOT_PATH)):
         os.makedirs(VIS_SAVE_ROOT_PATH)
 
@@ -104,9 +105,9 @@ def main():
     
     # Training loop parameters
     NUM_EPOCHS = 50
-    LOGSTEP_LOSS = 100
-    LOGSTEP_VIS = 200
-    LOGSTEP_MODEL = 10000
+    LOGSTEP_LOSS = 25
+    LOGSTEP_VIS = 25
+    LOGSTEP_MODEL = 5000
 
     # Val visualization param
     N_VALVIS = 25
@@ -116,7 +117,7 @@ def main():
     print('Beginning Training')
 
     # Batch Size
-    batch_size = 8
+    batch_size = 1
 
     for epoch in range(0, NUM_EPOCHS):
 
@@ -124,20 +125,20 @@ def main():
         print(f"EPOCH : {epoch}")
 
         # Batch Size Schedule
-        if (epoch > 2 and epoch <= 4):
-            batch_size = 6
-        elif (epoch > 4 and epoch <= 6):
-            batch_size = 4
-        elif (epoch > 8):
-            batch_size = 2
+        #if (epoch > 10 and epoch <= 30):
+        #    batch_size = 16
+        #elif (epoch > 30 and epoch <= 40):
+        #    batch_size = 8
+        #elif (epoch > 40):
+        #    batch_size = 4
       
         # Learning Rate Schedule
-        if(epoch <= 4):
+        if(epoch <= 20):
             trainer.set_learning_rate(0.0005)
-        elif(epoch > 4 and epoch < 8):
+        elif(epoch > 20 and epoch < 40):
             trainer.set_learning_rate(0.0001)
-        elif(epoch > 8):
-            trainer.set_learning_rate(0.00001)
+        elif(epoch > 40):
+            trainer.set_learning_rate(0.00005)
 
         # Augmentation Schedule
         apply_augmentation = True
@@ -197,7 +198,7 @@ def main():
            
             current_dataset = data_list[msdict["data_list_count"]]
             current_dataset_iter = msdict[current_dataset]["iter"]
-            [   frame_id, bev_image,
+            [   frame_id, bev_image, binary_seg, data,
                 homotrans_mat,
                 bev_egopath, reproj_egopath,
                 bev_egoleft, reproj_egoleft,
@@ -225,7 +226,7 @@ def main():
             ).convert("RGB")
           
             # Assign data
-            trainer.set_data(homotrans_mat, bev_image, perspective_image, \
+            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data, \
                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                 reproj_egoleft, reproj_egoright)
             
@@ -285,7 +286,7 @@ def main():
                         for val_count in range(0, msdict[dataset]["N_vals"]):
 
                             # Fetch data
-                            [   frame_id, bev_image,
+                            [   frame_id, bev_image, binary_seg, data,
                                 homotrans_mat,
                                 bev_egopath, reproj_egopath,
                                 bev_egoleft, reproj_egoleft,
@@ -313,7 +314,7 @@ def main():
                             ).convert("RGB")
 
                             # Assign data
-                            trainer.set_data(homotrans_mat, bev_image, perspective_image, \
+                            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data,\
                                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                                 reproj_egoleft, reproj_egoright)
                             
@@ -327,7 +328,7 @@ def main():
                             trainer.run_model()
 
                             # Get running total of loss value
-                            msdict[dataset]["total_running"] += trainer.get_total_loss()
+                            msdict[dataset]["total_running"] += trainer.get_total_loss_value()
 
                             # Save visualization to Tensorboard
                             if(val_count < N_VALVIS): 

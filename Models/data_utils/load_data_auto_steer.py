@@ -4,6 +4,8 @@ import os
 import json
 import pathlib
 import numpy as np
+import math
+import cv2
 import sys
 sys.path.append(os.path.abspath(os.path.join(
     os.path.dirname(__file__), 
@@ -18,8 +20,8 @@ from Models.data_utils.check_data import CheckData
 VALID_DATASET_LITERALS = Literal[
     # "BDD100K",
     # "COMMA2K19",
-    "CULANE",
-    "CURVELANES",
+    #"CULANE",
+    #"CURVELANES",
     # "ROADWORK",
     "TUSIMPLE"
 ]
@@ -116,6 +118,43 @@ class LoadDataAutoSteer():
     # Get sizes of Train/Val sets
     def getItemCount(self):
         return self.N_trains, self.N_vals
+    
+    def calcSegMask(self, egoleft, egoright):
+        
+        # Left/Right ego lane points defining a contour
+        contour_points = []
+
+        # Parse egoleft lane
+        for i in range (0, len(egoleft)):
+            point = egoleft[i]
+            contour_points.append([point[0]*640, point[1]*320])
+
+        # Parse egoright lane
+        for i in range (0, len(egoright)):
+            point = egoright[len(egoright) - i - 1]
+            contour_points.append([point[0]*640, point[1]*320])
+
+        # Get binary segmentation mask
+        contour = np.array(contour_points, dtype=np.int32)
+        binary_segmenation = np.zeros([320, 640], np.uint8)
+        cv2.drawContours(binary_segmenation,[contour],0,(255),-1)
+        return binary_segmenation
+
+    def calcData(self, ego_left, ego_right, ego_path):
+        x_left_lane_offset = ego_left[0][0]
+        x_right_lane_offset = ego_right[0][0]
+        x_ego_path_offset = ego_path[0][0]
+
+        start_angle = math.atan((ego_path[2][0]*640 - ego_path[0][0]*640)/abs((ego_path[2][1]*320 - ego_path[0][1]*320)))
+        end_angle = math.atan((ego_path[-1][0]*640 - ego_path[-3][0]*640)/abs((ego_path[-1][1]*320 - ego_path[-3][1]*320)))
+
+        x_ego_path_end = ego_path[-1][0]
+        y_ego_path_end = ego_path[-1][1]
+
+        data = [x_left_lane_offset, x_right_lane_offset, x_ego_path_offset, \
+                start_angle, end_angle, x_ego_path_end, y_ego_path_end]
+
+        return data
        
     # Get item at index ith, returning img and EgoPath
     def getItem(self, index, is_train: bool):
@@ -158,6 +197,12 @@ class LoadDataAutoSteer():
             reproj_egoright = self.train_labels[index]["reproj_egoright"]
             reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
+            # Binary Segmentation Mask
+            binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
+
+            # Data vector
+            data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
+           
         else:
 
             # BEV Image
@@ -197,12 +242,18 @@ class LoadDataAutoSteer():
             reproj_egoright = self.val_labels[index]["reproj_egoright"]
             reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
+            # Binary Segmentation Mask
+            binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
+
+            # Data vector
+            data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
+
         # Convert image to OpenCV/Numpy format for augmentations
         bev_img = np.array(bev_img)
-        
+
         return [
-            frame_id, bev_img,
-            bev_to_image_transform,
+            frame_id, bev_img, binary_seg, data,
+            self.BEV_to_image_transform,
             bev_egopath, reproj_egopath,
             bev_egoleft, reproj_egoleft,
             bev_egoright, reproj_egoright,

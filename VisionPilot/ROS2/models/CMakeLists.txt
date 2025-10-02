@@ -47,6 +47,7 @@ link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
 add_library(inference_backends SHARED
   ../../common/backends/onnx_runtime_backend.cpp
   ../../common/backends/tensorrt_backend.cpp
+  ../../common/benchmark/fps_timer.cpp
 )
 target_include_directories(inference_backends PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
