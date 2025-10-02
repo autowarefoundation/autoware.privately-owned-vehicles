@@ -80,15 +80,15 @@ def main():
             continue
 
         # Fetch frame
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image_pil = Image.fromarray(image)
-        image_pil = image_pil.resize(FRAME_INF_SIZE)
+        image = Image.fromarray(frame)
+        image = image.resize(FRAME_INF_SIZE)
 
         # Inference
-        prediction = model.inference(image_pil)
+        prediction = model.inference(image)
         vis_image = make_visualization(image, prediction)
 
         # Resize
+        vis_image = np.array(vis_image)
         vis_image = cv2.resize(vis_image, FRAME_ORI_SIZE)
 
         # Write to output
