@@ -57,6 +57,6 @@ class AutoSteerNetworkInfer():
         prediction = self.model(image_tensor)
 
         # Get output
-        prediction = prediction.squeeze(0).cpu().detach().numpy()
+        prediction = prediction.squeeze(0).cpu().detach().numpy()[0]
 
         return prediction
