@@ -53,6 +53,7 @@ private:
   float conf_threshold_{0.6f};
   float iou_threshold_{0.45f};
   std::string output_topic_str_;
+  bool benchmark_{false};
   
   // Backend
   std::unique_ptr<autospeed::AutoSpeedTensorRTEngine> backend_;
@@ -61,8 +62,8 @@ private:
   image_transport::Subscriber sub_;
   rclcpp::Publisher<vision_msgs::msg::Detection2DArray>::SharedPtr det_pub_;
 
-  // Benchmark timer
-  FpsTimer timer_;
+  // Benchmark timer (optional)
+  std::unique_ptr<FpsTimer> timer_;
 };
 
 }  // namespace autoware_pov::vision

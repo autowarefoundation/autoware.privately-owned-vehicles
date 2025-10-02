@@ -20,7 +20,17 @@ def generate_launch_description():
     pipeline_arg = DeclareLaunchArgument(
         'pipeline',
         default_value='scene_seg',
-        description='Which pipeline to run: scene_seg, domain_seg, or scene_3d.'
+        description='Which pipeline to run: scene_seg, domain_seg, scene_3d, or autospeed.'
+    )
+    precision_arg = DeclareLaunchArgument(
+        'precision',
+        default_value='fp32',
+        description='Model precision for AutoSpeed: fp32 or fp16'
+    )
+    benchmark_arg = DeclareLaunchArgument(
+        'benchmark',
+        default_value='false',
+        description='Enable benchmark/latency measurements'
     )
 
     # --- Sensor Node ---
@@ -93,14 +103,36 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression(["'", LaunchConfiguration('pipeline'), "' == 'scene_3d'"]))
     )
 
+    # AutoSpeed (Object Detection) Node
+    default_model_path = os.path.join(models_pkg_dir, '..', '..', '..', '..', 
+                                      'data', 'models', 'AutoSpeed_n.pt')
+    autospeed_node = Node(
+        package='models', executable='autospeed_node_exe', name='autospeed_detection',
+        parameters=[{
+            'model_path': default_model_path,
+            'precision': LaunchConfiguration('precision'),
+            'gpu_id': 0,
+            'benchmark': LaunchConfiguration('benchmark'),
+            'conf_threshold': 0.6,
+            'iou_threshold': 0.45,
+            'input_topic': '/sensors/video/image_raw',
+            'output_topic': '/autospeed/detections'
+        }],
+        output='screen',
+        condition=IfCondition(PythonExpression(["'", LaunchConfiguration('pipeline'), "' == 'autospeed'"]))
+    )
+
     return LaunchDescription([
         video_path_arg,
         pipeline_arg,
+        precision_arg,
+        benchmark_arg,
         video_publisher_node,
         scene_seg_model_node,
         scene_seg_viz_node,
         domain_seg_model_node,
         domain_seg_viz_node,
         scene3d_model_node,
-        scene3d_viz_node
+        scene3d_viz_node,
+        autospeed_node
     ])

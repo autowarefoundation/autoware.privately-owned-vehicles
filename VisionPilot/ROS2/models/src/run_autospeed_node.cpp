@@ -18,6 +18,7 @@ RunAutoSpeedNode::RunAutoSpeedNode(const rclcpp::NodeOptions & options)
   const int gpu_id = this->declare_parameter<int>("gpu_id", 0);
   const std::string input_topic = this->declare_parameter<std::string>("input_topic", "/sensors/camera/image_raw");
   output_topic_str_ = this->declare_parameter<std::string>("output_topic", "/autospeed/detections");
+  benchmark_ = this->declare_parameter<bool>("benchmark", false);
   
   // Detection thresholds
   conf_threshold_ = this->declare_parameter<double>("conf_threshold", 0.6);
@@ -28,8 +29,11 @@ RunAutoSpeedNode::RunAutoSpeedNode(const rclcpp::NodeOptions & options)
     model_path, precision, gpu_id
   );
 
-  // Benchmark timer
-  timer_ = FpsTimer(BENCHMARK_OUTPUT_FREQUENCY);
+  // Benchmark timer (only if enabled)
+  if (benchmark_) {
+    timer_ = std::make_unique<FpsTimer>(BENCHMARK_OUTPUT_FREQUENCY);
+    RCLCPP_INFO(this->get_logger(), "Benchmark mode: ENABLED");
+  }
 
   // Setup publishers and subscribers
   det_pub_ = this->create_publisher<vision_msgs::msg::Detection2DArray>(
@@ -53,8 +57,9 @@ RunAutoSpeedNode::RunAutoSpeedNode(const rclcpp::NodeOptions & options)
 
 void RunAutoSpeedNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
 {
-  // Benchmark: Start new frame
-  timer_.startNewFrame();
+  if (benchmark_ && timer_) {
+    timer_->startNewFrame();
+  }
 
   // Convert ROS image to OpenCV
   cv_bridge::CvImagePtr in_image_ptr;
@@ -65,8 +70,9 @@ void RunAutoSpeedNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg
     return;
   }
 
-  // Benchmark: Preprocessing will be done in backend
-  timer_.recordPreprocessEnd();
+  if (benchmark_ && timer_) {
+    timer_->recordPreprocessEnd();
+  }
 
   // Run inference (preprocessing happens inside backend)
   if (!backend_->doInference(in_image_ptr->image)) {
@@ -78,8 +84,9 @@ void RunAutoSpeedNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg
   const float* tensor_data = backend_->getRawTensorData();
   std::vector<int64_t> tensor_shape = backend_->getTensorShape();
   
-  // Benchmark: Inference done
-  timer_.recordInferenceEnd();
+  if (benchmark_ && timer_) {
+    timer_->recordInferenceEnd();
+  }
   
   // Post-process predictions
   auto detections = postProcessPredictions(tensor_data, tensor_shape);
@@ -120,10 +127,9 @@ void RunAutoSpeedNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg
   
   det_pub_->publish(det_array_msg);
   
-  // Benchmark: Output done
-  timer_.recordOutputEnd();
-  
-  RCLCPP_DEBUG(this->get_logger(), "Published %zu detections", detections.size());
+  if (benchmark_ && timer_) {
+    timer_->recordOutputEnd();
+  }
 }
 
 std::vector<Detection> RunAutoSpeedNode::postProcessPredictions(
