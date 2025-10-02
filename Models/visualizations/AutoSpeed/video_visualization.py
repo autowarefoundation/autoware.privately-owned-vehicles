@@ -163,13 +163,12 @@ def main():
     output_filepath_obj = args.output_file + '.avi'
 
     fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
     # Video writer object
-    # writer_obj = cv2.VideoWriter(output_filepath_obj,
-    #                              cv2.VideoWriter_fourcc(*"MJPG"), fps, (1920, 1280))
-    # writer_obj = cv2.VideoWriter(output_filepath_obj,
-    #                              cv2.VideoWriter_fourcc(*"MJPG"), fps, (1920, 1200))
     writer_obj = cv2.VideoWriter(output_filepath_obj,
-                                 cv2.VideoWriter_fourcc(*"MJPG"), fps, (1280, 720))
+                                 cv2.VideoWriter_fourcc(*"MJPG"), fps, (frame_width, frame_height))
 
     # Check if video catpure opened successfully
     if (cap.isOpened() == False):
