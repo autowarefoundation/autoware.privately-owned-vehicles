@@ -64,65 +64,93 @@ private:
     std::atomic<bool> active_{true};
 };
 
+// Timestamped frame for tracking latency
+struct TimestampedFrame {
+    cv::Mat frame;
+    std::chrono::steady_clock::time_point timestamp;
+};
+
 // Frame + detections bundle (Detection type from backend)
 struct InferenceResult {
     cv::Mat frame;
     std::vector<Detection> detections;
+    std::chrono::steady_clock::time_point capture_time;    // When frame was captured
+    std::chrono::steady_clock::time_point inference_time;  // When inference completed
+};
+
+// Performance metrics
+struct PerformanceMetrics {
+    std::atomic<long> total_capture_us{0};
+    std::atomic<long> total_inference_us{0};
+    std::atomic<long> total_display_us{0};
+    std::atomic<long> total_end_to_end_us{0};
+    std::atomic<int> frame_count{0};
 };
 
 // Visualization helper
 void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections);
 
-// Capture thread
-void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<cv::Mat>& queue, 
+// Capture thread - timestamps when frame arrives
+void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<TimestampedFrame>& queue, 
                    std::atomic<bool>& running)
 {
     while (running.load() && gstreamer.isActive()) {
+        auto t_start = std::chrono::steady_clock::now();
         cv::Mat frame = gstreamer.getFrame();
+        auto t_end = std::chrono::steady_clock::now();
+        
         if (frame.empty()) {
             std::cerr << "Failed to capture frame" << std::endl;
             break;
         }
         
-        queue.push(frame);
+        TimestampedFrame tf;
+        tf.frame = frame;
+        tf.timestamp = t_end;  // Timestamp when frame is ready
+        queue.push(tf);
     }
     running.store(false);
 }
 
 // Inference thread (HIGH PRIORITY)
 void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
-                     ThreadSafeQueue<cv::Mat>& input_queue,
+                     ThreadSafeQueue<TimestampedFrame>& input_queue,
                      ThreadSafeQueue<InferenceResult>& output_queue,
-                     FpsTimer& timer,
+                     PerformanceMetrics& metrics,
                      std::atomic<bool>& running,
                      float conf_thresh, float iou_thresh)
 {
     while (running.load()) {
-        cv::Mat frame = input_queue.pop();
-        if (frame.empty()) continue;
+        TimestampedFrame tf = input_queue.pop();
+        if (tf.frame.empty()) continue;
 
-        timer.startNewFrame();
-
+        auto t_inference_start = std::chrono::steady_clock::now();
+        
         // Backend does: preprocess + inference + postprocess all in one call
-        std::vector<Detection> detections = backend.inference(frame, conf_thresh, iou_thresh);
+        std::vector<Detection> detections = backend.inference(tf.frame, conf_thresh, iou_thresh);
         
-        // fps_timer expects these to be called in sequence
-        // Since backend does everything at once, we call them immediately
-        timer.recordPreprocessEnd();   // Mark as if preprocessing just finished
-        timer.recordInferenceEnd();    // Mark as if inference just finished
+        auto t_inference_end = std::chrono::steady_clock::now();
         
-        // Package result
+        // Calculate inference latency
+        long inference_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t_inference_end - t_inference_start).count();
+        
+        // Package result with timestamps
         InferenceResult result;
-        result.frame = frame;
+        result.frame = tf.frame;
         result.detections = detections;
+        result.capture_time = tf.timestamp;
+        result.inference_time = t_inference_end;
         output_queue.push(result);
         
-        timer.recordOutputEnd();  // This calls printResults() internally every N frames
+        // Update metrics
+        metrics.total_inference_us.fetch_add(inference_us);
     }
 }
 
 // Display thread (LOW PRIORITY)
 void displayThread(ThreadSafeQueue<InferenceResult>& queue,
+                   PerformanceMetrics& metrics,
                    std::atomic<bool>& running)
 {
     // Create named window with fixed size
@@ -136,6 +164,8 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
             continue;
         }
 
+        auto t_display_start = std::chrono::steady_clock::now();
+
         // Draw detections on frame
         drawDetections(result.frame, result.detections);
 
@@ -148,6 +178,35 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         if (cv::waitKey(1) == 'q') {
             running.store(false);
             break;
+        }
+        
+        auto t_display_end = std::chrono::steady_clock::now();
+        
+        // Calculate latencies
+        long display_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t_display_end - t_display_start).count();
+        long end_to_end_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t_display_end - result.capture_time).count();
+        
+        // Update metrics
+        metrics.total_display_us.fetch_add(display_us);
+        metrics.total_end_to_end_us.fetch_add(end_to_end_us);
+        int count = metrics.frame_count.fetch_add(1) + 1;
+        
+        // Print metrics every 100 frames
+        if (count % 100 == 0) {
+            long avg_inference = metrics.total_inference_us.load() / count;
+            long avg_display = metrics.total_display_us.load() / count;
+            long avg_e2e = metrics.total_end_to_end_us.load() / count;
+            
+            std::cout << "\n========================================\n";
+            std::cout << "Frames processed: " << count << "\n";
+            std::cout << "Avg Inference latency:    " << std::fixed << std::setprecision(2) 
+                     << (avg_inference / 1000.0) << " ms (" << (1000000.0 / avg_inference) << " FPS capable)\n";
+            std::cout << "Avg Display latency:      " << (avg_display / 1000.0) << " ms\n";
+            std::cout << "Avg End-to-End latency:   " << (avg_e2e / 1000.0) << " ms\n";
+            std::cout << "Actual throughput:        " << (count / (avg_e2e * count / 1000000.0)) << " FPS\n";
+            std::cout << "========================================\n";
         }
     }
     cv::destroyAllWindows();
@@ -195,11 +254,11 @@ int main(int argc, char** argv)
     autospeed::AutoSpeedTensorRTEngine backend(model_path, precision, gpu_id);
 
     // Queues
-    ThreadSafeQueue<cv::Mat> capture_queue;
+    ThreadSafeQueue<TimestampedFrame> capture_queue;
     ThreadSafeQueue<InferenceResult> display_queue;
 
-    // FPS Timer (print every 100 frames)
-    FpsTimer timer(100);
+    // Performance metrics
+    PerformanceMetrics metrics;
     std::atomic<bool> running{true};
 
     // Launch threads
@@ -209,9 +268,10 @@ int main(int argc, char** argv)
     std::thread t_capture(captureThread, std::ref(gstreamer), std::ref(capture_queue), 
                           std::ref(running));
     std::thread t_inference(inferenceThread, std::ref(backend), std::ref(capture_queue), 
-                            std::ref(display_queue), std::ref(timer), std::ref(running),
+                            std::ref(display_queue), std::ref(metrics), std::ref(running),
                             conf_thresh, iou_thresh);
-    std::thread t_display(displayThread, std::ref(display_queue), std::ref(running));
+    std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics), 
+                         std::ref(running));
 
     // Wait for threads
     t_capture.join();
