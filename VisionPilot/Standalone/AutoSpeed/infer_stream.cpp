@@ -227,9 +227,8 @@ int main(int argc, char** argv)
 // Draw detections (matches Python reference color scheme)
 void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections)
 {
-    const std::vector<std::string> class_names = {"pedestrian", "cyclist", "car", "truck"};
-    
-    // Color map from Python reference (keys are 1, 2, 3, NOT 0, 1, 2!)
+   
+     // Color map from Python reference (keys are 1, 2, 3, NOT 0, 1, 2!)
     // color_map = {1: (0,0,255) red, 2: (0,255,255) yellow, 3: (255,255,0) cyan}
     auto getColor = [](int class_id) -> cv::Scalar {
         switch(class_id) {
@@ -243,30 +242,10 @@ void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections)
     for (const auto& det : detections) {
         cv::Scalar color = getColor(det.class_id);
         
-        // Draw bounding box
+        // Draw bounding box only (no labels)
         cv::rectangle(frame, 
                      cv::Point(static_cast<int>(det.x1), static_cast<int>(det.y1)), 
                      cv::Point(static_cast<int>(det.x2), static_cast<int>(det.y2)), 
                      color, 2);
-        
-        // Create label (with bounds checking)
-        std::string class_name = (det.class_id >= 0 && det.class_id < (int)class_names.size()) 
-                                ? class_names[det.class_id] 
-                                : "unknown";
-        std::string label = class_name + " " + 
-                           std::to_string(static_cast<int>(det.confidence * 100)) + "%";
-        
-        // Draw label background
-        int baseline = 0;
-        cv::Size label_size = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseline);
-        cv::rectangle(frame, 
-                     cv::Point(static_cast<int>(det.x1), static_cast<int>(det.y1) - label_size.height - 5),
-                     cv::Point(static_cast<int>(det.x1) + label_size.width, static_cast<int>(det.y1)),
-                     color, -1);
-        
-        // Draw label text in white
-        cv::putText(frame, label, 
-                   cv::Point(static_cast<int>(det.x1), static_cast<int>(det.y1) - 5), 
-                   cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
 }
