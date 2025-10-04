@@ -46,19 +46,27 @@ public:
   int getModelInputHeight() const override { return model_input_height_; }
   int getModelInputWidth() const override { return model_input_width_; }
 
-  // AutoSpeed-specific methods
+  // AutoSpeed-specific inference (returns final detections)
   /**
-   * @brief Get letterbox transformation parameters from last inference
+   * @brief Run inference and return detections in original image coordinates
+   * @param input_image Input image (any size)
+   * @param conf_thresh Confidence threshold (default: 0.6)
+   * @param iou_thresh NMS IoU threshold (default: 0.45)
+   * @return Vector of detections with coordinates in original image space
    */
+  std::vector<Detection> inference(
+    const cv::Mat & input_image,
+    float conf_thresh = 0.6f,
+    float iou_thresh = 0.45f
+  );
+
+  // Legacy methods (for debugging/advanced use)
   void getLetterboxParams(float& scale, int& pad_x, int& pad_y) const {
     scale = scale_;
     pad_x = pad_x_;
     pad_y = pad_y_;
   }
 
-  /**
-   * @brief Get original image dimensions from last inference
-   */
   void getOriginalImageSize(int& width, int& height) const {
     width = orig_width_;
     height = orig_height_;
@@ -72,6 +80,11 @@ private:
   
   // AutoSpeed-specific preprocessing (letterbox + normalize to [0,1])
   void preprocessAutoSpeed(const cv::Mat & input_image, float * buffer);
+
+  // Post-processing helpers
+  std::vector<Detection> postProcess(float conf_thresh, float iou_thresh);
+  float computeIoU(const Detection& a, const Detection& b);
+  std::vector<Detection> applyNMS(std::vector<Detection>& detections, float iou_thresh);
 
   // TensorRT components
   Logger logger_;
