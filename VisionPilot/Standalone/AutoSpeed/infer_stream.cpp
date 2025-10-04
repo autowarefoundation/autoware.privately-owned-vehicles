@@ -156,26 +156,35 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 int main(int argc, char** argv)
 {
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision>\n";
+        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> [realtime]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
         std::cerr << "  model_path: .pt or .onnx model file\n";
         std::cerr << "  precision: fp32 or fp16\n";
+        std::cerr << "  realtime: (optional) 'true' for real-time playback, 'false' for max speed (default: true)\n";
         std::cerr << "\nExample:\n";
-        std::cerr << "  " << argv[0] << " rtsp://192.168.1.10:8554/stream model.onnx fp16\n";
-        std::cerr << "  " << argv[0] << " /dev/video0 model.pt fp32\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 false  # Benchmark mode\n";
         return 1;
     }
 
     std::string stream_source = argv[1];
     std::string model_path = argv[2];
     std::string precision = argv[3];
+    bool realtime = true;  // Default to real-time playback
+    
+    if (argc >= 5) {
+        std::string realtime_arg = argv[4];
+        realtime = (realtime_arg != "false" && realtime_arg != "0");
+    }
+    
     float conf_thresh = 0.6f;
     float iou_thresh = 0.45f;
     int gpu_id = 0;
 
     // Initialize GStreamer
     std::cout << "Initializing GStreamer for: " << stream_source << std::endl;
-    GStreamerEngine gstreamer(stream_source);
+    std::cout << "Playback mode: " << (realtime ? "Real-time (matches video FPS)" : "Benchmark (max speed)") << std::endl;
+    GStreamerEngine gstreamer(stream_source, 0, 0, realtime);  // width=0, height=0 (auto), sync=realtime
     if (!gstreamer.initialize() || !gstreamer.start()) {
         std::cerr << "Failed to initialize GStreamer" << std::endl;
         return 1;
