@@ -1,5 +1,6 @@
 #include "../../common/include/gstreamer_engine.hpp"
 #include "../../common/backends/autospeed/tensorrt_engine.hpp"
+#include "../../common/include/fps_timer.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
@@ -9,8 +10,10 @@
 #include <chrono>
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 
 using namespace autoware_pov::vision;
+using namespace autoware_pov::vision::autospeed;  // For Detection type
 using namespace std::chrono;
 
 // Simple thread-safe queue
@@ -61,37 +64,18 @@ private:
     std::atomic<bool> active_{true};
 };
 
-// Detection structure
-struct Detection {
-    float x1, y1, x2, y2;
-    float confidence;
-    int class_id;
-};
-
-// Frame + detections bundle
+// Frame + detections bundle (Detection type from backend)
 struct InferenceResult {
     cv::Mat frame;
     std::vector<Detection> detections;
-    double inference_latency_ms;
 };
 
-// Post-processing functions (same as ROS2 node)
-std::vector<Detection> postProcess(const float* raw_output, const std::vector<int64_t>& shape,
-                                    float conf_thresh, float iou_thresh);
+// Visualization helper
 void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections);
-
-// Performance metrics
-struct Metrics {
-    std::atomic<int> capture_frames{0};
-    std::atomic<int> inference_frames{0};
-    std::atomic<int> display_frames{0};
-    std::atomic<long> total_inference_time_us{0};  // Microseconds
-    std::atomic<long> total_display_time_us{0};    // Microseconds
-};
 
 // Capture thread
 void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<cv::Mat>& queue, 
-                   Metrics& metrics, std::atomic<bool>& running)
+                   std::atomic<bool>& running)
 {
     while (running.load() && gstreamer.isActive()) {
         cv::Mat frame = gstreamer.getFrame();
@@ -101,7 +85,6 @@ void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<cv::Mat>& queue,
         }
         
         queue.push(frame);
-        metrics.capture_frames++;
     }
     running.store(false);
 }
@@ -110,7 +93,7 @@ void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<cv::Mat>& queue,
 void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
                      ThreadSafeQueue<cv::Mat>& input_queue,
                      ThreadSafeQueue<InferenceResult>& output_queue,
-                     Metrics& metrics,
+                     FpsTimer& timer,
                      std::atomic<bool>& running,
                      float conf_thresh, float iou_thresh)
 {
@@ -118,44 +101,33 @@ void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
         cv::Mat frame = input_queue.pop();
         if (frame.empty()) continue;
 
-        auto t1 = high_resolution_clock::now();
+        timer.startNewFrame();
 
-        // Inference
-        if (!backend.doInference(frame)) {
-            std::cerr << "Inference failed" << std::endl;
-            continue;
-        }
-
-        // Post-processing
-        const float* raw_output = backend.getRawTensorData();
-        std::vector<int64_t> shape = backend.getTensorShape();
-        std::vector<Detection> detections = postProcess(raw_output, shape, conf_thresh, iou_thresh);
-
-        auto t2 = high_resolution_clock::now();
-        long latency_us = duration_cast<microseconds>(t2 - t1).count();
-        double latency_ms = latency_us / 1000.0;
-
+        // Backend does: preprocess + inference + postprocess all in one call
+        std::vector<Detection> detections = backend.inference(frame, conf_thresh, iou_thresh);
+        
+        // fps_timer expects these to be called in sequence
+        // Since backend does everything at once, we call them immediately
+        timer.recordPreprocessEnd();   // Mark as if preprocessing just finished
+        timer.recordInferenceEnd();    // Mark as if inference just finished
+        
         // Package result
         InferenceResult result;
         result.frame = frame;
         result.detections = detections;
-        result.inference_latency_ms = latency_ms;
-
         output_queue.push(result);
         
-        metrics.inference_frames++;
-        metrics.total_inference_time_us.fetch_add(latency_us);
+        timer.recordOutputEnd();  // This calls printResults() internally every N frames
     }
 }
 
 // Display thread (LOW PRIORITY)
 void displayThread(ThreadSafeQueue<InferenceResult>& queue,
-                   Metrics& metrics,
                    std::atomic<bool>& running)
 {
     // Create named window with fixed size
     cv::namedWindow("AutoSpeed Inference", cv::WINDOW_NORMAL);
-    cv::resizeWindow("AutoSpeed Inference", 960, 540);  // Resize to 960x540 (smaller)
+    cv::resizeWindow("AutoSpeed Inference", 960, 540);
     
     while (running.load()) {
         InferenceResult result;
@@ -164,12 +136,10 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
             continue;
         }
 
-        auto t1 = high_resolution_clock::now();
-
-        // Draw detections
+        // Draw detections on frame
         drawDetections(result.frame, result.detections);
 
-        // Resize for display (keep original for inference)
+        // Resize for display
         cv::Mat display_frame;
         cv::resize(result.frame, display_frame, cv::Size(960, 540));
 
@@ -179,52 +149,8 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
             running.store(false);
             break;
         }
-
-        auto t2 = high_resolution_clock::now();
-        long display_latency_us = duration_cast<microseconds>(t2 - t1).count();
-
-        metrics.display_frames++;
-        metrics.total_display_time_us.fetch_add(display_latency_us);
     }
     cv::destroyAllWindows();
-}
-
-// Metrics thread
-void metricsThread(Metrics& metrics, std::atomic<bool>& running)
-{
-    auto last_time = high_resolution_clock::now();
-    int last_capture = 0, last_inference = 0, last_display = 0;
-
-    while (running.load()) {
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-
-        auto now = high_resolution_clock::now();
-        double elapsed_sec = duration_cast<milliseconds>(now - last_time).count() / 1000.0;
-
-        int capture_frames = metrics.capture_frames.load();
-        int inference_frames = metrics.inference_frames.load();
-        int display_frames = metrics.display_frames.load();
-
-        double capture_fps = (capture_frames - last_capture) / elapsed_sec;
-        double inference_fps = (inference_frames - last_inference) / elapsed_sec;
-        double display_fps = (display_frames - last_display) / elapsed_sec;
-
-        double avg_inference_ms = inference_frames > 0 ? 
-            metrics.total_inference_time_us.load() / 1000.0 / inference_frames : 0.0;
-        double avg_display_ms = display_frames > 0 ? 
-            metrics.total_display_time_us.load() / 1000.0 / display_frames : 0.0;
-
-        std::cout << "\n========================================\n";
-        std::cout << "CAPTURE FPS:    " << std::fixed << std::setprecision(2) << capture_fps << "\n";
-        std::cout << "INFERENCE FPS:  " << inference_fps << " (avg latency: " << avg_inference_ms << " ms)\n";
-        std::cout << "DISPLAY FPS:    " << display_fps << " (avg latency: " << avg_display_ms << " ms)\n";
-        std::cout << "========================================\n";
-
-        last_time = now;
-        last_capture = capture_frames;
-        last_inference = inference_frames;
-        last_display = display_frames;
-    }
 }
 
 int main(int argc, char** argv)
@@ -263,25 +189,25 @@ int main(int argc, char** argv)
     ThreadSafeQueue<cv::Mat> capture_queue;
     ThreadSafeQueue<InferenceResult> display_queue;
 
-    // Metrics
-    Metrics metrics;
+    // FPS Timer (print every 100 frames)
+    FpsTimer timer(100);
     std::atomic<bool> running{true};
 
     // Launch threads
     std::cout << "Starting multi-threaded inference pipeline..." << std::endl;
+    std::cout << "Press 'q' in the video window to quit\n" << std::endl;
+    
     std::thread t_capture(captureThread, std::ref(gstreamer), std::ref(capture_queue), 
-                          std::ref(metrics), std::ref(running));
+                          std::ref(running));
     std::thread t_inference(inferenceThread, std::ref(backend), std::ref(capture_queue), 
-                            std::ref(display_queue), std::ref(metrics), std::ref(running),
+                            std::ref(display_queue), std::ref(timer), std::ref(running),
                             conf_thresh, iou_thresh);
-    std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics), std::ref(running));
-    std::thread t_metrics(metricsThread, std::ref(metrics), std::ref(running));
+    std::thread t_display(displayThread, std::ref(display_queue), std::ref(running));
 
     // Wait for threads
     t_capture.join();
     t_inference.join();
     t_display.join();
-    t_metrics.join();
 
     gstreamer.stop();
     std::cout << "\nInference pipeline stopped." << std::endl;
@@ -289,71 +215,43 @@ int main(int argc, char** argv)
     return 0;
 }
 
-// Post-processing implementation
-std::vector<Detection> postProcess(const float* raw_output, const std::vector<int64_t>& shape,
-                                    float conf_thresh, float iou_thresh)
-{
-    std::vector<Detection> detections;
-    
-    if (shape.size() < 2) return detections;
-    
-    int num_attrs = shape[0];  // e.g., 8 (4 bbox + 4 classes)
-    int num_boxes = shape[1];  // e.g., 8400
-
-    for (int i = 0; i < num_boxes; ++i) {
-        // Get class scores (skip first 4 for bbox)
-        float max_score = 0.0f;
-        int max_class = -1;
-        for (int c = 4; c < num_attrs; ++c) {
-            float score = raw_output[c * num_boxes + i];
-            if (score > max_score) {
-                max_score = score;
-                max_class = c - 4;
-            }
-        }
-
-        if (max_score < conf_thresh) continue;
-
-        // Get bbox (xywh format)
-        float x = raw_output[0 * num_boxes + i];
-        float y = raw_output[1 * num_boxes + i];
-        float w = raw_output[2 * num_boxes + i];
-        float h = raw_output[3 * num_boxes + i];
-
-        // Convert to xyxy
-        Detection det;
-        det.x1 = x - w / 2.0f;
-        det.y1 = y - h / 2.0f;
-        det.x2 = x + w / 2.0f;
-        det.y2 = y + h / 2.0f;
-        det.confidence = max_score;
-        det.class_id = max_class;
-
-        detections.push_back(det);
-    }
-
-    // Simple NMS (same as ROS2 implementation)
-    // TODO: Implement proper NMS if needed
-
-    return detections;
-}
-
+// Draw detections (matches Python reference color scheme)
 void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections)
 {
     const std::vector<std::string> class_names = {"pedestrian", "cyclist", "car", "truck"};
+    
+    // Color map: 1=red, 2=yellow, 3=cyan (BGR format for OpenCV)
     const std::vector<cv::Scalar> colors = {
-        cv::Scalar(255, 0, 0), cv::Scalar(0, 255, 0), 
-        cv::Scalar(0, 0, 255), cv::Scalar(255, 255, 0)
+        cv::Scalar(0, 0, 255),    // Red for pedestrian (class 0, label 1)
+        cv::Scalar(0, 255, 255),  // Yellow for cyclist (class 1, label 2)
+        cv::Scalar(255, 255, 0)   // Cyan for car (class 2, label 3)
     };
 
     for (const auto& det : detections) {
-        cv::Scalar color = colors[det.class_id % colors.size()];
-        cv::rectangle(frame, cv::Point(det.x1, det.y1), cv::Point(det.x2, det.y2), color, 2);
+        int class_idx = det.class_id % colors.size();
+        cv::Scalar color = colors[class_idx];
         
+        // Draw bounding box
+        cv::rectangle(frame, 
+                     cv::Point(static_cast<int>(det.x1), static_cast<int>(det.y1)), 
+                     cv::Point(static_cast<int>(det.x2), static_cast<int>(det.y2)), 
+                     color, 2);
+        
+        // Create label
         std::string label = class_names[det.class_id] + " " + 
                            std::to_string(static_cast<int>(det.confidence * 100)) + "%";
-        cv::putText(frame, label, cv::Point(det.x1, det.y1 - 5), 
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 2);
+        
+        // Draw label background
+        int baseline = 0;
+        cv::Size label_size = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseline);
+        cv::rectangle(frame, 
+                     cv::Point(static_cast<int>(det.x1), static_cast<int>(det.y1) - label_size.height - 5),
+                     cv::Point(static_cast<int>(det.x1) + label_size.width, static_cast<int>(det.y1)),
+                     color, -1);
+        
+        // Draw label text in white
+        cv::putText(frame, label, 
+                   cv::Point(static_cast<int>(det.x1), static_cast<int>(det.y1) - 5), 
+                   cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
 }
-
