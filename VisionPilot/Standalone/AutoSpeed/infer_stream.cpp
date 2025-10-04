@@ -220,16 +220,19 @@ void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections)
 {
     const std::vector<std::string> class_names = {"pedestrian", "cyclist", "car", "truck"};
     
-    // Color map: 1=red, 2=yellow, 3=cyan (BGR format for OpenCV)
-    const std::vector<cv::Scalar> colors = {
-        cv::Scalar(0, 0, 255),    // Red for pedestrian (class 0, label 1)
-        cv::Scalar(0, 255, 255),  // Yellow for cyclist (class 1, label 2)
-        cv::Scalar(255, 255, 0)   // Cyan for car (class 2, label 3)
+    // Color map from Python reference (keys are 1, 2, 3, NOT 0, 1, 2!)
+    // color_map = {1: (0,0,255) red, 2: (0,255,255) yellow, 3: (255,255,0) cyan}
+    auto getColor = [](int class_id) -> cv::Scalar {
+        switch(class_id) {
+            case 1: return cv::Scalar(0, 0, 255);    // Red (BGR)
+            case 2: return cv::Scalar(0, 255, 255);  // Yellow (BGR)
+            case 3: return cv::Scalar(255, 255, 0);  // Cyan (BGR)
+            default: return cv::Scalar(255, 255, 255); // White fallback (class 0 or unknown)
+        }
     };
 
     for (const auto& det : detections) {
-        int class_idx = det.class_id % colors.size();
-        cv::Scalar color = colors[class_idx];
+        cv::Scalar color = getColor(det.class_id);
         
         // Draw bounding box
         cv::rectangle(frame, 
@@ -237,8 +240,11 @@ void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections)
                      cv::Point(static_cast<int>(det.x2), static_cast<int>(det.y2)), 
                      color, 2);
         
-        // Create label
-        std::string label = class_names[det.class_id] + " " + 
+        // Create label (with bounds checking)
+        std::string class_name = (det.class_id >= 0 && det.class_id < (int)class_names.size()) 
+                                ? class_names[det.class_id] 
+                                : "unknown";
+        std::string label = class_name + " " + 
                            std::to_string(static_cast<int>(det.confidence * 100)) + "%";
         
         // Draw label background
