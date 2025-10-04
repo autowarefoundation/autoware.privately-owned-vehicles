@@ -66,6 +66,12 @@ target_link_libraries(gstreamer_engine
     ${GSTREAMER_APP_LIBRARIES}
 )
 
+# FPS Timer
+add_library(fps_timer
+    ../../common/benchmark/fps_timer.cpp
+)
+target_compile_definitions(fps_timer PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+
 # Main executable
 add_executable(autospeed_infer_stream
     infer_stream.cpp
@@ -74,6 +80,7 @@ target_compile_definitions(autospeed_infer_stream PRIVATE LOG_TYPE=0)  # Use non
 target_link_libraries(autospeed_infer_stream
     autospeed_backend
     gstreamer_engine
+    fps_timer
     ${OpenCV_LIBS}
     pthread
 )
