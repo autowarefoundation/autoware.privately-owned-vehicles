@@ -105,7 +105,7 @@ def generate_launch_description():
 
     # AutoSpeed (Object Detection) Node
     default_model_path = os.path.join(models_pkg_dir, '..', '..', '..', '..', 
-                                      'data', 'models', 'AutoSpeed_n.pt')
+                                      'data', 'models', 'AutoSpeed_n.onnx')
     autospeed_node = Node(
         package='models', executable='autospeed_node_exe', name='autospeed_detection',
         parameters=[{
