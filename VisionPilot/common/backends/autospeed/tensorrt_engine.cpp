@@ -97,10 +97,10 @@ AutoSpeedTensorRTEngine::AutoSpeedTensorRTEngine(
   model_input_height_ = input_dims.d[2];
   model_input_width_ = input_dims.d[3];
   
-  // AutoSpeed output format: [1, num_predictions, num_attributes]
-  // e.g., [1, 8400, 85] for YOLO-like models (4 bbox + 1 obj + 80 classes)
-  model_output_predictions_ = output_dims.d[1];
-  model_output_channels_ = output_dims.d[2];
+  // AutoSpeed output format: [1, num_attributes, num_predictions]
+  // e.g., [1, 8, 8400] for YOLO-like models (4 bbox + 4 classes, 8400 anchors)
+  model_output_channels_ = output_dims.d[1];      // 8 (4 bbox + 4 classes)
+  model_output_predictions_ = output_dims.d[2];   // 8400 (number of predictions)
   
   auto input_vol = std::accumulate(input_dims.d, input_dims.d + input_dims.nbDims, 1LL, std::multiplies<int64_t>());
   auto output_vol = std::accumulate(output_dims.d, output_dims.d + output_dims.nbDims, 1LL, std::multiplies<int64_t>());
@@ -118,9 +118,9 @@ AutoSpeedTensorRTEngine::AutoSpeedTensorRTEngine(
   output_buffer_host_.resize(model_output_elem_count_);
   
   LOG_INFO("[autospeed_trt] Engine initialized successfully");
-  LOG_INFO("[autospeed_trt] Input: %dx%d, Output: %d predictions x %d attributes", 
+  LOG_INFO("[autospeed_trt] Input: %dx%d, Output: %d attributes x %d predictions", 
            model_input_width_, model_input_height_, 
-           model_output_predictions_, model_output_channels_);
+           model_output_channels_, model_output_predictions_);
 }
 
 AutoSpeedTensorRTEngine::~AutoSpeedTensorRTEngine()
@@ -302,6 +302,138 @@ std::vector<int64_t> AutoSpeedTensorRTEngine::getTensorShape() const
 {
   // Return shape: [batch=1, num_predictions, num_attributes]
   return {1, static_cast<int64_t>(model_output_predictions_), static_cast<int64_t>(model_output_channels_)};
+}
+
+// High-level inference method (preprocessing + inference + post-processing)
+std::vector<Detection> AutoSpeedTensorRTEngine::inference(
+  const cv::Mat & input_image,
+  float conf_thresh,
+  float iou_thresh)
+{
+  // Run raw inference
+  if (!doInference(input_image)) {
+    LOG_ERROR("Inference failed");
+    return {};
+  }
+
+  // Post-process and return detections
+  return postProcess(conf_thresh, iou_thresh);
+}
+
+// Post-processing: parse raw output and transform to original image coordinates
+std::vector<Detection> AutoSpeedTensorRTEngine::postProcess(float conf_thresh, float iou_thresh)
+{
+  std::vector<Detection> detections;
+  
+  const float* raw_output = output_buffer_host_.data();
+  int num_attrs = model_output_channels_;  // e.g., 8 (4 bbox + 4 classes)
+  int num_boxes = model_output_predictions_;  // e.g., 8400
+
+  // Parse detections
+  for (int i = 0; i < num_boxes; ++i) {
+    // Get class scores (skip first 4 for bbox)
+    float max_score = 0.0f;
+    int max_class = -1;
+    for (int c = 4; c < num_attrs; ++c) {
+      float score = raw_output[c * num_boxes + i];
+      if (score > max_score) {
+        max_score = score;
+        max_class = c - 4;
+      }
+    }
+
+    if (max_score < conf_thresh) continue;
+
+    // Get bbox (center_x, center_y, width, height in letterbox space 0-640)
+    float cx = raw_output[0 * num_boxes + i];
+    float cy = raw_output[1 * num_boxes + i];
+    float w = raw_output[2 * num_boxes + i];
+    float h = raw_output[3 * num_boxes + i];
+
+    // Convert xywh to xyxy (still in letterbox space)
+    float x1_letterbox = cx - w / 2.0f;
+    float y1_letterbox = cy - h / 2.0f;
+    float x2_letterbox = cx + w / 2.0f;
+    float y2_letterbox = cy + h / 2.0f;
+
+    // Transform from letterbox space to original image space
+    float x1_orig = (x1_letterbox - pad_x_) / scale_;
+    float y1_orig = (y1_letterbox - pad_y_) / scale_;
+    float x2_orig = (x2_letterbox - pad_x_) / scale_;
+    float y2_orig = (y2_letterbox - pad_y_) / scale_;
+
+    // Clamp to image bounds
+    x1_orig = std::max(0.0f, std::min(static_cast<float>(orig_width_), x1_orig));
+    y1_orig = std::max(0.0f, std::min(static_cast<float>(orig_height_), y1_orig));
+    x2_orig = std::max(0.0f, std::min(static_cast<float>(orig_width_), x2_orig));
+    y2_orig = std::max(0.0f, std::min(static_cast<float>(orig_height_), y2_orig));
+
+    Detection det;
+    det.x1 = x1_orig;
+    det.y1 = y1_orig;
+    det.x2 = x2_orig;
+    det.y2 = y2_orig;
+    det.confidence = max_score;
+    det.class_id = max_class;
+
+    detections.push_back(det);
+  }
+
+  // Apply NMS
+  detections = applyNMS(detections, iou_thresh);
+
+  return detections;
+}
+
+// Compute IoU between two boxes
+float AutoSpeedTensorRTEngine::computeIoU(const Detection& a, const Detection& b)
+{
+  float inter_x1 = std::max(a.x1, b.x1);
+  float inter_y1 = std::max(a.y1, b.y1);
+  float inter_x2 = std::min(a.x2, b.x2);
+  float inter_y2 = std::min(a.y2, b.y2);
+  
+  float inter_width = std::max(0.0f, inter_x2 - inter_x1);
+  float inter_height = std::max(0.0f, inter_y2 - inter_y1);
+  float inter_area = inter_width * inter_height;
+  
+  float area_a = (a.x2 - a.x1) * (a.y2 - a.y1);
+  float area_b = (b.x2 - b.x1) * (b.y2 - b.y1);
+  float union_area = area_a + area_b - inter_area;
+  
+  return union_area > 0 ? inter_area / union_area : 0.0f;
+}
+
+// Non-Maximum Suppression
+std::vector<Detection> AutoSpeedTensorRTEngine::applyNMS(
+  std::vector<Detection>& detections, 
+  float iou_thresh)
+{
+  // Sort by confidence (descending)
+  std::sort(detections.begin(), detections.end(), 
+            [](const Detection& a, const Detection& b) { return a.confidence > b.confidence; });
+  
+  std::vector<Detection> result;
+  std::vector<bool> suppressed(detections.size(), false);
+  
+  for (size_t i = 0; i < detections.size(); ++i) {
+    if (suppressed[i]) continue;
+    
+    result.push_back(detections[i]);
+    
+    for (size_t j = i + 1; j < detections.size(); ++j) {
+      if (suppressed[j]) continue;
+      
+      // Only suppress same class
+      if (detections[i].class_id == detections[j].class_id) {
+        if (computeIoU(detections[i], detections[j]) > iou_thresh) {
+          suppressed[j] = true;
+        }
+      }
+    }
+  }
+  
+  return result;
 }
 
 }  // namespace autoware_pov::vision::autospeed
