@@ -5,8 +5,8 @@
 namespace autoware_pov::vision
 {
 
-GStreamerEngine::GStreamerEngine(const std::string & source, int width, int height)
-: source_(source), width_(width), height_(height)
+GStreamerEngine::GStreamerEngine(const std::string & source, int width, int height, bool sync)
+: source_(source), width_(width), height_(height), sync_(sync)
 {
   gst_init(nullptr, nullptr);
 }
@@ -47,7 +47,10 @@ std::string GStreamerEngine::buildPipeline()
     pipeline << "video/x-raw,format=BGR ! ";
   }
   
-  pipeline << "appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true";
+  // sync=true enables real-time playback at video's native framerate
+  // sync=false processes as fast as possible (for benchmarking)
+  pipeline << "appsink name=sink emit-signals=true sync=" << (sync_ ? "true" : "false") 
+           << " max-buffers=1 drop=true";
 
   return pipeline.str();
 }
