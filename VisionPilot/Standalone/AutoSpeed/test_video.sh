@@ -1,6 +1,9 @@
 #!/bin/bash
 # Quick test script for AutoSpeed standalone inference
 
+# Suppress GStreamer warnings
+export GST_DEBUG=1
+
 VIDEO_PATH="/home/pranavdoma/Downloads/autoware.privately-owned-vehicles/VisionPilot/ROS2/data/mumbai.mp4"
 MODEL_PATH="/home/pranavdoma/Downloads/autoware.privately-owned-vehicles/VisionPilot/ROS2/data/models/AutoSpeed_n.onnx"
 PRECISION="fp16"
