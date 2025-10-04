@@ -1,6 +1,5 @@
 #include "../../common/include/gstreamer_engine.hpp"
 #include "../../common/backends/autospeed/tensorrt_engine.hpp"
-#include "../../common/include/fps_timer.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
@@ -80,29 +79,36 @@ struct InferenceResult {
 
 // Performance metrics
 struct PerformanceMetrics {
-    std::atomic<long> total_capture_us{0};
-    std::atomic<long> total_inference_us{0};
-    std::atomic<long> total_display_us{0};
-    std::atomic<long> total_end_to_end_us{0};
+    std::atomic<long> total_capture_us{0};      // GStreamer decode + convert to cv::Mat
+    std::atomic<long> total_inference_us{0};    // Preprocess + Inference + Post-process
+    std::atomic<long> total_display_us{0};      // Draw boxes + resize + imshow
+    std::atomic<long> total_end_to_end_us{0};   // Total: capture → display
     std::atomic<int> frame_count{0};
+    bool measure_latency{true};                // Flag to enable metrics printing
 };
 
 // Visualization helper
 void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections);
 
-// Capture thread - timestamps when frame arrives
+// Capture thread - timestamps when frame arrives and measures GStreamer→cv::Mat latency
 void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<TimestampedFrame>& queue, 
+                   PerformanceMetrics& metrics,
                    std::atomic<bool>& running)
 {
     while (running.load() && gstreamer.isActive()) {
         auto t_start = std::chrono::steady_clock::now();
-        cv::Mat frame = gstreamer.getFrame();
+        cv::Mat frame = gstreamer.getFrame();  // GStreamer decode + convert to cv::Mat
         auto t_end = std::chrono::steady_clock::now();
         
         if (frame.empty()) {
             std::cerr << "Failed to capture frame" << std::endl;
             break;
         }
+        
+        // Calculate capture latency (GStreamer decode + conversion)
+        long capture_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t_end - t_start).count();
+        metrics.total_capture_us.fetch_add(capture_us);
         
         TimestampedFrame tf;
         tf.frame = frame;
@@ -193,19 +199,23 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         metrics.total_end_to_end_us.fetch_add(end_to_end_us);
         int count = metrics.frame_count.fetch_add(1) + 1;
         
-        // Print metrics every 100 frames
-        if (count % 100 == 0) {
+        // Print metrics every 100 frames (only if measure_latency is enabled)
+        if (metrics.measure_latency && count % 100 == 0) {
+            long avg_capture = metrics.total_capture_us.load() / count;
             long avg_inference = metrics.total_inference_us.load() / count;
             long avg_display = metrics.total_display_us.load() / count;
             long avg_e2e = metrics.total_end_to_end_us.load() / count;
             
             std::cout << "\n========================================\n";
             std::cout << "Frames processed: " << count << "\n";
-            std::cout << "Avg Inference latency:    " << std::fixed << std::setprecision(2) 
-                     << (avg_inference / 1000.0) << " ms (" << (1000000.0 / avg_inference) << " FPS capable)\n";
-            std::cout << "Avg Display latency:      " << (avg_display / 1000.0) << " ms\n";
-            std::cout << "Avg End-to-End latency:   " << (avg_e2e / 1000.0) << " ms\n";
-            std::cout << "Actual throughput:        " << (count / (avg_e2e * count / 1000000.0)) << " FPS\n";
+            std::cout << "Pipeline Latencies:\n";
+            std::cout << "  1. Capture (GStreamer→cv::Mat):  " << std::fixed << std::setprecision(2) 
+                     << (avg_capture / 1000.0) << " ms\n";
+            std::cout << "  2. Inference (prep+infer+post):  " << (avg_inference / 1000.0) 
+                     << " ms (" << (1000000.0 / avg_inference) << " FPS capable)\n";
+            std::cout << "  3. Display (draw+resize+show):   " << (avg_display / 1000.0) << " ms\n";
+            std::cout << "  4. End-to-End (total):           " << (avg_e2e / 1000.0) << " ms\n";
+            std::cout << "Throughput: " << (count / (avg_e2e * count / 1000000.0)) << " FPS\n";
             std::cout << "========================================\n";
         }
     }
@@ -215,14 +225,15 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 int main(int argc, char** argv)
 {
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> [realtime]\n";
+        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> [realtime] [measure_latency]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
         std::cerr << "  model_path: .pt or .onnx model file\n";
         std::cerr << "  precision: fp32 or fp16\n";
-        std::cerr << "  realtime: (optional) 'true' for real-time playback, 'false' for max speed (default: true)\n";
+        std::cerr << "  realtime: (optional) 'true' for real-time, 'false' for max speed (default: true)\n";
+        std::cerr << "  measure_latency: (optional) 'true' to show latency metrics (default: false)\n";
         std::cerr << "\nExample:\n";
         std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 false  # Benchmark mode\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 false true  # Benchmark with metrics\n";
         return 1;
     }
 
@@ -230,10 +241,16 @@ int main(int argc, char** argv)
     std::string model_path = argv[2];
     std::string precision = argv[3];
     bool realtime = true;  // Default to real-time playback
+    bool measure_latency = false;  // Default to no metrics
     
     if (argc >= 5) {
         std::string realtime_arg = argv[4];
         realtime = (realtime_arg != "false" && realtime_arg != "0");
+    }
+    
+    if (argc >= 6) {
+        std::string measure_arg = argv[5];
+        measure_latency = (measure_arg == "true" || measure_arg == "1");
     }
     
     float conf_thresh = 0.6f;
@@ -259,14 +276,18 @@ int main(int argc, char** argv)
 
     // Performance metrics
     PerformanceMetrics metrics;
+    metrics.measure_latency = measure_latency;  // Set the flag
     std::atomic<bool> running{true};
 
     // Launch threads
     std::cout << "Starting multi-threaded inference pipeline..." << std::endl;
+    if (measure_latency) {
+        std::cout << "Latency measurement: ENABLED (metrics every 100 frames)" << std::endl;
+    }
     std::cout << "Press 'q' in the video window to quit\n" << std::endl;
     
     std::thread t_capture(captureThread, std::ref(gstreamer), std::ref(capture_queue), 
-                          std::ref(running));
+                          std::ref(metrics), std::ref(running));
     std::thread t_inference(inferenceThread, std::ref(backend), std::ref(capture_queue), 
                             std::ref(display_queue), std::ref(metrics), std::ref(running),
                             conf_thresh, iou_thresh);
