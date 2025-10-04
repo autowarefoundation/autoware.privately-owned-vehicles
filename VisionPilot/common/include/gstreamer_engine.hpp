@@ -27,8 +27,9 @@ public:
    * @param source RTSP URL, device path, or video file
    * @param width Output frame width (0 = auto)
    * @param height Output frame height (0 = auto)
+   * @param sync Enable real-time sync (true = video FPS, false = max speed)
    */
-  explicit GStreamerEngine(const std::string & source, int width = 0, int height = 0);
+  explicit GStreamerEngine(const std::string & source, int width = 0, int height = 0, bool sync = true);
   ~GStreamerEngine();
 
   /**
@@ -71,6 +72,7 @@ private:
   std::string source_;
   int width_;
   int height_;
+  bool sync_;
   
   GstElement* pipeline_{nullptr};
   GstElement* appsink_{nullptr};
