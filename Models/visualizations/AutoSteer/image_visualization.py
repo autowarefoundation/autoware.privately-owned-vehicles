@@ -8,7 +8,7 @@ sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
 
     
-def make_visualization(
+def make_visualization_data(
         image: Image,
         prediction: np.ndarray
 ):
@@ -161,7 +161,7 @@ def main():
 
             # Inference + visualization
             prediction = model.inference(image)
-            vis_image = make_visualization(image, prediction)
+            vis_image = make_visualization_data(image, prediction)
             img_id = filename.split(".")[0].zfill(3)
             output_image_filepath = os.path.join(
                 output_image_dirpath,
