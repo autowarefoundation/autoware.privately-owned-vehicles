@@ -1,4 +1,6 @@
 import torch
+import sys
+sys.path.append('../../')
 from Models.model_components.auto_speed_backbone import AutoSpeedBackbone
 from Models.model_components.auto_speed_neck import AutoSpeedNeck
 from Models.model_components.auto_speed_head import AutoSpeedHead
