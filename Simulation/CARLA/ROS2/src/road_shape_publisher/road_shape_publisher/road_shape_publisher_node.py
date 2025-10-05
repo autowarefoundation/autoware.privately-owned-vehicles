@@ -8,9 +8,10 @@ from builtin_interfaces.msg import Time
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 
-LOOKAHEAD_DISTANCE = 30.0  # meters
-STEP_DISTANCE = 2.0        # distance between waypoints
+LOCAL_PATH_LEN = 20.0     # meters
+STEP_DISTANCE = 0.5       # distance between waypoints
 LANE_WIDTH = 3.5          # meters, typical lane width
+FRONT2BASE = 1.425        # meters, distance from front of vehicle to hero base link
 
 def yaw_to_quaternion(yaw_deg):
     yaw = math.radians(yaw_deg)
@@ -53,12 +54,60 @@ class RoadShapePublisher(Node):
             self.get_logger().error('Ego vehicle not found, exiting.')
             rclpy.shutdown()
             return
-
-        timer_period = 0.1
-        self.timer = self.create_timer(timer_period, self.timer_callback)
-        self.egopath_pts = []
-        self.egolaneL_pts = []
-        self.egolaneR_pts = []
+        self.waypoints = self.get_global_waypoints()
+        self.timer = self.create_timer(0.1, self.timer_callback)
+            
+    def get_global_waypoints(self):
+        while True:
+            if self.ego:
+                break
+        allowed_road_lane_ids = [(17 , 1),
+                                 (10 , 1),
+                                 (0  , 1),
+                                 (3  , 1),
+                                 (565, 1),
+                                 (2  , 1),
+                                 (676, 1),
+                                 (1  , 1),
+                                 (8  , 1),
+                                 (4  ,-1),
+                                 (515,-1),
+                                 (5  ,-1),
+                                 (736,-1),
+                                 (6  ,-1),
+                                 (89 ,-1),
+                                 (7  ,-1)]
+        waypoints = []
+        for road_id, lane_id in allowed_road_lane_ids: 
+            wp = self.map.get_waypoint_xodr(road_id, lane_id, 0.0)
+            if wp is None:
+                self.get_logger.error(f"Could not find waypoint for road {road_id}, lane {lane_id}")
+                continue
+            segment = []
+            
+            seg = wp.previous_until_lane_start(STEP_DISTANCE)
+            
+            try: 
+                next = wp.next_until_lane_end(STEP_DISTANCE)
+            except RuntimeError as e:
+                self.get_logger().error(f"Error getting next waypoints for road {road_id}, lane {lane_id}: {e}")
+                tmp = wp.next(STEP_DISTANCE)
+                next = []
+                for t in tmp:
+                    if t.lane_id == lane_id and t.road_id == road_id:
+                        next.append(t)
+            if next:
+                seg.extend(next)
+            if lane_id > 0:
+                seg.reverse()
+            for s in seg:
+                if s.lane_id == lane_id and s.road_id == road_id:
+                    print(f"Road {s.road_id}, lane {s.lane_id}, s {s.s}, loc {s.transform.location}")
+                    segment.append(s)
+            waypoints.extend(segment)
+            
+        print(f"Collected {len(waypoints)} waypoints across {len(allowed_road_lane_ids)} lanes")
+        return waypoints
 
     def _find_ego_vehicle(self):
         for actor in self.world.get_actors().filter('vehicle.*'):
@@ -70,6 +119,7 @@ class RoadShapePublisher(Node):
     def timer_callback(self):
         if not self.ego:
             return
+        waypoints = self.waypoints
 
         ego_tf = self.ego.get_transform()
         ego_loc = ego_tf.location
@@ -87,52 +137,56 @@ class RoadShapePublisher(Node):
         ros_time = Time()
         ros_time.sec = int(elapsed)
         ros_time.nanosec = int((elapsed - ros_time.sec) * 1e9)
-
-        curr_wp = self.map.get_waypoint(ego_loc, project_to_road=True, lane_type=carla.LaneType.Driving)
-        total_dist = 0.0
-        
+    
         path_msg = Path()
         path_msg.header.stamp = ros_time
         path_msg.header.frame_id = "hero"
         path_msg.poses = []
-
+            
         left_lane = Path()
         right_lane = Path()
         left_lane.header = path_msg.header
         right_lane.header = path_msg.header
+        
+        # Find nearest waypoint index
+        nearest_idx = None
+        nearest_dist = float('inf')
+        for i, wp in enumerate(waypoints):
+            d = (wp.transform.location.x - ego_loc.x)**2 + (wp.transform.location.y - ego_loc.y)**2
+            if d < nearest_dist:
+                nearest_dist = d
+                nearest_idx = i
 
-        while total_dist < LOOKAHEAD_DISTANCE and curr_wp is not None:
-            wp_loc = curr_wp.transform.location
+        # Extract local horizon waypoints
+        horizon = int(LOCAL_PATH_LEN / STEP_DISTANCE)
+        offset_m = int(5 / STEP_DISTANCE) # offset to account for visibility in camera FOV 
+        local_wps = [waypoints[(nearest_idx + i + offset_m) % len(waypoints)] for i in range(horizon)]
+        print(len(local_wps), "local waypoints extracted")
+        
+        for wp in local_wps:
+            wp_loc = wp.transform.location
             wp_pos = np.array([wp_loc.x - ego_loc.x,
                             wp_loc.y - ego_loc.y,
                             wp_loc.z - ego_loc.z])
             local_pos = R_world_to_ego @ wp_pos  # rotate to ego frame
-
+            
             ps = PoseStamped()
             ps.header.stamp = ros_time
-            ps.header.frame_id = "hero"
-            ps.pose.position.x = local_pos[0]
-            ps.pose.position.y = -local_pos[1] # CARLA uses left-handed coordinate system
+            ps.header.frame_id = "hero_front"  # relative to front of ego vehicle
+            ps.pose.position.x = local_pos[0] - np.cos(ego_yaw) * FRONT2BASE
+            ps.pose.position.y = -local_pos[1] - np.sin(ego_yaw) * FRONT2BASE # CARLA uses left-handed coordinate system
             ps.pose.position.z = local_pos[2]
 
-            wp_yaw = math.radians(curr_wp.transform.rotation.yaw)
+            wp_yaw = math.radians(wp.transform.rotation.yaw)
             relative_yaw = wp_yaw - ego_yaw
             q = yaw_to_quaternion(math.degrees(relative_yaw))
             ps.pose.orientation.x = q["x"]
             ps.pose.orientation.y = q["y"]
             ps.pose.orientation.z = q["z"]
             ps.pose.orientation.w = q["w"]
-
+            
             path_msg.poses.append(ps)
-
-            # Advance
-            next_wps = curr_wp.next(STEP_DISTANCE)
-            if not next_wps:
-                break
-            next_wp = next_wps[0]
-            total_dist += curr_wp.transform.location.distance(next_wp.transform.location)
-            curr_wp = next_wp
-
+            
             # Create left lane
             left_ps = PoseStamped()
             left_ps.header = ps.header
@@ -155,7 +209,7 @@ class RoadShapePublisher(Node):
             self.egoPath_viz_pub_.publish(path_msg)
             self.egoLaneL_viz_pub_.publish(left_lane)
             self.egoLaneR_viz_pub_.publish(right_lane)  
-            self.get_logger().info(f'Publishing egoPath and egoLanes with {len(path_msg.poses)} waypoints')
+            self.get_logger().info(f'Publishing egoPath and egoLanes with {len(path_msg.poses)} waypoints on lane {waypoints[0].lane_id}')
         
 def main(args=None):
     rclpy.init(args=args)
