@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
-from image_visualization import make_visualization_data
+from image_visualization import make_visualization_data, make_visualization_seg
 
 FRAME_INF_SIZE = (640, 320)
 FRAME_ORI_SIZE = (1280, 720)
@@ -54,12 +54,26 @@ def main():
     if (not cap.isOpened()):
         print("Error opening video stream or file")
         return
-    output_filepath = os.path.join(
+    
+    # For data visualization
+    output_filepath_data = os.path.join(
         args.output_video_dir,
         "output_video_data.avi"
     )
-    writer = cv2.VideoWriter(
-        output_filepath,
+    writer_data = cv2.VideoWriter(
+        output_filepath_data,
+        cv2.VideoWriter_fourcc(*"MJPG"), 
+        cap.get(cv2.CAP_PROP_FPS),
+        FRAME_ORI_SIZE
+    )
+    
+    # For segmentation visualization
+    output_filepath_seg = os.path.join(
+        args.output_video_dir,
+        "output_video_seg.avi"
+    )
+    writer_seg = cv2.VideoWriter(
+        output_filepath_seg,
         cv2.VideoWriter_fourcc(*"MJPG"), 
         cap.get(cv2.CAP_PROP_FPS),
         FRAME_ORI_SIZE
@@ -84,20 +98,27 @@ def main():
         image = image.resize(FRAME_INF_SIZE)
 
         # Inference
-        prediction = model.inference(image)
-        vis_image = make_visualization_data(image, prediction)
+        seg_pred, data_pred = model.inference(image)
 
-        # Resize
-        vis_image = np.array(vis_image)
-        vis_image = cv2.resize(vis_image, FRAME_ORI_SIZE)
+        # Frame preprocessing
+        vis_image_data = make_visualization_data(image.copy(), data_pred)
+        vis_image_data = np.array(vis_image_data)
+        vis_image_data = cv2.resize(vis_image_data, FRAME_ORI_SIZE)
 
-        # Write to output
-        writer.write(vis_image)
+        vis_image_seg = make_visualization_seg(image.copy(), seg_pred)
+        vis_image_seg = np.array(vis_image_seg)
+        vis_image_seg = cv2.resize(vis_image_seg, FRAME_ORI_SIZE)
+
+        # Write to outputs
+        writer_data.write(vis_image_data)
+        writer_seg.write(vis_image_seg)
 
     # Release resources
     cap.release()
-    writer.release()
-    print(f"Output video saved to: {output_filepath}")
+    writer_data.release()
+    writer_seg.release()
+    print(f"Data         visualization video saved to: {output_filepath_data}")
+    print(f"Segmentation visualization video saved to: {output_filepath_seg}")
 
 
 if (__name__ == "__main__"):
