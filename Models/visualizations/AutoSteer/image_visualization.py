@@ -105,6 +105,15 @@ def make_visualization_data(
     return image
 
 
+def make_visualization_seg(
+        image: Image,
+        prediction: np.ndarray
+):
+    
+    # Boilerplate
+    
+
+
 def main(): 
 
     parser = ArgumentParser()
@@ -155,19 +164,32 @@ def main():
             input_image_filepath = os.path.join(
                 input_image_dirpath, filename
             )
+            img_id = filename.split(".")[0].zfill(3)
+
             print(f"Reading Image: {input_image_filepath}")
             image = Image.open(input_image_filepath).convert("RGB")
             image = image.resize((640, 320))
 
-            # Inference + visualization
-            prediction = model.inference(image)
-            vis_image = make_visualization_data(image, prediction)
-            img_id = filename.split(".")[0].zfill(3)
+            # Inference
+            binary_segg_pred, path_data_pred = model.inference(image)
+
+            # Data visualization
+            vis_image = make_visualization_data(image, path_data_pred)
+            
             output_image_filepath = os.path.join(
                 output_image_dirpath,
-                f"{img_id}.png"
+                f"{img_id}_data.png"
             )
             vis_image.save(output_image_filepath)
+
+            # Segmentation visualization
+            vis_seg = make_visualization_seg(image, binary_segg_pred)
+
+            output_seg_filepath = os.path.join(
+                output_image_dirpath,
+                f"{img_id}_seg.png"
+            )
+            vis_seg.save(output_seg_filepath)
 
         else:
             print(f"Skipping non-image file: {filename}")
