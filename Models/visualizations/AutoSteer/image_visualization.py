@@ -1,5 +1,6 @@
 import os
 import sys
+import cv2
 import math
 import numpy as np
 from PIL import Image, ImageDraw
@@ -110,8 +111,41 @@ def make_visualization_seg(
         prediction: np.ndarray
 ):
     
-    # Boilerplate
+    # Creating visualization object
+    shape = prediction.shape
+    row = shape[0]
+    col = shape[1]
+    seg_pred_object = np.array(
+        np.zeros(
+            (row, col, 3), 
+            dtype = "uint8"
+        )
+    )
+
+    # Foreground object labels
+    pred_labels = np.where(prediction > 0)
+
+    # Visualization
+    COLOR_SEG = (0, 255, 145)       # Lil lime green
+    for i in range(3):
+        seg_pred_object[
+            pred_labels[0],
+            pred_labels[1], 
+            i
+        ] = COLOR_SEG[i]
     
+    # Alpha blending
+    alpha = 0.5
+    pred_vis = cv2.addWeighted(
+        seg_pred_object, 
+        alpha, 
+        np.array(image), 
+        1 - alpha, 
+        0
+    )
+
+    vis_image = Image.fromarray(pred_vis)
+    return vis_image
 
 
 def main(): 
