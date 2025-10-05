@@ -140,7 +140,7 @@ def make_visualization_seg(
         seg_pred_object, 
         alpha, 
         np.array(image), 
-        1 - alpha, 
+        1,
         0
     )
 
@@ -208,7 +208,10 @@ def main():
             binary_segg_pred, path_data_pred = model.inference(image)
 
             # Data visualization
-            vis_image = make_visualization_data(image, path_data_pred)
+            vis_image = make_visualization_data(
+                image.copy(), 
+                path_data_pred
+            )
             
             output_image_filepath = os.path.join(
                 output_image_dirpath,
@@ -217,7 +220,10 @@ def main():
             vis_image.save(output_image_filepath)
 
             # Segmentation visualization
-            vis_seg = make_visualization_seg(image, binary_segg_pred)
+            vis_seg = make_visualization_seg(
+                image.copy(), 
+                binary_segg_pred
+            )
 
             output_seg_filepath = os.path.join(
                 output_image_dirpath,
