@@ -14,14 +14,28 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(CUDA REQUIRED)
 
-# --- HIP Configuration ---
-find_package(HIP QUIET)
-if(HIP_FOUND)
-  message(STATUS "HIP found: ${HIP_VERSION}")
-  enable_language(HIP)
-  message(STATUS "HIP language enabled - platform and architecture controlled via command line")
+# Optional: vision_msgs for AutoSpeed detection node
+find_package(vision_msgs QUIET)
+if(vision_msgs_FOUND)
+  message(STATUS "vision_msgs found - AutoSpeed node will be built")
 else()
-  message(STATUS "HIP not found, HIP kernels will be disabled")
+  message(WARNING "vision_msgs not found - AutoSpeed node will be skipped. Install with: sudo apt install ros-$ENV{ROS_DISTRO}-vision-msgs")
+endif()
+
+# --- HIP Configuration (Optional) ---
+# Check if HIP compiler actually exists before trying to use it
+if(EXISTS "/opt/rocm/bin/hipcc" OR EXISTS "/opt/rocm-6.2.4/bin/hipcc")
+  find_package(HIP QUIET)
+  if(HIP_FOUND)
+    message(STATUS "HIP found: ${HIP_VERSION}")
+    enable_language(HIP)
+    message(STATUS "HIP language enabled")
+  else()
+    message(STATUS "HIP not found, HIP kernels will be disabled")
+  endif()
+else()
+  message(STATUS "HIP compiler not found, skipping HIP support")
+  set(HIP_FOUND FALSE)
 endif()
 
 # --- TensorRT Configuration ---
@@ -47,7 +61,9 @@ link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
 add_library(inference_backends SHARED
   ../../common/backends/onnx_runtime_backend.cpp
   ../../common/backends/tensorrt_backend.cpp
-  ../../common/benchmark/fps_timer.cpp
+  ../../common/benchmark/fps_timer.cpp  
+  ../../common/backends/autospeed/tensorrt_engine.cpp
+  ../../common/backends/autospeed/tensorrt_engine.hpp
 )
 target_include_directories(inference_backends PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -68,7 +84,7 @@ target_link_libraries(inference_backends
     ${CUDA_LIBRARIES}
 )
 
-# --- ROS2 Node ---
+# --- ROS2 Model Node (SceneSeg/Scene3D/DomainSeg) ---
 add_library(run_model_node SHARED 
   src/run_model_node.cpp
 )
@@ -104,11 +120,43 @@ rclcpp_components_register_node(
   EXECUTABLE models_node_exe
 )
 
-# Install targets
-install(
-  TARGETS
+# --- ROS2 AutoSpeed Node (Object Detection) ---
+# Only build if vision_msgs is available
+if(vision_msgs_FOUND)
+  add_library(run_autospeed_node SHARED 
+    src/run_autospeed_node.cpp
+  )
+
+  target_include_directories(run_autospeed_node PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../common/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../common/backends/autospeed>
+    $<INSTALL_INTERFACE:include>
+  )
+  ament_target_dependencies(run_autospeed_node
+    rclcpp rclcpp_components cv_bridge sensor_msgs vision_msgs image_transport
+  )
+  target_link_libraries(run_autospeed_node
     inference_backends
-    run_model_node
+  )
+
+  rclcpp_components_register_node(
+    run_autospeed_node
+    PLUGIN "autoware_pov::vision::RunAutoSpeedNode"
+    EXECUTABLE autospeed_node_exe
+  )
+  
+  message(STATUS "AutoSpeed node configured successfully")
+endif()
+
+# Install targets
+set(INSTALL_TARGETS inference_backends run_model_node)
+if(vision_msgs_FOUND)
+  list(APPEND INSTALL_TARGETS run_autospeed_node)
+endif()
+
+install(
+  TARGETS ${INSTALL_TARGETS}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
