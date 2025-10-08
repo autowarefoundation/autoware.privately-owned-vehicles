@@ -1,7 +1,6 @@
-## Pure Pursuit
+## Steering Controller
 
-ROS2 C++ node responsible for computing the required steering angle to follow the desired path. 
-
+ROS2 C++ node responsible for computing the required steering angle to follow the desired path.
 
 ## Dependencies
 

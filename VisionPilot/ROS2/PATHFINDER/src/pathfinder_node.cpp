@@ -1,6 +1,7 @@
 #include "pathfinder_node.hpp"
 
-PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathfinder_node","/pathfinder", options)
+// TODO left right cte default 2, lane width default 4 with no measurement
+PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathfinder_node", "/pathfinder", options)
 {
   this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   bayesFilter = Estimator();
@@ -14,7 +15,9 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
   Gaussian default_state = {0.0, 1e6}; // states can be any value, variance is large
   std::array<Gaussian, STATE_DIM> init_state;
   init_state.fill(default_state);
-  init_state[12].mean = 3.5; // width assumed to be 3.5m
+  init_state[1].mean = -2; // left lane cte
+  init_state[2].mean = 2;  // right lane cte
+  init_state[12].mean = 4; // width assumed to be 3.5m
   bayesFilter.initialize(init_state);
 
   publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("tracked_states", 10);
@@ -32,25 +35,29 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
 
   timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&PathFinderNode::timer_callback, this));
 
+  left_msg = std::make_shared<nav_msgs::msg::Path>();
+  right_msg = std::make_shared<nav_msgs::msg::Path>();
+  path_msg = std::make_shared<nav_msgs::msg::Path>();
+  
   RCLCPP_INFO(this->get_logger(), "PathFinder Node started");
 }
 
 void PathFinderNode::callbackLaneL(const nav_msgs::msg::Path::SharedPtr msg)
 {
-  left_coeff = pathMsg2Coeff(msg);
+  left_msg = msg;
 }
 
 void PathFinderNode::callbackLaneR(const nav_msgs::msg::Path::SharedPtr msg)
 {
-  right_coeff = pathMsg2Coeff(msg);
+  right_msg = msg;
 }
 
 void PathFinderNode::callbackPath(const nav_msgs::msg::Path::SharedPtr msg)
 {
-  path_coeff = pathMsg2Coeff(msg);
+  path_msg = msg;
 }
 
-std::array<double, 3UL> PathFinderNode::pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg)
+std::optional<std::array<double, 3>> PathFinderNode::pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg)
 {
   auto now = this->get_clock()->now();
   auto msg_time = rclcpp::Time(msg->header.stamp);
@@ -58,20 +65,42 @@ std::array<double, 3UL> PathFinderNode::pathMsg2Coeff(const nav_msgs::msg::Path:
   if ((now - msg_time) > threshold)
   {
     RCLCPP_WARN(this->get_logger(), "Dropping stale message %ld nsec old", (now - msg_time).nanoseconds());
-    return {0.0, 0.0, 0.0};
+    return std::nullopt;
   }
   std::vector<cv::Point2f> points;
-  
+
   for (const auto &pose : msg->poses)
   {
     points.emplace_back(pose.pose.position.y, pose.pose.position.x);
   }
-  return fitQuadPoly(points);
+  return std::optional<std::array<double, 3>>(fitQuadPoly(points));
 }
 
 void PathFinderNode::timer_callback()
 {
-  auto drivCorr = drivingCorridor(fittedCurve(left_coeff), fittedCurve(right_coeff), fittedCurve(path_coeff));
+  RCLCPP_INFO(this->get_logger(), "Starting timer callback");
+  auto left_coeff_opt = pathMsg2Coeff(left_msg);
+  auto right_coeff_opt = pathMsg2Coeff(right_msg);
+  auto path_coeff_opt = pathMsg2Coeff(path_msg);
+  std::array<double, 3> left_coeff, right_coeff, path_coeff;
+  RCLCPP_INFO(this->get_logger(), "breakpt timer callback");
+
+  if (path_coeff_opt.has_value())
+  {
+    path_coeff = path_coeff_opt.value();
+  }
+  if (left_coeff_opt.has_value())
+  {
+    left_coeff = left_coeff_opt.value();
+  }
+  if (right_coeff_opt.has_value())
+  {
+    right_coeff = right_coeff_opt.value();
+  }
+  // TODO replace stale data with default values (cte 2m, lane width 4m)
+  auto drivCorr = drivingCorridor(fittedCurve(left_coeff),
+                                  fittedCurve(right_coeff),
+                                  fittedCurve(path_coeff));
 
   std::array<Gaussian, STATE_DIM> measurement;
   std::array<Gaussian, STATE_DIM> process;
@@ -90,19 +119,19 @@ void PathFinderNode::timer_callback()
   const auto &egoLaneL = drivCorr.egoLaneL;
   const auto &egoLaneR = drivCorr.egoLaneR;
 
-  measurement[0].mean = egoPath->cte;
-  measurement[1].mean = egoLaneL->cte - drivCorr.width / 2.0;
-  measurement[2].mean = egoLaneR->cte + drivCorr.width / 2.0;
+  measurement[0].mean = egoPath.cte;
+  measurement[1].mean = egoLaneL.cte - drivCorr.width / 2.0;
+  measurement[2].mean = egoLaneR.cte + drivCorr.width / 2.0;
   measurement[3].mean = 0.0;
 
-  measurement[4].mean = egoPath->yaw_error;
-  measurement[5].mean = egoLaneL->yaw_error;
-  measurement[6].mean = egoLaneR->yaw_error;
+  measurement[4].mean = egoPath.yaw_error;
+  measurement[5].mean = egoLaneL.yaw_error;
+  measurement[6].mean = egoLaneR.yaw_error;
   measurement[7].mean = 0.0;
 
-  measurement[8].mean = egoPath->curvature;
-  measurement[9].mean = egoLaneL->curvature;
-  measurement[10].mean = egoLaneR->curvature;
+  measurement[8].mean = egoPath.curvature;
+  measurement[9].mean = egoLaneL.curvature;
+  measurement[10].mean = egoLaneR.curvature;
   measurement[11].mean = 0.0;
 
   measurement[12].mean = drivCorr.width;
@@ -121,8 +150,6 @@ void PathFinderNode::timer_callback()
   mean_log_msg += "]";
   var_log_msg += "]";
   RCLCPP_INFO(this->get_logger(), mean_log_msg.c_str());
-  RCLCPP_INFO(this->get_logger(), var_log_msg.c_str());
-
   auto out_msg = std_msgs::msg::Float32MultiArray();
   out_msg.data.resize(STATE_DIM * 2);
   out_msg.layout.dim.push_back(std_msgs::msg::MultiArrayDimension());
@@ -152,15 +179,15 @@ void PathFinderNode::timer_callback()
   laneL.header = header;
   laneR.header = header;
 
-  double res = 0.1; // resolution in meters
-  for (double i=0;i < 30;i+=res)
+  double res = 0.1; // resolution in meter
+  for (double i = 0; i < 30; i += res)
   {
     auto p1 = geometry_msgs::msg::PoseStamped();
     p1.header = header;
     p1.pose.position.x = i;
     p1.pose.position.y = i * i * path_coeff[0] + i * path_coeff[1] + path_coeff[2];
     path.poses.push_back(p1);
-    
+
     auto p2 = geometry_msgs::msg::PoseStamped();
     p2.header = header;
     p2.pose.position.x = i;
@@ -176,7 +203,6 @@ void PathFinderNode::timer_callback()
   pub_path_->publish(path);
   pub_laneL_->publish(laneL);
   pub_laneR_->publish(laneR);
-
 }
 
 int main(int argc, char *argv[])
