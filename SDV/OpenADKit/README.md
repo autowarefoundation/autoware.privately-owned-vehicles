@@ -6,7 +6,7 @@ Containerized Scene3D Demo for VisionPilot.
 
 - Docker
 
-- Download the [Scene3D PyTorch model weights](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main/Models#scene3d---monocular-depth-estimation) and place it in the `model-weights` directory named as `scene3d.pth`.
+- Download the [Scene3D PyTorch model weights](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main/Models#scene3d---monocular-depth-estimation) and place it in the `model-weights` directory with the name `scene3d.pth`.
 
 ## Build the Docker image
 
