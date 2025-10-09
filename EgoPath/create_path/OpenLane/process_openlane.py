@@ -379,18 +379,14 @@ def parseData(
         if (verbose):
             warnings.warn(f"Missing egolines detected: \n\
             - file_path: {img_path}")
-
-            if (not egoleft_lane and not egoright_lane):
-                print("\t- Both egolines missing!")
-                missing_line = "both"
-            elif (not egoleft_lane):
-                print("\t- Left egoline missing!")
-                missing_line = "left"
-            elif (not egoright_lane):
-                print("\t- Right egoline missing!")
-                missing_line = "right"
         
         # Log skipped image
+        if (not egoleft_lane and not egoright_lane):
+            missing_line = "both"
+        elif (not egoleft_lane):
+            missing_line = "left"
+        elif (not egoright_lane):
+            missing_line = "right"
         reason = f"Missing egolines detected: {missing_line}"
         log_skipped_image(
             log_json = {},
