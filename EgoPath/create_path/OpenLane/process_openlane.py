@@ -380,10 +380,13 @@ def parseData(
             warnings.warn(f"Missing egolines detected: \n\
             - file_path: {img_path}")
 
-            if (not egoleft_lane):
+            if (not egoleft_lane and not egoright_lane):
+                print("\t- Both egolines missing!")
+                missing_line = "both"
+            elif (not egoleft_lane):
                 print("\t- Left egoline missing!")
                 missing_line = "left"
-            if (not egoright_lane):
+            elif (not egoright_lane):
                 print("\t- Right egoline missing!")
                 missing_line = "right"
         
@@ -411,6 +414,19 @@ def parseData(
                 - file_path  : {img_path}\n \
                 - num_points : {len(drivable_path)}"
             )
+        
+        # Log skipped image
+        reason = f"Drivable path with insufficient points"
+        log_skipped_image(
+            log_json = {},
+            reason = reason,
+            image_path = img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(img_path).convert("RGB"),
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+        )
         return None
     
     elif not (
