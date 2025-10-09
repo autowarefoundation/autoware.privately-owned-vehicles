@@ -272,6 +272,7 @@ def parseData(
 
     img_path = json_data["file_path"]
     lane_lines = json_data["lane_lines"]
+    all_lanes = []
     egoleft_lane = None
     egoright_lane = None
     other_lanes = []
@@ -341,6 +342,9 @@ def parseData(
                 H - 1
             ))
 
+        # Append to all lanes
+        all_lanes.append(this_lane)
+
         # this_attribute = lane["attribute"]
 
         # """
@@ -368,6 +372,30 @@ def parseData(
         #         egoright_lane = this_lane
         # else:
         #     other_lanes.append(this_lane)
+
+    # Sort all lanes by their anchor x-coord
+    all_lanes = sorted(
+        all_lanes, 
+        key = lambda lane: lane[0][0],
+        reverse = False
+    )
+    
+    # Determine 2 ego lanes by anchors instead
+    for i, lane in enumerate(all_lanes):
+        this_anchor = lane[0]
+        if (this_anchor[0] >= W / 2):
+            if (i == 0):
+                egoleft_lane = all_lanes[0]
+                egoright_lane = all_lanes[1]
+            else:
+                egoleft_lane = all_lanes[i - 1]
+                egoright_lane = all_lanes[i]
+            break
+        else:
+            # Traversed all lanes but none is on the right half
+            if (i == len(all_lanes) - 1):
+                egoleft_lane = None
+                egoright_lane = None
 
     if (egoleft_lane and egoright_lane):
         drivable_path = getDrivablePath(
