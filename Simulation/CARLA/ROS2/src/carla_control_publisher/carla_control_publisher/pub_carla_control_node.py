@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 
+import numpy as np
 from carla_msgs.msg import CarlaEgoVehicleControl
 from std_msgs.msg import Float32
 
@@ -11,11 +12,13 @@ class CarlaControlPublisher(Node):
         self.throttle_sub_ = self.create_subscription(Float32, '/vehicle/throttle_cmd', self.throttle_callback, 1)
         self.control_pub_ = self.create_publisher(CarlaEgoVehicleControl, '/carla/hero/vehicle_control_cmd', 1)
         self.timer = self.create_timer(0.1, self.timer_callback)
+        self.steering_angle_cmd = 0.0
+        self.throttle_cmd = 0.0
 
     def timer_callback(self):
         msg = CarlaEgoVehicleControl()
-        msg.throttle = 0.5
-        msg.steer = 0.0
+        msg.throttle = 0.5#self.throttle_cmd
+        msg.steer = np.clip((180.0 / np.pi) * (self.steering_angle_cmd / 49.0), -1.0, 1.0)
         msg.brake = 0.0
         msg.hand_brake = False
         msg.reverse = False
@@ -25,9 +28,11 @@ class CarlaControlPublisher(Node):
     
     def steering_callback(self, msg):
         self.get_logger().info(f'Steering command received: {msg.data}')
+        self.steering_angle_cmd = msg.data
         
     def throttle_callback(self, msg):
         self.get_logger().info(f'Throttle command received: {msg.data}')
+        self.throttle_cmd = msg.data
 
 def main(args=None):
     rclpy.init(args=args)
