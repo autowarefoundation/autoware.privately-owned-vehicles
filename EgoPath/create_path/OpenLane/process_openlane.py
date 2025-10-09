@@ -381,8 +381,22 @@ def parseData(
 
             if (not egoleft_lane):
                 print("\t- Left egoline missing!")
+                missing_line = "left"
             if (not egoright_lane):
                 print("\t- Right egoline missing!")
+                missing_line = "right"
+        
+        # Log skipped image
+        reason = f"Missing egolines detected: {missing_line}"
+        log_skipped_image(
+            log_json = {},
+            reason = reason,
+            image_path = img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(img_path).convert("RGB"),
+            reason = reason
+        )
 
         return None
     
@@ -591,6 +605,12 @@ if __name__ == "__main__":
         subdir_path = os.path.join(output_dir, subdir)
         if (not os.path.exists(subdir_path)):
             os.makedirs(subdir_path, exist_ok = True)
+
+    # Logging skipped images for auditing
+    log_skipped_json = {}
+    skipped_path = os.path.join(output_dir, "skipped")
+    if (not os.path.exists(skipped_path)):
+        os.makedirs(skipped_path, exist_ok = True)
 
     # ============================== Parsing annotations ============================== #
 
