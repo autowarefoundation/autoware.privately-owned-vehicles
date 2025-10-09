@@ -81,19 +81,10 @@ def make_visualization_data(
         width = LINE_W
     )
 
-    # End point
-    draw.ellipse(
-        (
-            end_point_x - POINT_R, 
-            end_point_y - POINT_R, 
-            end_point_x + POINT_R, 
-            end_point_y + POINT_R
-        ), 
-        fill = COLOR_END
-    )
+    # End point deviation
     draw.line(
         (
-            end_point_x, end_point_y, 
+            ego_path_offset, DOWN_MARGIN, 
             end_delta_x, end_delta_y
         ),
         fill = COLOR_END,
