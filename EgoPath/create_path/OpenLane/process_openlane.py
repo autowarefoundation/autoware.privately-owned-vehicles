@@ -388,15 +388,16 @@ def parseData(
         elif (not egoright_lane):
             missing_line = "right"
         reason = f"Missing egolines detected: {missing_line}"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
         log_skipped_image(
-            log_json = {},
+            log_json = log_skipped_json,
             reason = reason,
-            image_path = img_path
+            image_path = true_img_path
         )
         annotate_skipped_image(
-            image = Image.open(img_path).convert("RGB"),
+            image = Image.open(true_img_path).convert("RGB"),
             reason = reason,
-            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
         return None
@@ -413,15 +414,16 @@ def parseData(
         
         # Log skipped image
         reason = f"Drivable path with insufficient points"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
         log_skipped_image(
-            log_json = {},
+            log_json = log_skipped_json,
             reason = reason,
-            image_path = img_path
+            image_path = true_img_path
         )
         annotate_skipped_image(
-            image = Image.open(img_path).convert("RGB"),
+            image = Image.open(true_img_path).convert("RGB"),
             reason = reason,
-            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
         return None
@@ -438,15 +440,16 @@ def parseData(
         
         # Log skipped image
         reason = f"Drivable path not in middle"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
         log_skipped_image(
-            log_json = {},
+            log_json = log_skipped_json,
             reason = reason,
-            image_path = img_path
+            image_path = true_img_path
         )
         annotate_skipped_image(
-            image = Image.open(img_path).convert("RGB"),
+            image = Image.open(true_img_path).convert("RGB"),
             reason = reason,
-            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
         return None
@@ -465,15 +468,16 @@ def parseData(
         
         # Log skipped image
         reason = f"Paths not in correct order"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
         log_skipped_image(
-            log_json = {},
+            log_json = log_skipped_json,
             reason = reason,
-            image_path = img_path
+            image_path = true_img_path
         )
         annotate_skipped_image(
-            image = Image.open(img_path).convert("RGB"),
+            image = Image.open(true_img_path).convert("RGB"),
             reason = reason,
-            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
         return None
@@ -488,15 +492,16 @@ def parseData(
 
         # Log skipped image
         reason = f"Lane width illogical, bottom bigger than top"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
         log_skipped_image(
-            log_json = {},
+            log_json = log_skipped_json,
             reason = reason,
-            image_path = img_path
+            image_path = true_img_path
         )
         annotate_skipped_image(
-            image = Image.open(img_path).convert("RGB"),
+            image = Image.open(true_img_path).convert("RGB"),
             reason = reason,
-            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
         return None
