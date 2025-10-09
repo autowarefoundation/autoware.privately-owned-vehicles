@@ -373,6 +373,30 @@ def parseData(
         # else:
         #     other_lanes.append(this_lane)
 
+    # Sanity check if we have at least 2 lanes
+    if (len(all_lanes) < 2):
+        if (verbose):
+            warnings.warn(f"Insufficient lanes detected. Ignored.\n \
+                - file_path   : {img_path}\n \
+                - total lanes : {len(all_lanes)}"
+            )
+        
+        # Log skipped image
+        reason = f"Insufficient lanes detected"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
+        return None
+    
     # Sort all lanes by their anchor x-coord
     all_lanes = sorted(
         all_lanes, 
