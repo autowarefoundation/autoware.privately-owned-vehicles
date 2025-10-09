@@ -427,6 +427,7 @@ def parseData(
             reason = reason,
             save_path = os.path.join(skipped_path, os.path.basename(img_path))
         )
+
         return None
     
     elif not (
@@ -438,6 +439,20 @@ def parseData(
                 - anchor_x   : {drivable_path[0][0]}\n \
                 - anchor_y   : {drivable_path[0][1]}"
             )
+        
+        # Log skipped image
+        reason = f"Drivable path not in middle"
+        log_skipped_image(
+            log_json = {},
+            reason = reason,
+            image_path = img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(img_path).convert("RGB"),
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+        )
+
         return None
     
     elif not (
