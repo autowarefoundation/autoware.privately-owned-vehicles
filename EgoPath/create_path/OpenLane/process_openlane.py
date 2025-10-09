@@ -804,7 +804,7 @@ if __name__ == "__main__":
 
                     this_label_data = parseData(
                         json_data = this_label_data,
-                        verbose = True
+                        verbose = False
                     )
                     if (this_label_data):
 
@@ -854,7 +854,7 @@ if __name__ == "__main__":
                         print(f"Early stopping reached at {early_stopping} samples.")
                         break
 
-                print(f"Segment {segment} done, with {len(os.listdir(segment_path))} samples collected.")
+                # print(f"Segment {segment} done, with {len(os.listdir(segment_path))} samples collected.")
 
     # Save master data
     with open(
