@@ -612,19 +612,21 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataset_dir", 
+        "-i",
         type = str, 
         help = "OpenLane raw directory",
         required = True
     )
     parser.add_argument(
         "--output_dir", 
-        type = str, 
+        "-o",
         help = "Output directory",
         required = True
     )
     # For debugging only
     parser.add_argument(
         "--early_stopping",
+        "-e",
         type = int,
         help = "Num. files you wanna limit, instead of whole set.",
         required = False
