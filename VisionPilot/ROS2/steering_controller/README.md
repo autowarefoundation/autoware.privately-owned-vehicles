@@ -10,7 +10,7 @@ ROS2 C++ wrapper node responsible for computing the required steering angle to f
 - /hero/odom (`nav_msgs/Odometry`)
 
 ## Publisher
-- /vehicle/throttle_cmd (`Float32`)
+- /vehicle/steering_cmd (`Float32`)
 
 ## Setup Instructions
 1. Install [SteeringController C++ lib](./../../../Control/Steering/SteeringController/README.md)

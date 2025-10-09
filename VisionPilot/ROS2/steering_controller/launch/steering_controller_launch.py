@@ -11,6 +11,13 @@ def generate_launch_description():
         ),
         
         Node(
+            package='longitudinal_controller',  
+            executable='longitudinal_controller_node',
+            name='longitudinal_controller_node',
+            output='screen'
+        ),
+        
+        Node(
             package='carla_control_publisher',
             executable='pub_carla_control',
             name='pub_carla_control',

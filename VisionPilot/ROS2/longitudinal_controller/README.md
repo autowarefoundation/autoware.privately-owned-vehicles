@@ -10,5 +10,4 @@ ROS2 C++ node responsible for computing the required throttle and brake to reach
 - /odom (`nav_msgs/Odometry`)
 
 ## Publisher
-Throttle
-Brake
+- /vehicle/throttle_cmd (`Float32`)
