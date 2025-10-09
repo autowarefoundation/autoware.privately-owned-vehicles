@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 from tqdm import tqdm
 from typing import Any
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 
 # ============================= Format functions ============================= #
@@ -63,14 +63,28 @@ def log_skipped_image(
 def annotate_skipped_image(
     image: Image,
     reason: str,
-    save_path: str
+    save_path: str,
+    lanes: list[Line],
+    egoleft: Line = None,
+    egoright: Line = None,
+    egopath: Line = None
 ):
     draw = ImageDraw.Draw(image)
     draw.text(
         (10, 10), 
         reason, 
-        fill = (255, 0, 0)
+        fill = (255, 0, 0),
+        font = ImageFont.truetype("arial.ttf", 24)
     )
+    for line in lanes:
+        draw.line(line, fill = (255, 0, 0), width = 2)
+    if (egoleft):
+        draw.line(egoleft, fill = (0, 128, 0), width = 2)       # Green
+    if (egoright):
+        draw.line(egoright, fill = (0, 255, 255), width = 2)    # Cyan
+    if (egopath):
+        draw.line(egopath, fill = (255, 255, 0), width = 2)     # Yellow
+
     image.save(save_path)
 
 
@@ -391,7 +405,8 @@ def parseData(
         )
         annotate_skipped_image(
             image = Image.open(true_img_path).convert("RGB"),
-            reason = reason,
+            lanes = all_lanes,
+            reason = f"{reason} : only {len(all_lanes)} lanes",
             save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
@@ -448,6 +463,9 @@ def parseData(
         )
         annotate_skipped_image(
             image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
             reason = reason,
             save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
@@ -474,7 +492,11 @@ def parseData(
         )
         annotate_skipped_image(
             image = Image.open(true_img_path).convert("RGB"),
-            reason = reason,
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : only {len(drivable_path)} points",
             save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
@@ -500,7 +522,11 @@ def parseData(
         )
         annotate_skipped_image(
             image = Image.open(true_img_path).convert("RGB"),
-            reason = reason,
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : drivable_path[0][0] = {drivable_path[0][0]}",
             save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
@@ -528,6 +554,10 @@ def parseData(
         )
         annotate_skipped_image(
             image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
             reason = reason,
             save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
@@ -552,7 +582,11 @@ def parseData(
         )
         annotate_skipped_image(
             image = Image.open(true_img_path).convert("RGB"),
-            reason = reason,
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : width_bottom = {egoright_lane[0][0] - egoleft_lane[0][0]}, width_top = {egoright_lane[-1][0] - egoleft_lane[-1][0]}",
             save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
         )
 
@@ -770,7 +804,7 @@ if __name__ == "__main__":
 
                     this_label_data = parseData(
                         json_data = this_label_data,
-                        verbose = True if (img_id_counter == 450) else False
+                        verbose = True
                     )
                     if (this_label_data):
 
