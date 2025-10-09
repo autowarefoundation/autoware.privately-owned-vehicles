@@ -62,15 +62,16 @@ def log_skipped_image(
 # Annotate skipped images
 def annotate_skipped_image(
     image: Image,
-    reason: str
-) -> Image:
-    draw = ImageDraw.Draw(image.copy())
+    reason: str,
+    save_path: str
+):
+    draw = ImageDraw.Draw(image)
     draw.text(
         (10, 10), 
         reason, 
         fill = (255, 0, 0)
     )
-    return image
+    image.save(save_path)
 
 
 # ============================== Helper functions ============================== #
@@ -395,7 +396,8 @@ def parseData(
         )
         annotate_skipped_image(
             image = Image.open(img_path).convert("RGB"),
-            reason = reason
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(img_path))
         )
 
         return None
