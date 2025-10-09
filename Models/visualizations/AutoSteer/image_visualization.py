@@ -22,10 +22,8 @@ def make_visualization_data(
     start_delta_x = ego_path_offset + 100 * math.sin(start_angle)
     start_delta_y = 319 - (100 * math.cos(start_angle))
     end_angle = prediction[4]
-    end_point_x = prediction[5] * 640
-    end_point_y = prediction[6] * 320
-    end_delta_x = end_point_x - 30 * math.sin(end_angle)
-    end_delta_y = end_point_y + 30 * math.cos(end_angle)
+    end_delta_x = ego_path_offset + 100 * math.sin(end_angle)
+    end_delta_y = 319 - (100 * math.cos(end_angle))
 
     # Start drawing
     draw = ImageDraw.Draw(image)
