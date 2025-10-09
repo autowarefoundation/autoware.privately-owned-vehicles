@@ -489,6 +489,20 @@ def parseData(
                 - egoleft_lane   : {egoleft_lane}\n \
                 - egoright_lane  : {egoright_lane}"
             )
+
+        # Log skipped image
+        reason = f"Lane width illogical, bottom bigger than top"
+        log_skipped_image(
+            log_json = {},
+            reason = reason,
+            image_path = img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(img_path).convert("RGB"),
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+        )
+
         return None
 
     # Assemble all data
