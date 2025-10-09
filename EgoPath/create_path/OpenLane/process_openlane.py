@@ -48,6 +48,31 @@ def custom_warning_format(
 warnings.formatwarning = custom_warning_format
 
 
+# Log skipped images
+def log_skipped_image(
+    log_json: dict,
+    reason: str,
+    image_path: str
+):
+    if (reason not in log_json):
+        log_json[reason] = []
+    log_json[reason].append(image_path)
+
+
+# Annotate skipped images
+def annotate_skipped_image(
+    image: Image,
+    reason: str
+) -> Image:
+    draw = ImageDraw.Draw(image.copy())
+    draw.text(
+        (10, 10), 
+        reason, 
+        fill = (255, 0, 0)
+    )
+    return image
+
+
 # ============================== Helper functions ============================== #
 
 
