@@ -776,3 +776,13 @@ if __name__ == "__main__":
             data_master, f, 
             indent = 4
         )
+
+    # Save log of skipped images
+    with open(
+        os.path.join(output_dir, "log_skipped.json"), 
+        "w"
+    ) as f:
+        json.dump(
+            log_skipped_json, f, 
+            indent = 4
+        )
