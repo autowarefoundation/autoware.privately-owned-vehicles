@@ -341,33 +341,33 @@ def parseData(
                 H - 1
             ))
 
-        this_attribute = lane["attribute"]
+        # this_attribute = lane["attribute"]
 
-        """
-        "attribute":    <int>: left-right attribute of the lane
-                            1: left-left
-                            2: left (exactly egoleft)
-                            3: right (exactly egoright)
-                            4: right-right
-        """
-        if (this_attribute == 2):
-            if (egoleft_lane and verbose):
-                warnings.warn(
-                    f"Multiple egoleft lanes detected. Please check! \n\
-                        - file_path: {img_path}"
-                )
-            else:
-                egoleft_lane = this_lane
-        elif (this_attribute == 3):
-            if (egoright_lane and verbose):
-                warnings.warn(
-                    f"Multiple egoright lanes detected. Please check! \n\
-                        - file_path: {img_path}"
-                )
-            else:
-                egoright_lane = this_lane
-        else:
-            other_lanes.append(this_lane)
+        # """
+        # "attribute":    <int>: left-right attribute of the lane
+        #                     1: left-left
+        #                     2: left (exactly egoleft)
+        #                     3: right (exactly egoright)
+        #                     4: right-right
+        # """
+        # if (this_attribute == 2):
+        #     if (egoleft_lane and verbose):
+        #         warnings.warn(
+        #             f"Multiple egoleft lanes detected. Please check! \n\
+        #                 - file_path: {img_path}"
+        #         )
+        #     else:
+        #         egoleft_lane = this_lane
+        # elif (this_attribute == 3):
+        #     if (egoright_lane and verbose):
+        #         warnings.warn(
+        #             f"Multiple egoright lanes detected. Please check! \n\
+        #                 - file_path: {img_path}"
+        #         )
+        #     else:
+        #         egoright_lane = this_lane
+        # else:
+        #     other_lanes.append(this_lane)
 
     if (egoleft_lane and egoright_lane):
         drivable_path = getDrivablePath(
