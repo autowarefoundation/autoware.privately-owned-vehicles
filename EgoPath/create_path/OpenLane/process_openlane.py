@@ -466,6 +466,20 @@ def parseData(
                 - egoleft_lane   : {egoleft_lane}\n \
                 - egoright_lane  : {egoright_lane}"
             )
+        
+        # Log skipped image
+        reason = f"Paths not in correct order"
+        log_skipped_image(
+            log_json = {},
+            reason = reason,
+            image_path = img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(img_path).convert("RGB"),
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(img_path))
+        )
+
         return None
     
     elif not (egoright_lane[0][0] - egoleft_lane[0][0] >= egoright_lane[-1][0] - egoleft_lane[-1][0]):
