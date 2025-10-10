@@ -239,28 +239,9 @@ class AutoSteerTrainer():
     
     # Run Model
     def run_model(self):
-        #self.pred_bev_ego_path_tensor, self.pred_bev_egoleft_lane_tensor, \
-        #    self.pred_bev_egoright_lane_tensor, self.pred_binary_seg_tensor = self.model(self.bev_image_tensor)
         
         self.pred_binary_seg_tensor, self.pred_data_tensor = self.model(self.perspective_image_tensor)
 
-        '''
-        # BEV Loss
-        BEV_data_loss_driving_corridor = self.calc_BEV_data_loss_driving_corridor()
-        self.BEV_data_loss = BEV_data_loss_driving_corridor
-        BEV_gradient_loss_driving_corridor = self.calc_BEV_gradient_loss_driving_corridor()
-
-        self.BEV_loss = BEV_data_loss_driving_corridor + \
-            BEV_gradient_loss_driving_corridor
-
-
-        # Reprojected Loss
-        reprojected_data_loss_driving_corridor = self.calc_reprojected_data_loss_driving_corridor()
-        reprojected_gradient_loss_driving_corridor = self.calc_reprojected_gradient_loss_driving_corridor()
-
-        self.reprojected_loss = reprojected_data_loss_driving_corridor + \
-            reprojected_gradient_loss_driving_corridor
-        '''
         # Segmentation Loss
         self.segmentation_loss = self.calc_BEV_segmentation_loss()
 
