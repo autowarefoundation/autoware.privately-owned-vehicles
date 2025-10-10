@@ -232,11 +232,10 @@ class Augmentations():
             self.adjust_shape = self.transform_shape_bev(image = self.image)
             self.augmented_image = self.adjust_shape["image"]
 
-            # Apply random image augmentations
-            if (random.random() >= 0.25 and self.is_train):
-
-                self.add_noise = self.transform_noise(image = self.augmented_image)
-                self.augmented_image = self.add_noise["image"]
+            ##### ALWAYS ADDING NOISE FOR DENOISING LOSS ####
+            # Add noise
+            self.add_noise = self.transform_noise(image = self.augmented_image)
+            self.augmented_image = self.add_noise["image"]
 
         # For test/val sets
         else:
