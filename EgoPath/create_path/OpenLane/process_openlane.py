@@ -290,6 +290,7 @@ def parseData(
     egoleft_lane = None
     egoright_lane = None
     other_lanes = []
+    logs = []
 
     # Walk thru each lane
     for i, lane in enumerate(lane_lines):
@@ -303,6 +304,7 @@ def parseData(
                         - u          : {len(lane['uv'][0])}\n \
                         - v          : {len(lane['uv'][1])}"
                 )
+            logs.append(f"{i} : Inconsistent number of U and V coords |")
             continue
 
         if not (len(lane["uv"][0]) >= 10):
@@ -313,6 +315,7 @@ def parseData(
                         - lane_index : {i}\n \
                         - num_points : {len(lane['uv'][0])}"
                 )
+            logs.append(f"{i} : Lane with insufficient points detected |")
             continue
 
         # There are adjacent points with the same y-coords. Filtering em out.
@@ -347,6 +350,7 @@ def parseData(
                         - lane_index : {i}\n \
                         - num_points : {len(this_lane)}"
                 )
+            logs.append(f"{i} : Lane with insufficient unique y-coords detected |")
             continue
 
         # Add anchor to line, if needed
