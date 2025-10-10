@@ -338,7 +338,7 @@ def main():
                             trainer.run_model()
 
                             # Get running total of loss value
-                            msdict[dataset]["total_running"] += trainer.get_total_loss_value()
+                            msdict[dataset]["total_running"] += trainer.get_validation_loss_value()
 
                             # Save visualization to Tensorboard
                             if(val_count < N_VALVIS): 

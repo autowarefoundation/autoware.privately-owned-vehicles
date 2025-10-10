@@ -556,8 +556,8 @@ class AutoSteerTrainer():
         return self.total_loss.item()
     
     # BEV data loss value
-    def get_total_loss_value(self):
-        return self.total_loss.detach().cpu().numpy()
+    def get_validation_loss_value(self):
+        return self.data_loss.detach().cpu().numpy()
     
     def get_bev_loss(self):
         return self.BEV_loss.item()
