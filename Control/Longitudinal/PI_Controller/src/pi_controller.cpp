@@ -14,6 +14,6 @@ double PI_Controller::computeEffort(double current_speed_, double target_speed_)
 {
     double error = target_speed_ - current_speed_;
     integral_error += error;
-    double effort = K_p * error + K_i * integral_error;
+    double effort = K_p * error + std::clamp(K_i * integral_error, -1.0, 1.0); // limit integral windup
     return effort;
 }

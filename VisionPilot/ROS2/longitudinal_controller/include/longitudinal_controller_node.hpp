@@ -15,5 +15,5 @@ public:
 
 private:
     PI_Controller pi_controller_;
-    double integral_error_, forward_velocity_;
+    double forward_velocity_;
 };
