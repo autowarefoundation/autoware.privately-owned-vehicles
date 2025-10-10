@@ -152,8 +152,6 @@ def main():
 
         # Augmentation Schedule
         apply_augmentation = True
-        if (epoch > 7):
-            apply_augmentation = False
 
         # Shuffle overall data list at start of epoch
         random.shuffle(data_list)
