@@ -13,6 +13,10 @@ STEP_DISTANCE = 0.5       # distance between waypoints
 LANE_WIDTH = 3.5          # meters, typical lane width
 FRONT2BASE = 1.425        # meters, distance from front of vehicle to hero base link
 
+#TODO: fix lane offset, some lane are not centered
+#TODO; enable choosing which lane to publish
+# e.g. ego lane only, left lane only, right lane only, all lanes
+
 def yaw_to_quaternion(yaw_deg):
     yaw = math.radians(yaw_deg)
     return {
@@ -44,6 +48,7 @@ class RoadShapePublisher(Node):
         self.egoPath_viz_pub_ = self.create_publisher(Path, '/egoPath', 2)
         self.egoLaneL_viz_pub_ = self.create_publisher(Path, '/egoLaneL', 2)
         self.egoLaneR_viz_pub_ = self.create_publisher(Path, '/egoLaneR', 2)
+        self.global_path_pub_ = self.create_publisher(Path, '/globalPath', 2)
         
         self.client = carla.Client("localhost", 2000)
         self.client.set_timeout(5.0)
@@ -107,6 +112,30 @@ class RoadShapePublisher(Node):
             waypoints.extend(segment)
             
         print(f"Collected {len(waypoints)} waypoints across {len(allowed_road_lane_ids)} lanes")
+        
+        global_path_msg = Path()
+        elapsed = self.world.get_snapshot().timestamp.elapsed_seconds
+        ros_time = Time()
+        ros_time.sec = int(elapsed)
+        ros_time.nanosec = int((elapsed - ros_time.sec) * 1e9)
+        global_path_msg.header.stamp = ros_time
+        global_path_msg.header.frame_id = "odom"
+        
+        for i, wp in enumerate(waypoints):
+            ps = PoseStamped()
+            ps.header = global_path_msg.header
+            ps.pose.position.x = wp.transform.location.x
+            ps.pose.position.y = -wp.transform.location.y
+            ps.pose.position.z = wp.transform.location.z
+            wp_yaw = math.radians(wp.transform.rotation.yaw)
+            q = yaw_to_quaternion(math.degrees(wp_yaw))
+            ps.pose.orientation.x = q["x"]
+            ps.pose.orientation.y = q["y"]
+            ps.pose.orientation.z = q["z"]
+            ps.pose.orientation.w = q["w"]
+            global_path_msg.poses += [ps]
+        self.global_path_pub_.publish(global_path_msg)
+
         return waypoints
 
     def _find_ego_vehicle(self):
@@ -173,8 +202,8 @@ class RoadShapePublisher(Node):
             ps = PoseStamped()
             ps.header.stamp = ros_time
             ps.header.frame_id = "hero_front"  # relative to front of ego vehicle
-            ps.pose.position.x = local_pos[0] - np.cos(ego_yaw) * FRONT2BASE
-            ps.pose.position.y = -local_pos[1] - np.sin(ego_yaw) * FRONT2BASE # CARLA uses left-handed coordinate system
+            ps.pose.position.x = local_pos[0] - FRONT2BASE
+            ps.pose.position.y = -local_pos[1]
             ps.pose.position.z = local_pos[2]
 
             wp_yaw = math.radians(wp.transform.rotation.yaw)
