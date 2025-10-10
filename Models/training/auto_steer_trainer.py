@@ -179,8 +179,8 @@ class AutoSteerTrainer():
             data_type = "KEYPOINTS"
         )
 
-        aug.setImage(self.perspective_image)
-        self.perspective_image = aug.applyTransformKeypoint(self.perspective_image)
+        aug.setImage(self.noisy_perspective_image)
+        self.noisy_perspective_image = aug.applyTransformKeypoint(self.noisy_perspective_image)
 
     # Load data as Pytorch tensors
     def load_data(self):
@@ -204,7 +204,7 @@ class AutoSteerTrainer():
         noisy_perspective_image_tensor = self.image_loader(self.noisy_perspective_image)
         noisy_perspective_image_tensor = noisy_perspective_image_tensor.unsqueeze(0)
         self.noisy_perspective_image_tensor = noisy_perspective_image_tensor.to(self.device)
-        
+
         # Binary Segmentation
         binary_seg_tensor = self.binary_seg_loader(self.binary_seg)
         binary_seg_tensor = binary_seg_tensor.unsqueeze(0)
