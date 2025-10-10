@@ -114,11 +114,12 @@ def getLineAnchor(
     """
     (x2, y2) = line[0]
     (x1, y1) = line[
-        int(len(line) / 5) 
-        if (
-            len(line) > 2 and
-            line[0][1] >= H * 4/5
-        ) else -1
+        # int(len(line) / 5) 
+        # if (
+        #     len(line) > 5 and
+        #     line[0][1] >= H * 0.8
+        # ) else 1
+        int(len(line) / 2)
     ]
     if (verbose):
         print(f"Anchor points chosen: ({x1}, {y1}), ({x2}, {y2})")
@@ -478,6 +479,7 @@ def parseData(
     
     # Check drivable path validity
     THRESHOLD_EGOPATH_ANCHOR = 0.25
+    THRESHOLD_LANE_WIDTH = 0.2
 
     if (len(drivable_path) < 2):
         if (verbose):
@@ -536,6 +538,35 @@ def parseData(
 
         return None
     
+    elif not (
+        (egoright_lane[0][0] - egoleft_lane[0][0]) >= THRESHOLD_LANE_WIDTH * W
+    ):
+        if (verbose):
+            warnings.warn(f"Ego lane width too small. Ignored.\n \
+                - file_path      : {img_path}\n \
+                - lane_width    : {egoright_lane[0][0] - egoleft_lane[0][0]}"
+            )
+        
+        # Log skipped image
+        reason = f"Ego lane width too small"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : lane_width_bottom = {int(egoright_lane[0][0] - egoleft_lane[0][0])} < {int(THRESHOLD_LANE_WIDTH * W)}",
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
+        return None
+
     elif not (
         (egoleft_lane[0][0] < drivable_path[0][0] < egoright_lane[0][0]) and
         (egoleft_lane[-1][0] < drivable_path[-1][0] < egoright_lane[-1][0])
