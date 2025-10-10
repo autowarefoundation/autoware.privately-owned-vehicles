@@ -276,7 +276,7 @@ class AutoSteerTrainer():
     # Data loss
     def calc_denoising_loss(self):
         mAE_loss = nn.L1Loss()
-        denoising_loss = mAE_loss(self.pred_data_tensor, self.pred_noisy_binary_seg_tensor)
+        denoising_loss = mAE_loss(self.pred_data_tensor, self.pred_noisy_data_tensor)
         return denoising_loss
 
 
