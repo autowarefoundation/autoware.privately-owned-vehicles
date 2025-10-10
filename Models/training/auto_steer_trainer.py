@@ -79,6 +79,7 @@ class AutoSteerTrainer():
         self.BEV_data_loss = None
         self.edge_loss = None
         self.data_loss = None
+        self.denoising_loss = None
 
         self.BEV_FIGSIZE = (4, 8)
         self.ORIG_FIGSIZE = (8, 4)
@@ -249,6 +250,7 @@ class AutoSteerTrainer():
     def run_model(self):
         
         self.pred_binary_seg_tensor, self.pred_data_tensor = self.model(self.perspective_image_tensor)
+        self.pred_noisy_binary_seg_tensor, self.pred_noisy_data_tensor = self.model(self.noisy_perspective_image_tensor)
 
         # Segmentation Loss
         self.segmentation_loss = self.calc_BEV_segmentation_loss()
@@ -259,13 +261,24 @@ class AutoSteerTrainer():
         # Data Loss
         self.data_loss = self.calc_data_loss()
 
-        self.total_loss = self.edge_loss + self.segmentation_loss + self.data_loss*1.5
+        # Denoising Loss
+        self.denoising_loss = self.calc_denoising_loss()
+
+        # Total Loss
+        self.total_loss = self.edge_loss + self.segmentation_loss + (self.data_loss + self.denoising_loss)*1.5
 
     # Data loss
     def calc_data_loss(self):
         mAE_loss = nn.L1Loss()
         data_loss = mAE_loss(self.pred_data_tensor, self.gt_data_tensor)
         return data_loss
+    
+    # Data loss
+    def calc_denoising_loss(self):
+        mAE_loss = nn.L1Loss()
+        denoising_loss = mAE_loss(self.pred_data_tensor, self.pred_noisy_binary_seg_tensor)
+        return denoising_loss
+
 
     # Segmentation Loss
     def calc_BEV_segmentation_loss(self):
