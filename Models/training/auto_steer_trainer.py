@@ -29,6 +29,7 @@ class AutoSteerTrainer():
         self.binary_seg = None
         self.data = None
         self.perspective_image = None
+        self.noisy_perspective_image = None
         self.bev_egopath = None
         self.bev_egoleft = None
         self.bev_egoright = None
@@ -48,6 +49,8 @@ class AutoSteerTrainer():
 
         # Initializing perspective Image tensor
         self.perspective_image_tensor = None
+        self.noisy_perspective_image_tensor = None
+        
 
         # Initializing Binary Segmentation Mask tensor
         self.binary_seg_tensor = None
@@ -158,6 +161,7 @@ class AutoSteerTrainer():
         self.binary_seg = np.array(binary_seg)
         self.data = np.array(data)
         self.perspective_image = np.array(perspective_image)
+        self.noisy_perspective_image = self.perspective_image.copy()
         self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
         self.bev_egoleft = np.array(bev_egoleft, dtype = "float32").transpose()
         self.bev_egoright = np.array(bev_egoright, dtype = "float32").transpose()
@@ -169,13 +173,12 @@ class AutoSteerTrainer():
 
     # Image agumentations
     def apply_augmentations(self, is_train):
-        # Augmenting data for train or val/test
+
         aug = Augmentations(
             is_train = is_train, 
             data_type = "KEYPOINTS"
         )
-        #aug.setImage(self.bev_image)
-        #self.bev_image = aug.applyTransformKeypoint(self.bev_image)
+
         aug.setImage(self.perspective_image)
         self.perspective_image = aug.applyTransformKeypoint(self.perspective_image)
 
@@ -197,6 +200,11 @@ class AutoSteerTrainer():
         perspective_image_tensor = perspective_image_tensor.unsqueeze(0)
         self.perspective_image_tensor = perspective_image_tensor.to(self.device)
 
+        # Noisy Perspective Image
+        noisy_perspective_image_tensor = self.image_loader(self.noisy_perspective_image)
+        noisy_perspective_image_tensor = noisy_perspective_image_tensor.unsqueeze(0)
+        self.noisy_perspective_image_tensor = noisy_perspective_image_tensor.to(self.device)
+        
         # Binary Segmentation
         binary_seg_tensor = self.binary_seg_loader(self.binary_seg)
         binary_seg_tensor = binary_seg_tensor.unsqueeze(0)
