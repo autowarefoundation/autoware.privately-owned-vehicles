@@ -70,6 +70,7 @@ class AutoSteerTrainer():
         self.pred_bev_egoright_lane_tensor = None
         self.pred_binary_seg_tensor = None
         self.pred_data_tensor = None
+        self.pred_noisy_data_tensor = None
 
         # Losses
         self.BEV_loss = None
@@ -250,7 +251,7 @@ class AutoSteerTrainer():
     def run_model(self):
         
         self.pred_binary_seg_tensor, self.pred_data_tensor = self.model(self.perspective_image_tensor)
-        self.pred_noisy_binary_seg_tensor, self.pred_noisy_data_tensor = self.model(self.noisy_perspective_image_tensor)
+        _, self.pred_noisy_data_tensor = self.model(self.noisy_perspective_image_tensor)
 
         # Segmentation Loss
         self.segmentation_loss = self.calc_BEV_segmentation_loss()
