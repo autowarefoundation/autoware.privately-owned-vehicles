@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 from tqdm import tqdm
 from typing import Any
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 
 # ============================= Format functions ============================= #
@@ -48,6 +48,46 @@ def custom_warning_format(
 warnings.formatwarning = custom_warning_format
 
 
+# Log skipped images
+def log_skipped_image(
+    log_json: dict,
+    reason: str,
+    image_path: str
+):
+    if (reason not in log_json):
+        log_json[reason] = []
+    log_json[reason].append(image_path)
+
+
+# Annotate skipped images
+def annotate_skipped_image(
+    image: Image,
+    reason: str,
+    save_path: str,
+    lanes: list[Line],
+    egoleft: Line = None,
+    egoright: Line = None,
+    egopath: Line = None
+):
+    draw = ImageDraw.Draw(image)
+    draw.text(
+        (10, 10), 
+        reason, 
+        fill = (255, 0, 0),
+        font = ImageFont.truetype("arial.ttf", 24)
+    )
+    for line in lanes:
+        draw.line(line, fill = (255, 0, 0), width = 2)
+    if (egoleft):
+        draw.line(egoleft, fill = (0, 128, 0), width = 2)       # Green
+    if (egoright):
+        draw.line(egoright, fill = (0, 255, 255), width = 2)    # Cyan
+    if (egopath):
+        draw.line(egopath, fill = (255, 255, 0), width = 2)     # Yellow
+
+    image.save(save_path)
+
+
 # ============================== Helper functions ============================== #
 
 
@@ -74,11 +114,12 @@ def getLineAnchor(
     """
     (x2, y2) = line[0]
     (x1, y1) = line[
-        int(len(line) / 5) 
-        if (
-            len(line) > 2 and
-            line[0][1] >= H * 4/5
-        ) else -1
+        # int(len(line) / 5) 
+        # if (
+        #     len(line) > 5 and
+        #     line[0][1] >= H * 0.8
+        # ) else 1
+        int(len(line) / 2)
     ]
     if (verbose):
         print(f"Anchor points chosen: ({x1}, {y1}), ({x2}, {y2})")
@@ -246,9 +287,11 @@ def parseData(
 
     img_path = json_data["file_path"]
     lane_lines = json_data["lane_lines"]
+    all_lanes = []
     egoleft_lane = None
     egoright_lane = None
     other_lanes = []
+    logs = []
 
     # Walk thru each lane
     for i, lane in enumerate(lane_lines):
@@ -262,6 +305,7 @@ def parseData(
                         - u          : {len(lane['uv'][0])}\n \
                         - v          : {len(lane['uv'][1])}"
                 )
+            logs.append(f"{i} : Inconsistent number of U and V coords |")
             continue
 
         if not (len(lane["uv"][0]) >= 10):
@@ -272,6 +316,7 @@ def parseData(
                         - lane_index : {i}\n \
                         - num_points : {len(lane['uv'][0])}"
                 )
+            logs.append(f"{i} : Lane with insufficient points detected |")
             continue
 
         # There are adjacent points with the same y-coords. Filtering em out.
@@ -306,6 +351,7 @@ def parseData(
                         - lane_index : {i}\n \
                         - num_points : {len(this_lane)}"
                 )
+            logs.append(f"{i} : Lane with insufficient unique y-coords detected |")
             continue
 
         # Add anchor to line, if needed
@@ -315,33 +361,85 @@ def parseData(
                 H - 1
             ))
 
-        this_attribute = lane["attribute"]
+        # Append to all lanes
+        all_lanes.append(this_lane)
 
-        """
-        "attribute":    <int>: left-right attribute of the lane
-                            1: left-left
-                            2: left (exactly egoleft)
-                            3: right (exactly egoright)
-                            4: right-right
-        """
-        if (this_attribute == 2):
-            if (egoleft_lane and verbose):
-                warnings.warn(
-                    f"Multiple egoleft lanes detected. Please check! \n\
-                        - file_path: {img_path}"
-                )
+        # this_attribute = lane["attribute"]
+
+        # """
+        # "attribute":    <int>: left-right attribute of the lane
+        #                     1: left-left
+        #                     2: left (exactly egoleft)
+        #                     3: right (exactly egoright)
+        #                     4: right-right
+        # """
+        # if (this_attribute == 2):
+        #     if (egoleft_lane and verbose):
+        #         warnings.warn(
+        #             f"Multiple egoleft lanes detected. Please check! \n\
+        #                 - file_path: {img_path}"
+        #         )
+        #     else:
+        #         egoleft_lane = this_lane
+        # elif (this_attribute == 3):
+        #     if (egoright_lane and verbose):
+        #         warnings.warn(
+        #             f"Multiple egoright lanes detected. Please check! \n\
+        #                 - file_path: {img_path}"
+        #         )
+        #     else:
+        #         egoright_lane = this_lane
+        # else:
+        #     other_lanes.append(this_lane)
+
+    # Sanity check if we have at least 2 lanes
+    if (len(all_lanes) < 2):
+        if (verbose):
+            warnings.warn(f"Insufficient lanes detected. Ignored.\n \
+                - file_path   : {img_path}\n \
+                - total lanes : {len(all_lanes)}"
+            )
+        
+        # Log skipped image
+        reason = f"Insufficient lanes detected"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            reason = f"{reason} : only {len(all_lanes)} lanes",
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
+        return None
+    
+    # Sort all lanes by their anchor x-coord
+    all_lanes = sorted(
+        all_lanes, 
+        key = lambda lane: lane[0][0],
+        reverse = False
+    )
+    
+    # Determine 2 ego lanes by anchors instead
+    for i, lane in enumerate(all_lanes):
+        this_anchor = lane[0]
+        if (this_anchor[0] >= W / 2):
+            if (i == 0):
+                egoleft_lane = all_lanes[0]
+                egoright_lane = all_lanes[1]
             else:
-                egoleft_lane = this_lane
-        elif (this_attribute == 3):
-            if (egoright_lane and verbose):
-                warnings.warn(
-                    f"Multiple egoright lanes detected. Please check! \n\
-                        - file_path: {img_path}"
-                )
-            else:
-                egoright_lane = this_lane
+                egoleft_lane = all_lanes[i - 1]
+                egoright_lane = all_lanes[i]
+            break
         else:
-            other_lanes.append(this_lane)
+            # Traversed all lanes but none is on the right half
+            if (i == len(all_lanes) - 1):
+                egoleft_lane = None
+                egoright_lane = None
 
     if (egoleft_lane and egoright_lane):
         drivable_path = getDrivablePath(
@@ -353,16 +451,35 @@ def parseData(
         if (verbose):
             warnings.warn(f"Missing egolines detected: \n\
             - file_path: {img_path}")
-
-            if (not egoleft_lane):
-                print("\t- Left egoline missing!")
-            if (not egoright_lane):
-                print("\t- Right egoline missing!")
+        
+        # Log skipped image
+        if (not egoleft_lane and not egoright_lane):
+            missing_line = "both"
+        elif (not egoleft_lane):
+            missing_line = "left"
+        elif (not egoright_lane):
+            missing_line = "right"
+        reason = f"Missing egolines detected: {missing_line}"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
 
         return None
     
     # Check drivable path validity
     THRESHOLD_EGOPATH_ANCHOR = 0.25
+    THRESHOLD_LANE_WIDTH = 0.2
 
     if (len(drivable_path) < 2):
         if (verbose):
@@ -370,6 +487,25 @@ def parseData(
                 - file_path  : {img_path}\n \
                 - num_points : {len(drivable_path)}"
             )
+        
+        # Log skipped image
+        reason = f"Drivable path with insufficient points"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : only {len(drivable_path)} points",
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
         return None
     
     elif not (
@@ -381,8 +517,56 @@ def parseData(
                 - anchor_x   : {drivable_path[0][0]}\n \
                 - anchor_y   : {drivable_path[0][1]}"
             )
+        
+        # Log skipped image
+        reason = f"Drivable path not in middle"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : drivable_path[0][0] = {drivable_path[0][0]}",
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
         return None
     
+    elif not (
+        (egoright_lane[0][0] - egoleft_lane[0][0]) >= THRESHOLD_LANE_WIDTH * W
+    ):
+        if (verbose):
+            warnings.warn(f"Ego lane width too small. Ignored.\n \
+                - file_path      : {img_path}\n \
+                - lane_width    : {egoright_lane[0][0] - egoleft_lane[0][0]}"
+            )
+        
+        # Log skipped image
+        reason = f"Ego lane width too small"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : lane_width_bottom = {int(egoright_lane[0][0] - egoleft_lane[0][0])} < {int(THRESHOLD_LANE_WIDTH * W)}",
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
+        return None
+
     elif not (
         (egoleft_lane[0][0] < drivable_path[0][0] < egoright_lane[0][0]) and
         (egoleft_lane[-1][0] < drivable_path[-1][0] < egoright_lane[-1][0])
@@ -394,6 +578,25 @@ def parseData(
                 - egoleft_lane   : {egoleft_lane}\n \
                 - egoright_lane  : {egoright_lane}"
             )
+        
+        # Log skipped image
+        reason = f"Paths not in correct order"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = reason,
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
         return None
     
     elif not (egoright_lane[0][0] - egoleft_lane[0][0] >= egoright_lane[-1][0] - egoleft_lane[-1][0]):
@@ -403,6 +606,25 @@ def parseData(
                 - egoleft_lane   : {egoleft_lane}\n \
                 - egoright_lane  : {egoright_lane}"
             )
+
+        # Log skipped image
+        reason = f"Lane width illogical, bottom bigger than top"
+        true_img_path = os.path.join(dataset_dir, IMG_DIR, img_path)
+        log_skipped_image(
+            log_json = log_skipped_json,
+            reason = reason,
+            image_path = true_img_path
+        )
+        annotate_skipped_image(
+            image = Image.open(true_img_path).convert("RGB"),
+            lanes = all_lanes,
+            egoleft = egoleft_lane,
+            egoright = egoright_lane,
+            egopath = drivable_path,
+            reason = f"{reason} : width_bottom = {egoright_lane[0][0] - egoleft_lane[0][0]}, width_top = {egoright_lane[-1][0] - egoleft_lane[-1][0]}",
+            save_path = os.path.join(skipped_path, os.path.basename(true_img_path))
+        )
+
         return None
 
     # Assemble all data
@@ -512,19 +734,21 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataset_dir", 
+        "-i",
         type = str, 
         help = "OpenLane raw directory",
         required = True
     )
     parser.add_argument(
         "--output_dir", 
-        type = str, 
+        "-o",
         help = "Output directory",
         required = True
     )
     # For debugging only
     parser.add_argument(
         "--early_stopping",
+        "-e",
         type = int,
         help = "Num. files you wanna limit, instead of whole set.",
         required = False
@@ -566,6 +790,12 @@ if __name__ == "__main__":
         subdir_path = os.path.join(output_dir, subdir)
         if (not os.path.exists(subdir_path)):
             os.makedirs(subdir_path, exist_ok = True)
+
+    # Logging skipped images for auditing
+    log_skipped_json = {}
+    skipped_path = os.path.join(output_dir, "skipped")
+    if (not os.path.exists(skipped_path)):
+        os.makedirs(skipped_path, exist_ok = True)
 
     # ============================== Parsing annotations ============================== #
 
@@ -609,7 +839,7 @@ if __name__ == "__main__":
 
                     this_label_data = parseData(
                         json_data = this_label_data,
-                        verbose = True if (img_id_counter == 450) else False
+                        verbose = False
                     )
                     if (this_label_data):
 
@@ -659,7 +889,7 @@ if __name__ == "__main__":
                         print(f"Early stopping reached at {early_stopping} samples.")
                         break
 
-                print(f"Segment {segment} done, with {len(os.listdir(segment_path))} samples collected.")
+                # print(f"Segment {segment} done, with {len(os.listdir(segment_path))} samples collected.")
 
     # Save master data
     with open(
@@ -668,5 +898,15 @@ if __name__ == "__main__":
     ) as f:
         json.dump(
             data_master, f, 
+            indent = 4
+        )
+
+    # Save log of skipped images
+    with open(
+        os.path.join(output_dir, "log_skipped.json"), 
+        "w"
+    ) as f:
+        json.dump(
+            log_skipped_json, f, 
             indent = 4
         )

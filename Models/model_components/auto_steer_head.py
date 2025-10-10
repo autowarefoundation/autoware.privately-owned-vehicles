@@ -25,8 +25,6 @@ class AutoSteerHead(nn.Module):
         self.ego_path_x_offset = nn.Linear(1600, 1)
         self.angle_start = nn.Linear(1600, 1)
         self.angle_end = nn.Linear(1600, 1)
-        self.ego_path_x_end = nn.Linear(1600, 1)
-        self.ego_path_y_end = nn.Linear(1600, 1)
  
 
     def forward(self, features):
@@ -59,13 +57,15 @@ class AutoSteerHead(nn.Module):
         angle_start = self.angle_start(driving_corridor)
         angle_end = self.angle_end(driving_corridor) + angle_start
 
-        # End point
-        ego_path_x_end = self.ego_path_x_end(driving_corridor) + ego_path_x_offset
-        ego_path_y_end = self.ego_path_y_end(driving_corridor)
-
-        path_prediction = torch.stack([
-            ego_left_x_offset, ego_right_x_offset, ego_path_x_offset,
-            angle_start, angle_end, ego_path_x_end, ego_path_y_end
-        ], dim = 0).T
+        path_prediction = torch.stack(
+            [
+                ego_left_x_offset, 
+                ego_right_x_offset, 
+                ego_path_x_offset,
+                angle_start, 
+                angle_end
+            ], 
+            dim = 0
+        ).T
         
         return path_prediction

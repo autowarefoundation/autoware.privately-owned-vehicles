@@ -204,7 +204,7 @@ class AutoSteerTrainer():
 
         # Data Tensor
         data_tensor = torch.from_numpy(self.data)
-        data_tensor = data_tensor.type(torch.FloatTensor)
+        data_tensor = data_tensor.type(torch.FloatTensor).unsqueeze(0)
         self.gt_data_tensor = data_tensor.to(self.device)
 
         # BEV Egopath
@@ -799,10 +799,8 @@ class AutoSteerTrainer():
         start_delta_x_pred = ego_path_offset_pred + 100*math.sin(start_angle_pred)
         start_delta_y_pred = 319 -(100*math.cos(start_angle_pred))
         end_angle_pred = pred_data[4]
-        end_point_x_pred = pred_data[5]*640
-        end_point_y_pred = pred_data[6]*320
-        end_delta_x_pred = end_point_x_pred - 30*math.sin(end_angle_pred)
-        end_delta_y_pred = end_point_y_pred + 30*math.cos(end_angle_pred)
+        end_delta_x_pred = ego_path_offset_pred + 100*math.sin(end_angle_pred)
+        end_delta_y_pred = 319 - (100*math.cos(end_angle_pred))
 
         # Plot
         axs_data[0].plot(left_lane_offset_pred, 310, '-co')
@@ -810,8 +808,7 @@ class AutoSteerTrainer():
         axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [310, 310], color='cyan')
         axs_data[0].plot(ego_path_offset_pred, 310, '-yo')
         axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='yellow')
-        axs_data[0].plot(end_point_x_pred, end_point_y_pred, '-ro')
-        axs_data[0].plot([end_delta_x_pred, end_point_x_pred], [end_delta_y_pred, end_point_y_pred], color='red')
+        axs_data[0].plot([ego_path_offset_pred, end_delta_x_pred], [310, end_delta_y_pred], color='red')
         
         
         # Ground Truth
@@ -826,10 +823,8 @@ class AutoSteerTrainer():
         start_delta_x = ego_path_offset_gt + 100*math.sin(start_angle_gt)
         start_delta_y = 319 -(100*math.cos(start_angle_gt))
         end_angle_gt = self.data[4]
-        end_point_x_gt = self.data[5]*640
-        end_point_y_gt = self.data[6]*320
-        end_delta_x = end_point_x_gt - 30*math.sin(end_angle_gt)
-        end_delta_y = end_point_y_gt + 30*math.cos(end_angle_gt)
+        end_delta_x = ego_path_offset_gt + 100*math.sin(end_angle_gt)
+        end_delta_y = 319 - (100*math.cos(end_angle_gt))
 
         # Plot
         axs_data[1].plot(left_lane_offset_gt, 310, '-co')
@@ -837,8 +832,7 @@ class AutoSteerTrainer():
         axs_data[1].plot([left_lane_offset_gt, right_left_offset_gt], [310, 310], color='cyan')
         axs_data[1].plot(ego_path_offset_gt, 310, '-yo')
         axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='yellow')
-        axs_data[1].plot(end_point_x_gt, end_point_y_gt, '-ro')
-        axs_data[1].plot([end_delta_x, end_point_x_gt], [end_delta_y, end_point_y_gt], color='red')
+        axs_data[1].plot([ego_path_offset_gt, end_delta_x], [310, end_delta_y], color='red')
 
         # Save figure to Tensorboard
         if(is_train):
