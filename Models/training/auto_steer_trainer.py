@@ -573,6 +573,9 @@ class AutoSteerTrainer():
     
     def get_data_loss(self):
         return self.data_loss.item()
+    
+    def get_denoising_loss(self):
+        return self.denoising_loss.item()
 
     # Logging losses - Total, BEV, Reprojected
     def log_loss(self, log_count):
@@ -581,7 +584,8 @@ class AutoSteerTrainer():
                 "Total_loss" : self.get_total_loss(),
                 "Segmentation_loss": self.get_segmentation_loss(),
                 "Edge_loss": self.get_edge_loss(),
-                "Data_loss": self.get_data_loss()
+                "Data_loss": self.get_data_loss(),
+                "Denoising_loss": self.get_denoising_loss()
             },
             (log_count)
         )
