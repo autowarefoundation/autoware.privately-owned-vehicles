@@ -50,12 +50,12 @@ class AutoSteerHead(nn.Module):
 
         # Anchor Points
         ego_path_x_offset = self.ego_path_x_offset(driving_corridor) + 0.5
-        ego_left_x_offset = ego_path_x_offset - 0.5 + self.ego_left_x_offset(driving_corridor) 
-        ego_right_x_offset = ego_path_x_offset + 0.5 + self.ego_right_x_offset(driving_corridor)
+        ego_left_x_offset = 0.3 + self.ego_left_x_offset(driving_corridor) 
+        ego_right_x_offset = 0.7 + self.ego_right_x_offset(driving_corridor)
         
         # Start and End angles
         angle_start = self.angle_start(driving_corridor)
-        angle_end = self.angle_end(driving_corridor) + angle_start
+        angle_end = self.angle_end(driving_corridor)
 
         path_prediction = torch.stack(
             [
