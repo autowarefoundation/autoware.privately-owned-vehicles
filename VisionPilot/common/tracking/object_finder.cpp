@@ -90,7 +90,7 @@ ObjectFinder::ObjectFinder(const std::string& homography_yaml, float fps)
                 for (int i = 0; i < 9; i++) {
                     H_.at<float>(i / 3, i % 3) = H_data[i];
                 }
-                LOG_INFO("Loaded homography matrix from " + homography_yaml);
+                LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
             } else {
                 LOG_ERROR("Homography matrix must have 9 elements");
                 throw std::runtime_error("Invalid homography format");
@@ -100,7 +100,7 @@ ObjectFinder::ObjectFinder(const std::string& homography_yaml, float fps)
             throw std::runtime_error("Missing homography in YAML");
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load homography: " + std::string(e.what()));
+        LOG_ERROR(("Failed to load homography: " + std::string(e.what())).c_str());
         // Fallback: identity homography (no transformation)
         H_ = cv::Mat::eye(3, 3, CV_32F);
     }
