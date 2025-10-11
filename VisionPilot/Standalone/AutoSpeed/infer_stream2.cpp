@@ -205,7 +205,7 @@ void objectFinderThread(ObjectFinder& finder,
             std::cout << "  1. Capture:   " << (avg_capture / 1000.0) << " ms\n";
             std::cout << "  2. Inference: " << (avg_inference / 1000.0) << " ms\n";
             std::cout << "  3. Tracking:  " << (avg_tracking / 1000.0) << " ms\n";
-            std::cout << "Total tracked objects: " << output_queue.size() << "\n";
+            std::cout << "Active tracked objects: " << tracked.size() << "\n";
             std::cout << "========================================\n";
         }
     }
