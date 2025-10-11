@@ -13,6 +13,8 @@ find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+
 
 # Include OpenCV and your own headers
 include_directories(
@@ -34,7 +36,7 @@ target_include_directories(pathfinder_node PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_compile_features(pathfinder_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
-ament_target_dependencies(pathfinder_node rclcpp std_msgs nav_msgs)
+ament_target_dependencies(pathfinder_node rclcpp std_msgs nav_msgs visualization_msgs)
 
 install(TARGETS pathfinder_node
   DESTINATION lib/${PROJECT_NAME})
