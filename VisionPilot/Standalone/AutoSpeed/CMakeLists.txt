@@ -13,6 +13,9 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
 pkg_check_modules(GSTREAMER_APP REQUIRED gstreamer-app-1.0)
 
+# yaml-cpp for calibration loading
+find_package(yaml-cpp REQUIRED)
+
 # TensorRT
 set(TENSORRT_ROOT "/usr/local/tensorrt" CACHE PATH "TensorRT installation directory")
 if(NOT EXISTS ${TENSORRT_ROOT})
@@ -72,7 +75,17 @@ add_library(fps_timer
 )
 target_compile_definitions(fps_timer PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 
-# Main executable
+# ObjectFinder (tracking + distance/velocity estimation)
+add_library(object_finder
+    ../../common/tracking/object_finder.cpp
+)
+target_compile_definitions(object_finder PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_link_libraries(object_finder
+    ${OpenCV_LIBS}
+    yaml-cpp
+)
+
+# Main executable - infer_stream (bbox visualization)
 add_executable(autospeed_infer_stream
     infer_stream.cpp
 )
@@ -85,8 +98,21 @@ target_link_libraries(autospeed_infer_stream
     pthread
 )
 
+# ObjectFinder executable - infer_stream2 (CIPO tracking + RSS)
+add_executable(autospeed_object_finder
+    infer_stream2.cpp
+)
+target_compile_definitions(autospeed_object_finder PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_link_libraries(autospeed_object_finder
+    autospeed_backend
+    gstreamer_engine
+    object_finder
+    ${OpenCV_LIBS}
+    pthread
+)
+
 # Installation
-install(TARGETS autospeed_infer_stream
+install(TARGETS autospeed_infer_stream autospeed_object_finder
     RUNTIME DESTINATION bin
 )
 
