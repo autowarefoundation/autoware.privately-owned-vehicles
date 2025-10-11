@@ -181,8 +181,16 @@ class AutoSteerTrainer():
             data_type = "KEYPOINTS"
         )
 
+        aug_resize_only = Augmentations(
+            is_train = False,
+            data_type= "KEYPOINTS"
+        )
+
         aug.setImage(self.noisy_perspective_image)
         self.noisy_perspective_image = aug.applyTransformKeypoint(self.noisy_perspective_image)
+
+        aug_resize_only.setImage(self.perspective_image)
+        self.perspective_image = aug_resize_only.applyTransformKeypoint(self.perspective_image)
 
     # Load data as Pytorch tensors
     def load_data(self):
