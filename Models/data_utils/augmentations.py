@@ -17,10 +17,9 @@ class Augmentations():
     def __init__(self, is_train: bool, data_type: DATA_TYPES_LITERAL):
 
         # Data
-        self.image = 0
-        self.ground_truth = 0
-        self.augmented_data = 0
-        self.augmented_image = 0
+        self.image = None
+        self.ground_truth = None
+        self.augmented_data = None
 
         # Train vs Test/Val mode
         self.is_train = is_train
@@ -117,6 +116,7 @@ class Augmentations():
     def setImage(self, image):
         self.image = image
         self.augmented_image = image
+
 
     # SEMANTIC SEGMENTATION - SceneSeg
     # Apply augmentations transform
@@ -245,6 +245,7 @@ class Augmentations():
             self.augmented_image = self.adjust_shape["image"]
 
         return self.augmented_image
+
 
     # ADDITIONAL DATA SPECIFIC NOISE
     # Apply roadwork objects noise for DomainSeg
