@@ -1,0 +1,35 @@
+# Homography matrix for image-to-world transformation
+# This is a SAMPLE calibration - you need to calibrate for your specific camera!
+#
+# The homography H transforms image pixels [x_img, y_img] to world coordinates [X_world, Y_world]
+# in meters, where (0, 0) is the ego vehicle position.
+#
+# To calibrate:
+# 1. Identify known points in your video (e.g., lane markings at known distances)
+# 2. Use OpenCV's findHomography() with:
+#    - src_points: image coordinates (pixels)
+#    - dst_points: world coordinates (meters)
+# 3. Save the resulting 3x3 matrix here
+#
+# Example calibration (typical dashcam setup):
+# - Camera height: ~1.2m
+# - Camera pitch: ~5 degrees downward
+# - Focal length: ~1200 pixels
+# - Image size: 1920x1080
+#
+# This sample assumes a flat road and typical highway configuration.
+# For accurate results, replace with your camera's actual calibration!
+
+H: [-0.002772571, -0.000006592, 2.594653691,
+    -0.000021567, -0.000003311, -2.634808887,
+     0.000006366, -0.001893601, 1.0]
+
+# Alternative: If you don't have homography, you can estimate it using:
+# - Known lane width (typically 3.6m for highways)
+# - Known lane marking lengths (3m dashes, 9m gaps)
+# - Vehicle distances measured in video
+#
+# For quick testing without calibration:
+# Use simplified inverse perspective: distance ≈ K / (y_pixel - horizon_y)
+# where K ≈ 50000 and horizon_y ≈ image_height/2
+
