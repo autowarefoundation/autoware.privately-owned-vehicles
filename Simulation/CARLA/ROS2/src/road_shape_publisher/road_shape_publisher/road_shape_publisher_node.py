@@ -13,16 +13,16 @@ STEP_DISTANCE = 0.5       # distance between waypoints
 LANE_WIDTH = 4.0          # meters, typical lane width
 FRONT2BASE = 1.425        # meters, distance from front of vehicle to hero base link
 
-# TESTS: (Issue with PATHFINDER calculations, fused cte average is wrong when L/R is missing)
+# TESTS:
 # working: 
 # - all lanes
 # - left and right lane only
+# - ego lane and left lane only
+# - ego lane and right lane only  
+# - left lane only
+# - right lane only 
 # not working:
-# - ego lane only (no states published)
-# - left lane only (tracking left lane instead of ego lane derived from offset cte)
-# - right lane only (tracking right lane instead of ego lane derived from offset cte)
-# - ego lane and left lane only (tracking left lane instead of ego lane)
-# - ego lane and right lane only (tracking right lane instead of ego lane)    
+# - ego lane only (invalid yaw and curvature, due to not using egoPath as source)
 
 def yaw_to_quaternion(yaw_deg):
     yaw = math.radians(yaw_deg)

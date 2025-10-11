@@ -33,15 +33,12 @@ private:
     rclcpp::TimerBase::SharedPtr timer_;
     std::array<double, 3UL> pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg);
     Estimator bayesFilter;
-    const double proc_SD = 0.2;
-    const double meas_SD = 0.001;
+    const double proc_SD = 0.5;
+    const double meas_SD = 0.01;
     const double epsilon = 0.001;
-    // const double proc_SD = 0.2;
-    // const double meas_SD = 0.2;
-    // const double epsilon = 0.01;
     nav_msgs::msg::Path::SharedPtr left_msg;
     nav_msgs::msg::Path::SharedPtr right_msg;
     nav_msgs::msg::Path::SharedPtr path_msg;
-    void publishLaneMarker(double lane_width, double cte, double yaw_error, double curvature);
+    void publishLaneMarker(double lane_width, double cte, double yaw_error, double curvature, std::array<float, 4> rgba);
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr corr_pub_;
 };
