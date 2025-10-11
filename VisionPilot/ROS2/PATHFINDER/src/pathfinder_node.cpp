@@ -1,5 +1,7 @@
 #include "pathfinder_node.hpp"
 
+// TODO visualize where PATHFINDER expects the lanes to be based on the fused states
+
 // TODO left right cte default 2, lane width default 4 with no measurement
 PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathfinder_node", "/pathfinder", options)
 {
@@ -15,12 +17,13 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
   Gaussian default_state = {0.0, 1e6}; // states can be any value, variance is large
   std::array<Gaussian, STATE_DIM> init_state;
   init_state.fill(default_state);
-  init_state[1].mean = -2; // left lane cte
-  init_state[2].mean = 2;  // right lane cte
-  init_state[12].mean = 4; // width assumed to be 3.5m
+  // init_state[1].mean = -LANE_WIDTH / 2.0; // left lane cte
+  // init_state[2].mean = LANE_WIDTH / 2.0;  // right lane cte
+  init_state[12].mean = LANE_WIDTH; // assumed lane width
   bayesFilter.initialize(init_state);
 
   publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("tracked_states", 10);
+  corr_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("driving_corridor", 10);
 
   sub_laneL_ = this->create_subscription<nav_msgs::msg::Path>("/egoLaneL", 5,
                                                               std::bind(&PathFinderNode::callbackLaneL, this, std::placeholders::_1));
@@ -38,7 +41,10 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
   left_msg = std::make_shared<nav_msgs::msg::Path>();
   right_msg = std::make_shared<nav_msgs::msg::Path>();
   path_msg = std::make_shared<nav_msgs::msg::Path>();
-  
+  left_msg->header.stamp = this->get_clock()->now();
+  right_msg->header.stamp = this->get_clock()->now();
+  path_msg->header.stamp = this->get_clock()->now();
+
   RCLCPP_INFO(this->get_logger(), "PathFinder Node started");
 }
 
@@ -57,15 +63,17 @@ void PathFinderNode::callbackPath(const nav_msgs::msg::Path::SharedPtr msg)
   path_msg = msg;
 }
 
-std::optional<std::array<double, 3>> PathFinderNode::pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg)
+std::array<double, 3> PathFinderNode::pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg)
 {
   auto now = this->get_clock()->now();
   auto msg_time = rclcpp::Time(msg->header.stamp);
-  rclcpp::Duration threshold(0, 60000000); // (sec, nanosec)
+  rclcpp::Duration threshold(0, 100000000); // (sec, nanosec)
   if ((now - msg_time) > threshold)
   {
     RCLCPP_WARN(this->get_logger(), "Dropping stale message %ld nsec old", (now - msg_time).nanoseconds());
-    return std::nullopt;
+    return {std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN()};
   }
   std::vector<cv::Point2f> points;
 
@@ -73,38 +81,16 @@ std::optional<std::array<double, 3>> PathFinderNode::pathMsg2Coeff(const nav_msg
   {
     points.emplace_back(pose.pose.position.y, pose.pose.position.x);
   }
-  return std::optional<std::array<double, 3>>(fitQuadPoly(points));
+  return fitQuadPoly(points);
 }
 
 void PathFinderNode::timer_callback()
 {
-  RCLCPP_INFO(this->get_logger(), "Starting timer callback");
-  auto left_coeff_opt = pathMsg2Coeff(left_msg);
-  auto right_coeff_opt = pathMsg2Coeff(right_msg);
-  auto path_coeff_opt = pathMsg2Coeff(path_msg);
-  std::array<double, 3> left_coeff, right_coeff, path_coeff;
-  RCLCPP_INFO(this->get_logger(), "breakpt timer callback");
-
-  if (path_coeff_opt.has_value())
-  {
-    path_coeff = path_coeff_opt.value();
-  }
-  if (left_coeff_opt.has_value())
-  {
-    left_coeff = left_coeff_opt.value();
-  }
-  if (right_coeff_opt.has_value())
-  {
-    right_coeff = right_coeff_opt.value();
-  }
-  // TODO replace stale data with default values (cte 2m, lane width 4m)
-  auto drivCorr = drivingCorridor(fittedCurve(left_coeff),
-                                  fittedCurve(right_coeff),
-                                  fittedCurve(path_coeff));
-
+  auto left_coeff = pathMsg2Coeff(left_msg);
+  auto right_coeff = pathMsg2Coeff(right_msg);
+  auto path_coeff = pathMsg2Coeff(path_msg);
   std::array<Gaussian, STATE_DIM> measurement;
   std::array<Gaussian, STATE_DIM> process;
-
   std::random_device rd;
   std::default_random_engine generator(rd());
   std::uniform_real_distribution<double> dist(-epsilon, epsilon);
@@ -115,14 +101,16 @@ void PathFinderNode::timer_callback()
     measurement[i].variance = meas_SD * meas_SD;
   }
 
-  const auto &egoPath = drivCorr.egoPath;
-  const auto &egoLaneL = drivCorr.egoLaneL;
-  const auto &egoLaneR = drivCorr.egoLaneR;
+  auto width = bayesFilter.getState()[12].mean;
+  fittedCurve egoPath(path_coeff);
+  fittedCurve egoLaneL(left_coeff);
+  fittedCurve egoLaneR(right_coeff);
 
+  // cte to be fused wrt lane center
   measurement[0].mean = egoPath.cte;
-  measurement[1].mean = egoLaneL.cte - drivCorr.width / 2.0;
-  measurement[2].mean = egoLaneR.cte + drivCorr.width / 2.0;
-  measurement[3].mean = 0.0;
+  measurement[1].mean = egoLaneL.cte + width / 2.0;
+  measurement[2].mean = egoLaneR.cte - width / 2.0;
+  measurement[3].mean = 0.0; // fused cte placeholder
 
   measurement[4].mean = egoPath.yaw_error;
   measurement[5].mean = egoLaneL.yaw_error;
@@ -134,7 +122,26 @@ void PathFinderNode::timer_callback()
   measurement[10].mean = egoLaneR.curvature;
   measurement[11].mean = 0.0;
 
-  measurement[12].mean = drivCorr.width;
+  if (std::isnan(egoLaneL.cte) && std::isnan(egoLaneR.cte))
+  {
+    // both lane missing, keep width
+    measurement[12].mean = LANE_WIDTH;
+  }
+  else if (std::isnan(egoLaneL.cte))
+  {
+    // left lane missing, use right lane to infer left lane
+    measurement[12].mean = 2 * (egoLaneR.cte - egoPath.cte);
+  }
+  else if (std::isnan(egoLaneR.cte))
+  {
+    // right lane missing, use left lane to infer right lane
+    measurement[12].mean = -2 * (egoLaneL.cte - egoPath.cte);
+  }
+  else
+  {
+    // both lanes present, use lane width directly
+    measurement[12].mean = egoLaneR.cte - egoLaneL.cte;
+  }
 
   bayesFilter.update(measurement);
   const auto &state = bayesFilter.getState();
@@ -142,10 +149,15 @@ void PathFinderNode::timer_callback()
 
   std::string mean_log_msg = "Mean: [";
   std::string var_log_msg = "Var:  [";
-  for (auto s : state)
+  for (int i = 0; i < STATE_DIM; i++)
   {
-    mean_log_msg += std::to_string(s.mean) + "  ";
-    var_log_msg += std::to_string(s.variance) + "  ";
+    if (i != 0 && i % 4 == 0 || i % 4 == 3)
+    {
+      mean_log_msg += "| ";
+      var_log_msg += "| ";
+    }
+    mean_log_msg += std::to_string(state[i].mean) + " ";
+    var_log_msg += std::to_string(state[i].variance) + " ";
   }
   mean_log_msg += "]";
   var_log_msg += "]";
@@ -203,6 +215,40 @@ void PathFinderNode::timer_callback()
   pub_path_->publish(path);
   pub_laneL_->publish(laneL);
   pub_laneR_->publish(laneR);
+  publishLaneMarker(state[12].mean, state[3].mean, state[7].mean, state[11].mean);
+}
+
+void PathFinderNode::publishLaneMarker(double lane_width, double cte, double yaw_error, double curvature)
+{
+  auto lane_marker = visualization_msgs::msg::Marker();
+  lane_marker.header.stamp = this->get_clock()->now();
+  lane_marker.header.frame_id = "hero";
+  lane_marker.ns = "tracked_lane";
+  lane_marker.id = 0;
+  lane_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+  lane_marker.action = visualization_msgs::msg::Marker::ADD;
+
+  lane_marker.scale.x = lane_width;
+  lane_marker.color.r = 0.2f;
+  lane_marker.color.g = 0.0f;
+  lane_marker.color.b = 0.8f;
+  lane_marker.color.a = 0.8f;
+
+  // Generate a circular arc based on curvature
+  const double radius = (std::abs(curvature) > 1e-9) ? 1.0 / curvature : 1e9;
+  const double arc_length = 20.0; // visualize 20 m ahead
+  const int num_points = 50;
+
+  for (int i = 0; i < num_points; ++i)
+  {
+    double s = (arc_length / (num_points - 1)) * i;
+    geometry_msgs::msg::Point p;
+    p.x = s * std::cos(yaw_error);
+    p.y = - cte + radius * (1 - std::cos(s / radius)); // simple curvature offset
+    p.z = 0.0;
+    lane_marker.points.push_back(p);
+  }
+  corr_pub_->publish(lane_marker);
 }
 
 int main(int argc, char *argv[])

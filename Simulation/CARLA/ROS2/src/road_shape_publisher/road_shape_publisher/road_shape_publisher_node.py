@@ -10,12 +10,19 @@ from nav_msgs.msg import Path
 
 LOCAL_PATH_LEN = 20.0     # meters
 STEP_DISTANCE = 0.5       # distance between waypoints
-LANE_WIDTH = 3.5          # meters, typical lane width
+LANE_WIDTH = 4.0          # meters, typical lane width
 FRONT2BASE = 1.425        # meters, distance from front of vehicle to hero base link
 
-#TODO: fix lane offset, some lane are not centered
-#TODO; enable choosing which lane to publish
-# e.g. ego lane only, left lane only, right lane only, all lanes
+# TESTS: (Issue with PATHFINDER calculations, fused cte average is wrong when L/R is missing)
+# working: 
+# - all lanes
+# - left and right lane only
+# not working:
+# - ego lane only (no states published)
+# - left lane only (tracking left lane instead of ego lane derived from offset cte)
+# - right lane only (tracking right lane instead of ego lane derived from offset cte)
+# - ego lane and left lane only (tracking left lane instead of ego lane)
+# - ego lane and right lane only (tracking right lane instead of ego lane)    
 
 def yaw_to_quaternion(yaw_deg):
     yaw = math.radians(yaw_deg)
@@ -235,6 +242,7 @@ class RoadShapePublisher(Node):
             right_lane.poses.append(right_ps)
             
         if path_msg.poses:
+            # Comment out to test partially missing lane detections
             self.egoPath_viz_pub_.publish(path_msg)
             self.egoLaneL_viz_pub_.publish(left_lane)
             self.egoLaneR_viz_pub_.publish(right_lane)  

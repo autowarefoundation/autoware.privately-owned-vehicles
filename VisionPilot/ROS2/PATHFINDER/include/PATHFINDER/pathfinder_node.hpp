@@ -9,11 +9,14 @@
 #include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+
+#define LANE_WIDTH 4.0 // meters, typical lane width
 
 class PathFinderNode : public rclcpp::Node
 {
 public:
-    PathFinderNode(const rclcpp::NodeOptions & options);
+    PathFinderNode(const rclcpp::NodeOptions &options);
 
 private:
     void timer_callback();
@@ -28,12 +31,17 @@ private:
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_laneR_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_;
     rclcpp::TimerBase::SharedPtr timer_;
-    std::optional<std::array<double, 3UL>> pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg);
+    std::array<double, 3UL> pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg);
     Estimator bayesFilter;
     const double proc_SD = 0.2;
-    const double meas_SD = 0.2;
-    const double epsilon = 0.01;
+    const double meas_SD = 0.001;
+    const double epsilon = 0.001;
+    // const double proc_SD = 0.2;
+    // const double meas_SD = 0.2;
+    // const double epsilon = 0.01;
     nav_msgs::msg::Path::SharedPtr left_msg;
     nav_msgs::msg::Path::SharedPtr right_msg;
     nav_msgs::msg::Path::SharedPtr path_msg;
+    void publishLaneMarker(double lane_width, double cte, double yaw_error, double curvature);
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr corr_pub_;
 };

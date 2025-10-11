@@ -11,30 +11,6 @@ fittedCurve::fittedCurve(const std::array<double, 3> &coeff) : coeff(coeff)
     curvature = 2 * coeff[0] / std::pow(1 + coeff[1] * coeff[1], 1.5);
 }
 
-drivingCorridor::drivingCorridor(
-                 const fittedCurve &left,
-                 const fittedCurve &right,
-                 const fittedCurve &path)
-    : egoLaneL(left), egoLaneR(right), egoPath(path), width(4.0)
-{
-    //TODO: deal with missing lanes here
-    // if (egoLaneL && egoLaneR)
-    // {
-    //     if (!egoPath)
-    //     {
-            const auto &cl = egoLaneL.coeff;
-            const auto &cr = egoLaneR.coeff;
-            egoPath = fittedCurve({
-                            (cl[0] + cr[0]) / 2.0,
-                            (cl[1] + cr[1]) / 2.0,
-                            (cl[2] + cr[2]) / 2.0
-                        });
-        // }
-        width = egoLaneL.cte - egoLaneR.cte;
-        std::cout << "corridor width is " << width << std::endl;
-//     }
-}
-
 cv::Mat loadHFromYaml(const std::string &filename)
 {
     YAML::Node root = YAML::LoadFile(filename);
@@ -61,16 +37,11 @@ std::array<double, 3> fitQuadPoly(const std::vector<cv::Point2f> &points)
 {
     const int degree = 2;
     const size_t N = points.size();
-
-    if (points.size() == 2)
+    if (N <= 2)
     {
-        double y1 = points[0].y, x1 = points[0].x;
-        double y2 = points[1].y, x2 = points[1].x;
-
-        double b = (x2 - x1) / (y2 - y1);
-        double c = x1 - b * y1;
-
-        return {0.0, b, c};
+        return {std::numeric_limits<double>::quiet_NaN(),
+                std::numeric_limits<double>::quiet_NaN(),
+                std::numeric_limits<double>::quiet_NaN()};
     }
 
     Eigen::MatrixXd A(N, degree + 1);
