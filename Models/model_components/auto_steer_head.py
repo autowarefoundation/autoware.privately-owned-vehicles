@@ -55,15 +55,13 @@ class AutoSteerHead(nn.Module):
         
         # Start and End angles
         angle_start = self.angle_start(driving_corridor)
-        angle_end = self.angle_end(driving_corridor)
 
         path_prediction = torch.stack(
             [
                 ego_left_x_offset, 
                 ego_right_x_offset, 
                 ego_path_x_offset,
-                angle_start, 
-                angle_end
+                angle_start
             ], 
             dim = 0
         ).T
