@@ -22,19 +22,17 @@ def make_visualization_data(
     start_delta_x = ego_path_offset + 100 * math.sin(start_angle)
     start_delta_y = 319 - (100 * math.cos(start_angle))
     end_angle = prediction[4]
-    end_point_x = prediction[5] * 640
-    end_point_y = prediction[6] * 320
-    end_delta_x = end_point_x - 30 * math.sin(end_angle)
-    end_delta_y = end_point_y + 30 * math.cos(end_angle)
+    end_delta_x = ego_path_offset + 100 * math.sin(end_angle)
+    end_delta_y = 319 - (100 * math.cos(end_angle))
 
     # Start drawing
     draw = ImageDraw.Draw(image)
     POINT_R = 3
     LINE_W = 2
     DOWN_MARGIN = 310
-    COLOR_OFFSET = (0, 255, 255)    # Cyan
-    COLOR_EGOPATH = (255, 255, 0)   # Yellow
-    COLOR_END = (255, 0, 0)         # Red
+    COLOR_OFFSET = (0, 255, 0)      # Lime
+    COLOR_EGOPATH = (255, 255, 0)   # Cyan
+    COLOR_END = (0, 0, 255)         # Red
 
     # Offsets
     draw.ellipse(
@@ -83,19 +81,10 @@ def make_visualization_data(
         width = LINE_W
     )
 
-    # End point
-    draw.ellipse(
-        (
-            end_point_x - POINT_R, 
-            end_point_y - POINT_R, 
-            end_point_x + POINT_R, 
-            end_point_y + POINT_R
-        ), 
-        fill = COLOR_END
-    )
+    # End point deviation
     draw.line(
         (
-            end_point_x, end_point_y, 
+            ego_path_offset, DOWN_MARGIN, 
             end_delta_x, end_delta_y
         ),
         fill = COLOR_END,

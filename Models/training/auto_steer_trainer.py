@@ -47,7 +47,7 @@ class AutoSteerTrainer():
         self.bev_image_tensor = None
 
         # Initializing perspective Image tensor
-        self.perspective_image_tensor = None
+        self.perspective_image_tensor = None     
 
         # Initializing Binary Segmentation Mask tensor
         self.binary_seg_tensor = None
@@ -67,14 +67,9 @@ class AutoSteerTrainer():
         self.pred_bev_egoright_lane_tensor = None
         self.pred_binary_seg_tensor = None
         self.pred_data_tensor = None
+        self.pred_noisy_data_tensor = None
 
         # Losses
-        self.BEV_loss = None
-        self.reprojected_loss = None
-        self.segmentation_loss = None
-        self.total_loss = None
-        self.BEV_data_loss = None
-        self.edge_loss = None
         self.data_loss = None
 
         self.BEV_FIGSIZE = (4, 8)
@@ -169,13 +164,12 @@ class AutoSteerTrainer():
 
     # Image agumentations
     def apply_augmentations(self, is_train):
-        # Augmenting data for train or val/test
+
         aug = Augmentations(
             is_train = is_train, 
             data_type = "KEYPOINTS"
         )
-        #aug.setImage(self.bev_image)
-        #self.bev_image = aug.applyTransformKeypoint(self.bev_image)
+
         aug.setImage(self.perspective_image)
         self.perspective_image = aug.applyTransformKeypoint(self.perspective_image)
 
@@ -197,6 +191,7 @@ class AutoSteerTrainer():
         perspective_image_tensor = perspective_image_tensor.unsqueeze(0)
         self.perspective_image_tensor = perspective_image_tensor.to(self.device)
 
+
         # Binary Segmentation
         binary_seg_tensor = self.binary_seg_loader(self.binary_seg)
         binary_seg_tensor = binary_seg_tensor.unsqueeze(0)
@@ -204,7 +199,7 @@ class AutoSteerTrainer():
 
         # Data Tensor
         data_tensor = torch.from_numpy(self.data)
-        data_tensor = data_tensor.type(torch.FloatTensor)
+        data_tensor = data_tensor.type(torch.FloatTensor).unsqueeze(0)
         self.gt_data_tensor = data_tensor.to(self.device)
 
         # BEV Egopath
@@ -239,44 +234,27 @@ class AutoSteerTrainer():
     
     # Run Model
     def run_model(self):
-        #self.pred_bev_ego_path_tensor, self.pred_bev_egoleft_lane_tensor, \
-        #    self.pred_bev_egoright_lane_tensor, self.pred_binary_seg_tensor = self.model(self.bev_image_tensor)
         
-        self.pred_binary_seg_tensor, self.pred_data_tensor = self.model(self.perspective_image_tensor)
-
-        '''
-        # BEV Loss
-        BEV_data_loss_driving_corridor = self.calc_BEV_data_loss_driving_corridor()
-        self.BEV_data_loss = BEV_data_loss_driving_corridor
-        BEV_gradient_loss_driving_corridor = self.calc_BEV_gradient_loss_driving_corridor()
-
-        self.BEV_loss = BEV_data_loss_driving_corridor + \
-            BEV_gradient_loss_driving_corridor
-
-
-        # Reprojected Loss
-        reprojected_data_loss_driving_corridor = self.calc_reprojected_data_loss_driving_corridor()
-        reprojected_gradient_loss_driving_corridor = self.calc_reprojected_gradient_loss_driving_corridor()
-
-        self.reprojected_loss = reprojected_data_loss_driving_corridor + \
-            reprojected_gradient_loss_driving_corridor
-        '''
-        # Segmentation Loss
-        self.segmentation_loss = self.calc_BEV_segmentation_loss()
-
-        # Edge Loss
-        self.edge_loss = self.calc_multi_cale_edge_loss()
-
+        self.pred_data_tensor = self.model(self.perspective_image_tensor)
+       
         # Data Loss
         self.data_loss = self.calc_data_loss()
 
-        self.total_loss = self.edge_loss + self.segmentation_loss + self.data_loss*1.5
+        # Total Loss
+        self.total_loss = self.data_loss
 
     # Data loss
     def calc_data_loss(self):
         mAE_loss = nn.L1Loss()
         data_loss = mAE_loss(self.pred_data_tensor, self.gt_data_tensor)
         return data_loss
+    
+    # Data loss
+    def calc_denoising_loss(self):
+        mAE_loss = nn.L1Loss()
+        denoising_loss = mAE_loss(self.pred_data_tensor, self.pred_noisy_data_tensor)
+        return denoising_loss
+
 
     # Segmentation Loss
     def calc_BEV_segmentation_loss(self):
@@ -554,8 +532,8 @@ class AutoSteerTrainer():
         return self.total_loss.item()
     
     # BEV data loss value
-    def get_total_loss_value(self):
-        return self.total_loss.detach().cpu().numpy()
+    def get_validation_loss_value(self):
+        return self.data_loss.detach().cpu().numpy()
     
     def get_bev_loss(self):
         return self.BEV_loss.item()
@@ -571,14 +549,14 @@ class AutoSteerTrainer():
     
     def get_data_loss(self):
         return self.data_loss.item()
+    
+    def get_denoising_loss(self):
+        return self.denoising_loss.item()
 
     # Logging losses - Total, BEV, Reprojected
     def log_loss(self, log_count):
         self.writer.add_scalars(
             "Training Loss", {
-                "Total_loss" : self.get_total_loss(),
-                "Segmentation_loss": self.get_segmentation_loss(),
-                "Edge_loss": self.get_edge_loss(),
                 "Data_loss": self.get_data_loss()
             },
             (log_count)
@@ -612,131 +590,12 @@ class AutoSteerTrainer():
     # Save predicted visualization
     def save_visualization(self, log_count, bev_vis, vis_path = "", is_train = False):
 
-        '''
-        # Predicted Egopath (BEV)
-        pred_bev_ego_path = self.pred_bev_ego_path_tensor.cpu().detach().numpy()
-        
-        # Predicted Egopath (Reprojected)
-        _, pred_reprojected_ego_path_tensor = \
-                self.getPerspectivePointsFromBEV(self.gt_bev_egopath_tensor, 
-                                            self.pred_bev_ego_path_tensor)
-        pred_reprojected_ego_path_x_vals = []
-        pred_reprojected_ego_path_y_vals = []
-
-        for i in range(0, len(pred_reprojected_ego_path_tensor)):
-            pred_reprojected_ego_path_x_val = pred_reprojected_ego_path_tensor[i][0].cpu().detach().numpy()
-            pred_reprojected_ego_path_y_val = pred_reprojected_ego_path_tensor[i][1].cpu().detach().numpy()
-
-            pred_reprojected_ego_path_x_vals.append(pred_reprojected_ego_path_x_val)
-            pred_reprojected_ego_path_y_vals.append(pred_reprojected_ego_path_y_val)
-
-        # Predicted Egoleft Lane (BEV)
-        prev_bev_egoleft_lane = self.pred_bev_egoleft_lane_tensor.cpu().detach().numpy()
-
-        # Predicted Egoleft Lane (Reprojected)
-        _, pred_reprojected_egoleft_lane_tensor = \
-                self.getPerspectivePointsFromBEV(self.gt_bev_egopath_tensor, 
-                                            self.pred_bev_egoleft_lane_tensor)
-        pred_reprojected_egoleft_lane_x_vals = []
-        pred_reprojected_egoleft_lane_y_vals = []
-
-        for i in range(0, len(pred_reprojected_egoleft_lane_tensor)):
-            pred_reprojected_egoleft_lane_x_val = pred_reprojected_egoleft_lane_tensor[i][0].cpu().detach().numpy()
-            pred_reprojected_egoleft_lane_y_val = pred_reprojected_egoleft_lane_tensor[i][1].cpu().detach().numpy()
-
-            pred_reprojected_egoleft_lane_x_vals.append(pred_reprojected_egoleft_lane_x_val)
-            pred_reprojected_egoleft_lane_y_vals.append(pred_reprojected_egoleft_lane_y_val)
-
-        # Predicted Egoright Lane (BEV)
-        pred_bev_egoright_lane = self.pred_bev_egoright_lane_tensor.cpu().detach().numpy()
-
-        # Predicted Egoright Lane (Reprojected)
-        _, pred_reprojected_egoright_lane_tensor = \
-                self.getPerspectivePointsFromBEV(self.gt_bev_egopath_tensor, 
-                                            self.pred_bev_egoright_lane_tensor)
-
-        pred_reprojected_egoright_lane_x_vals = []
-        pred_reprojected_egoright_lane_y_vals = []
-
-        for i in range(0, len(pred_reprojected_egoright_lane_tensor)):
-            pred_reprojected_egoright_lane_x_val = pred_reprojected_egoright_lane_tensor[i][0].cpu().detach().numpy()
-            pred_reprojected_egoright_lane_y_val = pred_reprojected_egoright_lane_tensor[i][1].cpu().detach().numpy()
-
-            pred_reprojected_egoright_lane_x_vals.append(pred_reprojected_egoright_lane_x_val)
-            pred_reprojected_egoright_lane_y_vals.append(pred_reprojected_egoright_lane_y_val)
-
-        # BEV fixed y-values of anchors
-        bev_y_vals = self.gt_bev_egopath_tensor[1,:].cpu().detach().numpy()*self.BEV_H
-   
-        # Visualize Ground Truth and Predictions (BEV)
-        fig_bev, axs_bev = plt.subplots(1,2, figsize=(8, 8))
-
-        # Prediction
-        axs_bev[0].set_title('Prediction',fontweight ="bold") 
-        axs_bev[0].set_xlim(0, self.BEV_W - 1)
-        axs_bev[0].set_ylim(self.BEV_H - 1, 0)
-        axs_bev[0].imshow(self.bev_image)
-
-        pred_bev_ego_path_vals = pred_bev_ego_path[0]*self.BEV_W
-        prev_bev_egoleft_lane_vals = prev_bev_egoleft_lane[0]*self.BEV_W
-        pred_bev_egoright_lane_vals = pred_bev_egoright_lane[0]*self.BEV_W
-
-        axs_bev[0].plot(pred_bev_ego_path_vals, bev_y_vals, 'yellow')
-        axs_bev[0].plot(prev_bev_egoleft_lane_vals, bev_y_vals, 'green')
-        axs_bev[0].plot(pred_bev_egoright_lane_vals, bev_y_vals, 'cyan')
-
-        # Ground Truth
-        axs_bev[1].set_title('Ground Truth',fontweight ="bold") 
-        axs_bev[1].imshow(bev_vis)
-        
-        # Save figure to Tensorboard
-        if(is_train):
-            self.writer.add_figure("Train (BEV)", fig_bev, global_step = (log_count))
-        else:
-            fig_bev.savefig(vis_path + '_BEV.png')
-
-        # Visualize Ground Truth and Predictions (Perspective)
-        fig_perspective, axs_persp = plt.subplots(2,1, figsize=(8, 8))
-
-        # Prediction
-        axs_persp[0].set_title('Prediction',fontweight ="bold") 
-        axs_persp[0].set_xlim(0, self.perspective_W - 1)
-        axs_persp[0].set_ylim(self.perspective_H - 1, 0)
-        axs_persp[0].imshow(self.perspective_image)
-
-        axs_persp[0].plot(pred_reprojected_ego_path_x_vals, pred_reprojected_ego_path_y_vals, 'yellow')
-        axs_persp[0].plot(pred_reprojected_egoleft_lane_x_vals, pred_reprojected_egoleft_lane_y_vals, 'chartreuse')
-        axs_persp[0].plot(pred_reprojected_egoright_lane_x_vals, pred_reprojected_egoright_lane_y_vals, 'cyan')
-
-        # Visualize Ground Truth - Perspective
-        axs_persp[1].set_title('Ground Truth',fontweight ="bold") 
-        axs_persp[1].imshow(self.perspective_image)
-        axs_persp[1].set_xlim(0, self.perspective_W - 1)
-        axs_persp[1].set_ylim(self.perspective_H - 1, 0)
-
-        gt_reprojected_ego_path_x_vals = self.reproj_egopath[0,:]*self.perspective_W
-        gt_reprojected_ego_path_y_vals = self.reproj_egopath[1,:]*self.perspective_H
-        gt_reprojected_egoleft_lane_x_vals = self.reproj_egoleft[0,:]*self.perspective_W
-        gt_reprojected_egoleft_lane_y_vals = self.reproj_egoleft[1,:]*self.perspective_H
-        gt_reprojected_egoright_lane_x_vals = self.reproj_egoright[0,:]*self.perspective_W
-        gt_reprojected_egoright_lane_y_vals = self.reproj_egoright[1,:]*self.perspective_H
-        
-        axs_persp[1].plot(gt_reprojected_ego_path_x_vals, gt_reprojected_ego_path_y_vals, 'yellow')
-        axs_persp[1].plot(gt_reprojected_egoleft_lane_x_vals, gt_reprojected_egoleft_lane_y_vals, 'chartreuse')
-        axs_persp[1].plot(gt_reprojected_egoright_lane_x_vals, gt_reprojected_egoright_lane_y_vals,'cyan')
-
-        # Save figure to Tensorboard
-        if(is_train):
-            self.writer.add_figure("Train (Perspective)", fig_perspective, global_step = (log_count))
-        else:
-            fig_perspective.savefig(vis_path + '_Perspective.png')
-        '''
-
         # Visualize Binary Segmentation - Ground Truth and Predictions (BEV)
-        fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
-        fig_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
+        #fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
+        #fig_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
         fig_data, axs_data = plt.subplots(2,1, figsize=(8, 8))
 
+        '''
         # blend factor
         alpha = 0.5 
 
@@ -785,11 +644,12 @@ class AutoSteerTrainer():
         # Ground Truth
         axs_seg_raw[1].set_title('Ground Truth',fontweight ="bold") 
         axs_seg_raw[1].imshow(self.binary_seg)
+        '''
 
         # Prediction
         axs_data[0].set_title('Prediction',fontweight ="bold") 
         axs_data[0].imshow(self.perspective_image)
-
+   
         # Caclulate params
         pred_data = self.pred_data_tensor.cpu().detach().numpy()[0]
         left_lane_offset_pred = pred_data[0]*640
@@ -798,21 +658,14 @@ class AutoSteerTrainer():
         start_angle_pred = pred_data[3]
         start_delta_x_pred = ego_path_offset_pred + 100*math.sin(start_angle_pred)
         start_delta_y_pred = 319 -(100*math.cos(start_angle_pred))
-        end_angle_pred = pred_data[4]
-        end_point_x_pred = pred_data[5]*640
-        end_point_y_pred = pred_data[6]*320
-        end_delta_x_pred = end_point_x_pred - 30*math.sin(end_angle_pred)
-        end_delta_y_pred = end_point_y_pred + 30*math.cos(end_angle_pred)
 
         # Plot
-        axs_data[0].plot(left_lane_offset_pred, 310, '-co')
-        axs_data[0].plot(right_left_offset_pred, 310, '-co')
-        axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [310, 310], color='cyan')
-        axs_data[0].plot(ego_path_offset_pred, 310, '-yo')
-        axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='yellow')
-        axs_data[0].plot(end_point_x_pred, end_point_y_pred, '-ro')
-        axs_data[0].plot([end_delta_x_pred, end_point_x_pred], [end_delta_y_pred, end_point_y_pred], color='red')
-        
+        axs_data[0].plot([left_lane_offset_pred, left_lane_offset_pred], [310, 319], 'pink')
+        axs_data[0].plot([right_left_offset_pred, right_left_offset_pred], [310, 319], 'pink')
+        axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [314, 314], color='pink')
+        axs_data[0].plot([ego_path_offset_pred, ego_path_offset_pred], [310, 319], 'green')
+        axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='cyan')
+ 
         
         # Ground Truth
         axs_data[1].set_title('Ground Truth',fontweight ="bold") 
@@ -825,21 +678,16 @@ class AutoSteerTrainer():
         start_angle_gt = self.data[3]
         start_delta_x = ego_path_offset_gt + 100*math.sin(start_angle_gt)
         start_delta_y = 319 -(100*math.cos(start_angle_gt))
-        end_angle_gt = self.data[4]
-        end_point_x_gt = self.data[5]*640
-        end_point_y_gt = self.data[6]*320
-        end_delta_x = end_point_x_gt - 30*math.sin(end_angle_gt)
-        end_delta_y = end_point_y_gt + 30*math.cos(end_angle_gt)
 
         # Plot
-        axs_data[1].plot(left_lane_offset_gt, 310, '-co')
-        axs_data[1].plot(right_left_offset_gt, 310, '-co')
-        axs_data[1].plot([left_lane_offset_gt, right_left_offset_gt], [310, 310], color='cyan')
-        axs_data[1].plot(ego_path_offset_gt, 310, '-yo')
-        axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='yellow')
-        axs_data[1].plot(end_point_x_gt, end_point_y_gt, '-ro')
-        axs_data[1].plot([end_delta_x, end_point_x_gt], [end_delta_y, end_point_y_gt], color='red')
+        axs_data[1].plot([left_lane_offset_gt, left_lane_offset_gt], [310, 319], 'pink')
+        axs_data[1].plot([right_left_offset_gt, right_left_offset_gt], [310, 319], 'pink')
+        axs_data[1].plot([left_lane_offset_gt, right_left_offset_gt], [314, 314], color='pink')
+        axs_data[1].plot([ego_path_offset_gt, ego_path_offset_gt], [310, 319], 'green')
+        axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='cyan')
 
+
+        '''
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (Seg)", fig_seg, global_step = (log_count))
@@ -852,17 +700,18 @@ class AutoSteerTrainer():
             self.writer.add_figure("Train (Seg RAW)", fig_seg_raw, global_step = (log_count))
         else:
             fig_seg_raw.savefig(vis_path + '_seg_raw.png')
-
+        '''
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (data)", fig_data, global_step = (log_count))
         else:
             fig_data.savefig(vis_path + '_data.png')
-
+        
+        
         #plt.close(fig_bev)
         #plt.close(fig_perspective)
-        plt.close(fig_seg)
-        plt.close(fig_seg_raw)
+        #plt.close(fig_seg)
+        #plt.close(fig_seg_raw)
         plt.close(fig_data)
     
     # Log validation loss for each dataset to TensorBoard

@@ -152,8 +152,6 @@ def main():
 
         # Augmentation Schedule
         apply_augmentation = True
-        if (epoch > 7):
-            apply_augmentation = False
 
         # Shuffle overall data list at start of epoch
         random.shuffle(data_list)
@@ -340,7 +338,7 @@ def main():
                             trainer.run_model()
 
                             # Get running total of loss value
-                            msdict[dataset]["total_running"] += trainer.get_total_loss_value()
+                            msdict[dataset]["total_running"] += trainer.get_validation_loss_value()
 
                             # Save visualization to Tensorboard
                             if(val_count < N_VALVIS): 

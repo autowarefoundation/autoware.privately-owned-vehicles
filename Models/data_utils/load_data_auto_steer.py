@@ -21,10 +21,10 @@ VALID_DATASET_LITERALS = Literal[
     # "BDD100K",
     # "COMMA2K19",
     #"CULANE",
-    "CURVELANES",
+    #"CURVELANES",
     # "ROADWORK",
     "TUSIMPLE",
-    "OPENLANE"
+    # "OPENLANE"
 ]
 VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
 
@@ -146,19 +146,14 @@ class LoadDataAutoSteer():
         x_left_lane_offset = ego_left[0][0]
         x_right_lane_offset = ego_right[0][0]
         x_ego_path_offset = ego_path[0][0]
-
-        start_angle = math.atan((ego_path[2][0]*640 - ego_path[0][0]*640)/abs((ego_path[2][1]*320 - ego_path[0][1]*320)))
-        end_angle_denominator = abs((ego_path[-1][1]*320 - ego_path[-3][1]*320))
-        if (end_angle_denominator < 1e-5):
-            end_angle = 0.0
-        else:
-            end_angle = math.atan((ego_path[-1][0]*640 - ego_path[-3][0]*640) / end_angle_denominator)
-
-        x_ego_path_end = ego_path[-1][0]
-        y_ego_path_end = ego_path[-1][1]
-
-        data = [x_left_lane_offset, x_right_lane_offset, x_ego_path_offset, \
-                start_angle, end_angle, x_ego_path_end, y_ego_path_end]
+        start_angle = math.atan((ego_path[1][0]*640 - ego_path[0][0]*640)/abs((ego_path[1][1]*320 - ego_path[0][1]*320)))
+      
+        data = [
+            x_left_lane_offset, 
+            x_right_lane_offset, 
+            x_ego_path_offset,
+            start_angle
+        ]
 
         return data
        
