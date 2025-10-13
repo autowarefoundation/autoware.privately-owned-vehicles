@@ -38,8 +38,6 @@ class AutoSteerHead(nn.Module):
         p2 = self.GeLU(p2)
         
         feature_vector = torch.flatten(p2)
-        print(features.shape)
-        print(feature_vector.shape)
 
         # Extract Path Information
         driving_corridor = self.driving_corridor_layer_0(feature_vector)
