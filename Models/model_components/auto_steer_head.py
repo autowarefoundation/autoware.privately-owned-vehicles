@@ -12,19 +12,19 @@ class AutoSteerHead(nn.Module):
         self.pool = nn.MaxPool2d(2, stride=2)
         
         # Extraction Layers
-        self.path_layer_0 = nn.Conv2d(256, 128, 3, 1, 1)
-        self.path_layer_1 = nn.Conv2d(128, 64, 3, 1, 1)
-        self.path_layer_2 = nn.Conv2d(64, 1, 3, 1, 1)
+        self.path_layer_0 = nn.Conv2d(1456, 512, 3, 1, 1)
+        self.path_layer_1 = nn.Conv2d(512, 128, 3, 1, 1)
+        self.path_layer_2 = nn.Conv2d(128, 5, 3, 1, 1)
 
         # Driving Corridor  Decode layers
-        self.driving_corridor_layer_0 = nn.Linear(3200, 1600)
-        self.driving_corridor_layer_1 = nn.Linear(1600, 1600)
+        self.driving_corridor_layer_0 = nn.Linear(1000, 1000)
+        self.driving_corridor_layer_1 = nn.Linear(1000, 1000)
 
-        self.ego_left_x_offset = nn.Linear(1600, 1)
-        self.ego_right_x_offset = nn.Linear(1600, 1)
-        self.ego_path_x_offset = nn.Linear(1600, 1)
-        self.angle_start = nn.Linear(1600, 1)
-        self.angle_end = nn.Linear(1600, 1)
+        self.ego_left_x_offset = nn.Linear(1000, 1)
+        self.ego_right_x_offset = nn.Linear(1000, 1)
+        self.ego_path_x_offset = nn.Linear(1000, 1)
+        self.angle_start = nn.Linear(1000, 1)
+        self.angle_end = nn.Linear(1000, 1)
  
 
     def forward(self, features):
@@ -36,9 +36,10 @@ class AutoSteerHead(nn.Module):
         p1 = self.GeLU(p1)
         p2 = self.path_layer_2(p1)
         p2 = self.GeLU(p2)
-        features = self.pool(p2)
         
-        feature_vector = torch.flatten(features)
+        feature_vector = torch.flatten(p2)
+        print(features.shape)
+        print(feature_vector.shape)
 
         # Extract Path Information
         driving_corridor = self.driving_corridor_layer_0(feature_vector)
