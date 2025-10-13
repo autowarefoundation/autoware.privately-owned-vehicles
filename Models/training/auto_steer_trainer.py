@@ -29,7 +29,6 @@ class AutoSteerTrainer():
         self.binary_seg = None
         self.data = None
         self.perspective_image = None
-        self.noisy_perspective_image = None
         self.bev_egopath = None
         self.bev_egoleft = None
         self.bev_egoright = None
@@ -48,9 +47,7 @@ class AutoSteerTrainer():
         self.bev_image_tensor = None
 
         # Initializing perspective Image tensor
-        self.perspective_image_tensor = None
-        self.noisy_perspective_image_tensor = None
-        
+        self.perspective_image_tensor = None     
 
         # Initializing Binary Segmentation Mask tensor
         self.binary_seg_tensor = None
@@ -73,14 +70,7 @@ class AutoSteerTrainer():
         self.pred_noisy_data_tensor = None
 
         # Losses
-        self.BEV_loss = None
-        self.reprojected_loss = None
-        self.segmentation_loss = None
-        self.total_loss = None
-        self.BEV_data_loss = None
-        self.edge_loss = None
         self.data_loss = None
-        self.denoising_loss = None
 
         self.BEV_FIGSIZE = (4, 8)
         self.ORIG_FIGSIZE = (8, 4)
@@ -163,7 +153,6 @@ class AutoSteerTrainer():
         self.binary_seg = np.array(binary_seg)
         self.data = np.array(data)
         self.perspective_image = np.array(perspective_image)
-        self.noisy_perspective_image = self.perspective_image.copy()
         self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
         self.bev_egoleft = np.array(bev_egoleft, dtype = "float32").transpose()
         self.bev_egoright = np.array(bev_egoright, dtype = "float32").transpose()
@@ -181,16 +170,8 @@ class AutoSteerTrainer():
             data_type = "KEYPOINTS"
         )
 
-        aug_resize_only = Augmentations(
-            is_train = False,
-            data_type= "KEYPOINTS"
-        )
-
-        aug.setImage(self.noisy_perspective_image)
-        self.noisy_perspective_image = aug.applyTransformKeypoint(self.noisy_perspective_image)
-
-        aug_resize_only.setImage(self.perspective_image)
-        self.perspective_image = aug_resize_only.applyTransformKeypoint(self.perspective_image)
+        aug.setImage(self.perspective_image)
+        self.perspective_image = aug.applyTransformKeypoint(self.perspective_image)
 
     # Load data as Pytorch tensors
     def load_data(self):
@@ -210,10 +191,6 @@ class AutoSteerTrainer():
         perspective_image_tensor = perspective_image_tensor.unsqueeze(0)
         self.perspective_image_tensor = perspective_image_tensor.to(self.device)
 
-        # Noisy Perspective Image
-        noisy_perspective_image_tensor = self.image_loader(self.noisy_perspective_image)
-        noisy_perspective_image_tensor = noisy_perspective_image_tensor.unsqueeze(0)
-        self.noisy_perspective_image_tensor = noisy_perspective_image_tensor.to(self.device)
 
         # Binary Segmentation
         binary_seg_tensor = self.binary_seg_loader(self.binary_seg)
@@ -258,23 +235,13 @@ class AutoSteerTrainer():
     # Run Model
     def run_model(self):
         
-        self.pred_binary_seg_tensor, self.pred_data_tensor = self.model(self.perspective_image_tensor)
-        _, self.pred_noisy_data_tensor = self.model(self.noisy_perspective_image_tensor)
-
-        # Segmentation Loss
-        self.segmentation_loss = self.calc_BEV_segmentation_loss()
-
-        # Edge Loss
-        self.edge_loss = self.calc_multi_cale_edge_loss()
-
+        self.pred_data_tensor = self.model(self.perspective_image_tensor)
+       
         # Data Loss
         self.data_loss = self.calc_data_loss()
 
-        # Denoising Loss
-        self.denoising_loss = self.calc_denoising_loss()
-
         # Total Loss
-        self.total_loss = self.edge_loss + self.segmentation_loss + (self.data_loss + self.denoising_loss)*1.5
+        self.total_loss = self.data_loss
 
     # Data loss
     def calc_data_loss(self):
@@ -590,11 +557,7 @@ class AutoSteerTrainer():
     def log_loss(self, log_count):
         self.writer.add_scalars(
             "Training Loss", {
-                "Total_loss" : self.get_total_loss(),
-                "Segmentation_loss": self.get_segmentation_loss(),
-                "Edge_loss": self.get_edge_loss(),
-                "Data_loss": self.get_data_loss(),
-                "Denoising_loss": self.get_denoising_loss()
+                "Data_loss": self.get_data_loss()
             },
             (log_count)
         )
@@ -628,10 +591,11 @@ class AutoSteerTrainer():
     def save_visualization(self, log_count, bev_vis, vis_path = "", is_train = False):
 
         # Visualize Binary Segmentation - Ground Truth and Predictions (BEV)
-        fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
-        fig_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
+        #fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
+        #fig_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
         fig_data, axs_data = plt.subplots(2,1, figsize=(8, 8))
 
+        '''
         # blend factor
         alpha = 0.5 
 
@@ -680,11 +644,12 @@ class AutoSteerTrainer():
         # Ground Truth
         axs_seg_raw[1].set_title('Ground Truth',fontweight ="bold") 
         axs_seg_raw[1].imshow(self.binary_seg)
+        '''
 
         # Prediction
         axs_data[0].set_title('Prediction',fontweight ="bold") 
         axs_data[0].imshow(self.perspective_image)
-
+   
         # Caclulate params
         pred_data = self.pred_data_tensor.cpu().detach().numpy()[0]
         left_lane_offset_pred = pred_data[0]*640
@@ -693,18 +658,14 @@ class AutoSteerTrainer():
         start_angle_pred = pred_data[3]
         start_delta_x_pred = ego_path_offset_pred + 100*math.sin(start_angle_pred)
         start_delta_y_pred = 319 -(100*math.cos(start_angle_pred))
-        end_angle_pred = pred_data[4]
-        end_delta_x_pred = ego_path_offset_pred + 100*math.sin(end_angle_pred)
-        end_delta_y_pred = 319 - (100*math.cos(end_angle_pred))
 
         # Plot
-        axs_data[0].plot(left_lane_offset_pred, 310, '-co')
-        axs_data[0].plot(right_left_offset_pred, 310, '-co')
-        axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [310, 310], color='cyan')
-        axs_data[0].plot(ego_path_offset_pred, 310, '-yo')
-        axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='yellow')
-        axs_data[0].plot([ego_path_offset_pred, end_delta_x_pred], [310, end_delta_y_pred], color='red')
-        
+        axs_data[0].plot([left_lane_offset_pred, left_lane_offset_pred], [310, 319], 'pink')
+        axs_data[0].plot([right_left_offset_pred, right_left_offset_pred], [310, 319], 'pink')
+        axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [314, 314], color='pink')
+        axs_data[0].plot([ego_path_offset_pred, ego_path_offset_pred], [310, 319], 'green')
+        axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='cyan')
+ 
         
         # Ground Truth
         axs_data[1].set_title('Ground Truth',fontweight ="bold") 
@@ -717,18 +678,16 @@ class AutoSteerTrainer():
         start_angle_gt = self.data[3]
         start_delta_x = ego_path_offset_gt + 100*math.sin(start_angle_gt)
         start_delta_y = 319 -(100*math.cos(start_angle_gt))
-        end_angle_gt = self.data[4]
-        end_delta_x = ego_path_offset_gt + 100*math.sin(end_angle_gt)
-        end_delta_y = 319 - (100*math.cos(end_angle_gt))
 
         # Plot
-        axs_data[1].plot(left_lane_offset_gt, 310, '-co')
-        axs_data[1].plot(right_left_offset_gt, 310, '-co')
-        axs_data[1].plot([left_lane_offset_gt, right_left_offset_gt], [310, 310], color='cyan')
-        axs_data[1].plot(ego_path_offset_gt, 310, '-yo')
-        axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='yellow')
-        axs_data[1].plot([ego_path_offset_gt, end_delta_x], [310, end_delta_y], color='red')
+        axs_data[1].plot([left_lane_offset_gt, left_lane_offset_gt], [310, 319], 'pink')
+        axs_data[1].plot([right_left_offset_gt, right_left_offset_gt], [310, 319], 'pink')
+        axs_data[1].plot([left_lane_offset_gt, right_left_offset_gt], [314, 314], color='pink')
+        axs_data[1].plot([ego_path_offset_gt, ego_path_offset_gt], [310, 319], 'green')
+        axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='cyan')
 
+
+        '''
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (Seg)", fig_seg, global_step = (log_count))
@@ -741,17 +700,18 @@ class AutoSteerTrainer():
             self.writer.add_figure("Train (Seg RAW)", fig_seg_raw, global_step = (log_count))
         else:
             fig_seg_raw.savefig(vis_path + '_seg_raw.png')
-
+        '''
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (data)", fig_data, global_step = (log_count))
         else:
             fig_data.savefig(vis_path + '_data.png')
-
+        
+        
         #plt.close(fig_bev)
         #plt.close(fig_perspective)
-        plt.close(fig_seg)
-        plt.close(fig_seg_raw)
+        #plt.close(fig_seg)
+        #plt.close(fig_seg_raw)
         plt.close(fig_data)
     
     # Log validation loss for each dataset to TensorBoard
