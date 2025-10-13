@@ -17,8 +17,8 @@ It subscribes to steering and throttle command topics and publishes correspondin
 
 | Topic | Message Type | Description |
 |--------|---------------|-------------|
-| `/vehicle/steering_cmd` | `std_msgs/msg/Float32` | Receives normalized steering command input (-1.0 to +1.0). |
-| `/vehicle/throttle_cmd` | `std_msgs/msg/Float32` | Receives normalized throttle command input (0.0 to 1.0). |
+| `/vehicle/steering_cmd` | `std_msgs/msg/Float32` | Receives desired tire steering angle in radians |
+| `/vehicle/throttle_cmd` | `std_msgs/msg/Float32` | Receives normalized throttle command input (-1.0 to 1.0). Negative is to reduce speed by braking|
 
 
 ## **Parameters**

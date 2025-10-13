@@ -13,7 +13,7 @@ ROS2 C++ wrapper node responsible for computing the required steering angle to f
 - /vehicle/steering_cmd (`Float32`)
 
 ## Setup Instructions
-1. Install [SteeringController C++ lib](./../../../Control/Steering/SteeringController/README.md)
+1. Build [SteeringController C++ lib](./../../../Control/Steering/SteeringController/README.md)
 2. Build ROS2 ws
    ```sh
    cd .../VisionPilot/ROS2/
