@@ -37,19 +37,19 @@ network detection success rate for different weather conditions
     <th>maxIoU &gt; 0.90</th>
   </tr>
   <tr>
-    <td>segment-17065833287841703_2980_000_3000_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-17065833287841703_2980_000_3000_000_with_camera_labels</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">98.99%</td>
   </tr>
   <tr>
-    <td>segment-346889320598157350_798_187_818_187_with_camera_labels</td>
+    <td style="font-size:11px;">segment-346889320598157350_798_187_818_187_with_camera_labels</td>
     <td style="text-align:center;">95.98%</td>
     <td style="text-align:center;">88.44%</td>
     <td style="text-align:center;">70.35%</td>
   </tr>
  <tr>
-    <td>segment-902001779062034993_2880_000_2900_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-902001779062034993_2880_000_2900_000_with_camera_labels</td>
     <td style="text-align:center;">93.94%</td>
     <td style="text-align:center;">92.42%</td>
     <td style="text-align:center;">89.90%</td>
@@ -76,19 +76,19 @@ network detection success rate for different weather conditions
     <th>maxIoU &gt; 0.90</th>
   </tr>
   <tr>
-    <td>segment-191862526745161106_1400_000_1420_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-191862526745161106_1400_000_1420_000_with_camera_labels</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
   </tr>
   <tr>
-    <td>segment-447576862407975570_4360_000_4380_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-447576862407975570_4360_000_4380_000_with_camera_labels</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
   </tr>
  <tr>
-    <td>segment-6183008573786657189_5414_000_5434_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-6183008573786657189_5414_000_5434_000_with_camera_labels</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">95.48%</td>
@@ -116,19 +116,19 @@ network detection success rate for different weather conditions
     <th>maxIoU &gt; 0.90</th>
   </tr>
   <tr>
-    <td>segment-4426410228514970291_1620_000_1640_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-4426410228514970291_1620_000_1640_000_with_camera_labels</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">100.00%</td>
   </tr>
   <tr>
-    <td>segment-5289247502039512990_2640_000_2660_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-5289247502039512990_2640_000_2660_000_with_camera_labels</td>
     <td style="text-align:center;">92.93%</td>
     <td style="text-align:center;">92.93%</td>
     <td style="text-align:center;">91.92%</td>
   </tr>
  <tr>
-    <td>segment-8679184381783013073_7740_000_7760_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-8679184381783013073_7740_000_7760_000_with_camera_labels</td>
     <td style="text-align:center;">87.37%</td>
     <td style="text-align:center;">65.15%</td>
     <td style="text-align:center;">0.00%</td>
@@ -155,19 +155,19 @@ network detection success rate for different weather conditions
     <th>maxIoU &gt; 0.90</th>
   </tr>
   <tr>
-    <td>segment-6491418762940479413_6520_000_6540_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-6491418762940479413_6520_000_6540_000_with_camera_labels</td>
     <td style="text-align:center;">55.28%</td>
     <td style="text-align:center;">42.71%</td>
     <td style="text-align:center;">22.61%</td>
   </tr>
   <tr>
-    <td>segment-11356601648124485814_409_000_429_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-11356601648124485814_409_000_429_000_with_camera_labels</td>
     <td style="text-align:center;">100.00%</td>
     <td style="text-align:center;">90.95%</td>
     <td style="text-align:center;">43.72%</td>
   </tr>
  <tr>
-    <td>segment-11901761444769610243_556_000_576_000_with_camera_labels</td>
+    <td style="font-size:11px;">segment-11901761444769610243_556_000_576_000_with_camera_labels</td>
     <td style="text-align:center;">99.49%</td>
     <td style="text-align:center;">99.49%</td>
     <td style="text-align:center;">97.96%</td>
