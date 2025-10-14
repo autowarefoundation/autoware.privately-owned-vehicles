@@ -2,7 +2,7 @@
 
 Maintaining the vehicle speed and keep safe distance from the vehicle in front is crucial for safe driving. In order to
 determine the closest inpath object AutoSpeed network is used. This network is inspired by YOLOv11 architecture, with
-substituted c3K2 by a new block ASC in order to improve CIPO object detection.
+substituted c3K2 by a new block ASC block to improve CIPO object detection.
 
 ## Performance Results
 
@@ -12,16 +12,16 @@ Network detection success rate is measured by the percentage of frames where the
 ground-truth (GT) bounding boxes is above a certain threshold. For different groups of sequences are selected to measure
 network detection success rate for different weather conditions
 
-* Daytime, Fair Weather
-* Daytime, Adverse Weather
-* Nighttime, Fair Weather
-* Nighttime, Adverse Weather
+* Daytime Fair Weather
+* Daytime Adverse Weather
+* Nighttime Fair Weather
+* Nighttime Adverse Weather
 
 <table style="border:none; border-collapse:collapse;">
   <tr>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
+    <td><img src="../Media/daytime_fair_weather_1.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/daytime_fair_weather_2.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/daytime_fair_weather_3.jpg" width="300" alt="alt"></td>
   </tr>
 </table>
 
@@ -58,9 +58,9 @@ network detection success rate for different weather conditions
 
 <table style="border:none; border-collapse:collapse;">
   <tr>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
+    <td><img src="../Media/daytime_adverse_weather_1.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/daytime_adverse_weather_2.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/daytime_adverse_weather_3.jpg" width="300" alt="alt"></td>
   </tr>
 </table>
 
@@ -98,9 +98,9 @@ network detection success rate for different weather conditions
 
 <table style="border:none; border-collapse:collapse;">
   <tr>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
+    <td><img src="../Media/nighttime_fair_weather_1.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/nighttime_fair_weather_2.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/nighttime_fair_weather_3.jpg" width="300" alt="alt"></td>
   </tr>
 </table>
 
@@ -137,9 +137,9 @@ network detection success rate for different weather conditions
 
 <table style="border:none; border-collapse:collapse;">
   <tr>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
-    <td><img src="" width="300" alt="alt"></td>
+    <td><img src="../Media/nighttime_adverse_weather_1.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/nighttime_adverse_weather_2.jpg" width="300" alt="alt"></td>
+    <td><img src="../Media/nighttime_adverse_weather_3.jpg" width="300" alt="alt"></td>
   </tr>
 </table>
 
@@ -174,5 +174,5 @@ network detection success rate for different weather conditions
   </tr>
 </table>
 
-*Note:* In some sequences detection success rate is 100%, but the reason is that these sequences do not have CIPO
+***Note:*** In some sequences detection success rate is 100%, but the reason is that these sequences do not have CIPO
 object, and result in some sequences are low because some of the far away objects are not detected.
