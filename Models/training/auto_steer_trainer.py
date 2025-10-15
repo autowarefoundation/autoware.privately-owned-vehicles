@@ -235,7 +235,7 @@ class AutoSteerTrainer():
     # Run Model
     def run_model(self):
         
-        self.pred_data_tensor, self.pred_seg_tensor = self.model(self.perspective_image_tensor)
+        self.pred_data_tensor, self.pred_binary_seg_tensor = self.model(self.perspective_image_tensor)
        
         # Data Loss
         self.data_loss = self.calc_data_loss()
