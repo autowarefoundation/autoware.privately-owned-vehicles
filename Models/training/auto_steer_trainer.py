@@ -235,13 +235,16 @@ class AutoSteerTrainer():
     # Run Model
     def run_model(self):
         
-        self.pred_data_tensor = self.model(self.perspective_image_tensor)
+        self.pred_data_tensor, self.pred_seg_tensor = self.model(self.perspective_image_tensor)
        
         # Data Loss
         self.data_loss = self.calc_data_loss()
 
+        # Segmentation Loss
+        self.segmentation_loss = self.calc_segmentation_loss()
+
         # Total Loss
-        self.total_loss = self.data_loss
+        self.total_loss = self.data_loss + self.segmentation_loss
 
     # Data loss
     def calc_data_loss(self):
@@ -257,7 +260,7 @@ class AutoSteerTrainer():
 
 
     # Segmentation Loss
-    def calc_BEV_segmentation_loss(self):
+    def calc_segmentation_loss(self):
         BCELoss = nn.BCEWithLogitsLoss()
         BEV_segmentation_loss = BCELoss(self.pred_binary_seg_tensor, self.binary_seg_tensor)
         return BEV_segmentation_loss
@@ -557,7 +560,8 @@ class AutoSteerTrainer():
     def log_loss(self, log_count):
         self.writer.add_scalars(
             "Training Loss", {
-                "Data_loss": self.get_data_loss()
+                "Data_loss": self.get_data_loss(),
+                "Segmentation_loss": self.get_segmentation_loss()
             },
             (log_count)
         )
@@ -591,11 +595,11 @@ class AutoSteerTrainer():
     def save_visualization(self, log_count, bev_vis, vis_path = "", is_train = False):
 
         # Visualize Binary Segmentation - Ground Truth and Predictions (BEV)
-        #fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
+        fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
         #fig_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
         fig_data, axs_data = plt.subplots(2,1, figsize=(8, 8))
 
-        '''
+        
         # blend factor
         alpha = 0.5 
 
@@ -636,7 +640,7 @@ class AutoSteerTrainer():
         # Ground Truth
         axs_seg[1].set_title('Ground Truth',fontweight ="bold") 
         axs_seg[1].imshow(gt_vis)
-
+        '''
         # Prediction
         axs_seg_raw[0].set_title('Prediction',fontweight ="bold") 
         axs_seg_raw[0].imshow(binary_seg_prediction)
@@ -687,14 +691,14 @@ class AutoSteerTrainer():
         axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='cyan')
 
 
-        '''
+        
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (Seg)", fig_seg, global_step = (log_count))
         else:
             fig_seg.savefig(vis_path + '_seg.png')
 
-
+        '''
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (Seg RAW)", fig_seg_raw, global_step = (log_count))
@@ -710,7 +714,7 @@ class AutoSteerTrainer():
         
         #plt.close(fig_bev)
         #plt.close(fig_perspective)
-        #plt.close(fig_seg)
+        plt.close(fig_seg)
         #plt.close(fig_seg_raw)
         plt.close(fig_data)
     
