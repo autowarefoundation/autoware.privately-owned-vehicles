@@ -14,7 +14,7 @@ LongitudinalControllerNode::LongitudinalControllerNode(const rclcpp::NodeOptions
 void LongitudinalControllerNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
   forward_velocity_ = msg->twist.twist.linear.x; // [m/s]
-  double u = pi_controller_.computeEffort(forward_velocity_, 22.22); // 80 km/h in m/s
+  double u = pi_controller_.computeEffort(forward_velocity_, 25); // 80 km/h in m/s
   auto control_msg = std_msgs::msg::Float32();
   control_msg.data = std::clamp(u, -1.0, 1.0);
   control_pub_->publish(control_msg);

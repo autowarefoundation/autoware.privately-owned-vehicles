@@ -19,12 +19,11 @@ class CarlaOdomPublisher(Node):
         self.client.set_timeout(5.0)
         self.world = self.client.get_world()
         self.map = self.world.get_map()
-        self.ego = self._find_ego_vehicle()
-        if self.ego is None:
-            self.get_logger().error('Ego vehicle not found, exiting.')
-            rclpy.shutdown()
-            return
-
+        while True:
+            self.ego = self._find_ego_vehicle()
+            if self.ego:
+                break
+            self.get_logger().warn('Ego vehicle not found, waiting ...')
         self.odom_pub_ = self.create_publisher(Odometry, '/hero/odom', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
 

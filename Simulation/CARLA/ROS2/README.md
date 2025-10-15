@@ -37,3 +37,15 @@ ros2 run waypoints_publisher pub_waypoints_node
 
 # In another terminal (remember to source)
 ros2 run odom_publisher pub_odom_node
+```
+
+## VisionPilot Testing Pipeline (Simulated EgoPath & EgoLanes)
+### How to run
+1. Build & source [VisionPilot ROS2 workspace](../../../VisionPilot/ROS2/)
+2. Build & source this [workspace](../ROS2/)
+3. Run [CARLA server with ROS2 enabled](../../README.md)
+4. Wait for world to be loaded, then launch VisionPilot pipeline
+   ```sh 
+   ros2 launch vision_pilot_bringup demo_launch.py 
+    ```
+![](../../../Media/VisionPilot_demo.gif)

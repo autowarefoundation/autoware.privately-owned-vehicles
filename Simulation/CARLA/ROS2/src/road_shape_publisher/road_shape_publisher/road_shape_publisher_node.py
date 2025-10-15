@@ -61,18 +61,15 @@ class RoadShapePublisher(Node):
         self.client.set_timeout(5.0)
         self.world = self.client.get_world()
         self.map = self.world.get_map()
-        self.ego = self._find_ego_vehicle()
-        if self.ego is None:
-            self.get_logger().error('Ego vehicle not found, exiting.')
-            rclpy.shutdown()
-            return
+        while True:
+            self.ego = self._find_ego_vehicle()
+            if self.ego:
+                break
+            self.get_logger().warn('Ego vehicle not found, waiting ...')
         self.waypoints = self.get_global_waypoints()
         self.timer = self.create_timer(0.1, self.timer_callback)
             
     def get_global_waypoints(self):
-        while True:
-            if self.ego:
-                break
         allowed_road_lane_ids = [(17 , 1),
                                  (10 , 1),
                                  (0  , 1),
