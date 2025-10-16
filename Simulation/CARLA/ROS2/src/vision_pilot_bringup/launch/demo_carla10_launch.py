@@ -7,11 +7,11 @@ from launch.actions import ExecuteProcess
 def generate_launch_description():
     install_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) 
     ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(install_dir))))
-    script_path = os.path.join(ws_dir, 'ros_carla_config.py')
+    script_path = os.path.abspath(os.path.join(ws_dir, 'ros_carla_config.py'))
     
     return LaunchDescription([
         ExecuteProcess(
-            cmd=['python3', script_path, '-f', 'config/VisionPilot.json'],
+            cmd=['python3', script_path, '-f', 'config/VisionPilot_carla10.json'],
             output='screen'
         ),
         
@@ -74,7 +74,7 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             arguments=[
-                '-d', os.path.join(ws_dir, 'config', 'PathFinder.rviz')
+                '-d', os.path.abspath(os.path.join(ws_dir, 'config', 'PathFinder.rviz'))
             ]
         ),
     ])

@@ -8,7 +8,12 @@ fittedCurve::fittedCurve(const std::array<double, 3> &coeff) : coeff(coeff)
 {
     cte = -coeff[2];
     yaw_error = -atan2(coeff[1], 1.0);
-    curvature = 2 * coeff[0] / std::pow(1 + coeff[1] * coeff[1], 1.5);
+    // Lookahead curvature
+    // double curvature_current = 2 * coeff[0] / std::pow(1 - (coeff[1] * coeff[1]), 1.5);
+    // double curvature_lookahead = 2 * coeff[0] / std::pow(1 - (2 * coeff[0] * 10.0 + coeff[1]) * (2 * coeff[0] * 10.0 + coeff[1]), 1.5);
+    // curvature = (curvature_current + curvature_lookahead) / 2.0;
+    curvature = 2 * coeff[0] / std::pow(1 - (coeff[1] * coeff[1]), 1.5);
+
 }
 
 cv::Mat loadHFromYaml(const std::string &filename)
