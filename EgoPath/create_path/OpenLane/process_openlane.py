@@ -91,6 +91,53 @@ def annotate_skipped_image(
 # ============================== Helper functions ============================== #
 
 
+def polyfitLine(
+    line: Line, 
+    num_points: int = 10,
+    deg: int = 3
+):
+    """
+    Polynomial fit a line so the algorithm knows the line shape.
+    Should be cubic fit with 10 points by default.
+    Outputted line should be sorted by descending y-coords.
+    """
+    if (len(line) < deg + 1):
+        return line
+
+    x_coords = [point[0] for point in line]
+    y_coords = [point[1] for point in line]
+
+    poly_coeffs = np.polyfit(
+        y_coords, 
+        x_coords, 
+        deg = deg
+    )
+    poly_func = np.poly1d(poly_coeffs)
+
+    y_min = min(y_coords)
+    y_max = max(y_coords)
+    y_new = np.linspace(
+        y_min, 
+        y_max, 
+        num_points
+    )
+    x_new = poly_func(y_new)
+
+    fitted_line = sorted(
+        [
+            (
+                float(x_new[i]), 
+                float(y_new[i])
+            ) 
+            for i in range(len(y_new))
+        ], 
+        key = lambda point: point[1], 
+        reverse = True
+    )
+
+    return fitted_line
+
+
 def normalizeCoords(
     line: Line, 
     width: int, 
@@ -354,6 +401,9 @@ def parseData(
             logs.append(f"{i} : Lane with insufficient unique y-coords detected |")
             continue
 
+        # Polyfit line before adding anchor
+        this_lane = polyfitLine(this_lane)
+        
         # Add anchor to line, if needed
         if (this_lane and (this_lane[0][1] < H - 1)):
             this_lane.insert(0, (
@@ -442,6 +492,18 @@ def parseData(
                 egoright_lane = None
 
     if (egoleft_lane and egoright_lane):
+        # Cut off longer ego line to match the shorter one
+        if (egoleft_lane[-1][1] < egoright_lane[-1][1]):    # Left longer
+            egoleft_lane = [
+                point for point in egoleft_lane
+                if point[1] >= egoright_lane[-1][1]
+            ]
+        elif (egoright_lane[-1][1] < egoleft_lane[-1][1]):  # Right longer
+            egoright_lane = [
+                point for point in egoright_lane
+                if point[1] >= egoleft_lane[-1][1]
+            ]
+
         drivable_path = getDrivablePath(
             left_ego = egoleft_lane,
             right_ego = egoright_lane,
