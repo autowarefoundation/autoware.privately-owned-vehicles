@@ -223,7 +223,7 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 }
 
 int main(int argc, char** argv)
-{
+{a
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> [realtime] [measure_latency]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
