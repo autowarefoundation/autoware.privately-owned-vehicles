@@ -552,7 +552,7 @@ class AutoSteerTrainer():
     
     # BEV data loss value
     def get_validation_loss_value(self):
-        return self.data_loss.detach().cpu().numpy()
+        return self.total_loss.detach().cpu().numpy()
     
     def get_bev_loss(self):
         return self.BEV_loss.item()
@@ -574,11 +574,8 @@ class AutoSteerTrainer():
 
     # Logging losses - Total, BEV, Reprojected
     def log_loss(self, log_count):
-        self.writer.add_scalars(
-            "Training Loss", {
-                "Data_loss": self.get_data_loss(),
-                "Segmentation_loss": self.get_segmentation_loss()
-            },
+        self.writer.add_scalar(
+            "Loss", self.get_total_loss(),
             (log_count)
         )
 
