@@ -26,7 +26,7 @@ class AutoSteerTrainer():
         # Initializing Data
         self.homotrans_mat = None
         self.bev_image = None
-        self.binary_seg = None
+        self.ego_lanes_seg = None
         self.data = None
         self.perspective_image = None
         self.bev_egopath = None
@@ -116,7 +116,7 @@ class AutoSteerTrainer():
             ]
         )
 
-        self.binary_seg_loader = transforms.Compose(
+        self.seg_loader = transforms.Compose(
             [
                 transforms.ToTensor()
             ]
@@ -148,13 +148,13 @@ class AutoSteerTrainer():
         self.learning_rate = learning_rate
         
     # Assign input variables
-    def set_data(self, homotrans_mat, bev_image, perspective_image, binary_seg, data, \
+    def set_data(self, homotrans_mat, bev_image, perspective_image, ego_lanes_seg, data, \
                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                 reproj_egoleft, reproj_egoright):
 
         self.homotrans_mat = np.array(homotrans_mat, dtype = "float32")
         self.bev_image = np.array(bev_image)
-        self.binary_seg = np.array(binary_seg)
+        self.ego_lanes_seg = np.array(ego_lanes_seg)
         self.data = np.array(data)
         self.perspective_image = np.array(perspective_image)
         self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
@@ -196,10 +196,10 @@ class AutoSteerTrainer():
         self.perspective_image_tensor = perspective_image_tensor.to(self.device)
 
 
-        # Binary Segmentation
-        binary_seg_tensor = self.binary_seg_loader(self.binary_seg)
-        binary_seg_tensor = binary_seg_tensor.unsqueeze(0)
-        self.binary_seg_tensor = binary_seg_tensor.to(self.device)
+        # Egolanes Segmentation
+        egolanes_tensor = self.seg_loader(self.ego_lanes_seg)
+        egolanes_tensor = egolanes_tensor.unsqueeze(0)
+        self.egolanes_tensor = egolanes_tensor.to(self.device)
 
         # Data Tensor
         data_tensor = torch.from_numpy(self.data)
