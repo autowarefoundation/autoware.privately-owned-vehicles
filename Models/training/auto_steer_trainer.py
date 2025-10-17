@@ -608,36 +608,54 @@ class AutoSteerTrainer():
     def save_visualization(self, log_count, bev_vis, vis_path = "", is_train = False):
 
         # Visualize Binary Segmentation - Ground Truth and Predictions (BEV)
-        fig_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
-        #fig_seg_raw, axs_seg_raw = plt.subplots(2,1, figsize=(8, 8))
-        fig_data, axs_data = plt.subplots(2,1, figsize=(8, 8))
-
-        
+        fig_lane_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
+              
         # blend factor
         alpha = 0.5 
-
-        # Prediction
-        binary_seg_prediction = torch.squeeze(self.pred_binary_seg_tensor, 0)
-        binary_seg_prediction = torch.squeeze(binary_seg_prediction, 0)
-        binary_seg_prediction = binary_seg_prediction.cpu().detach().numpy()
 
         # Creating visualization image
         vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
         vis_predict_object = np.array(self.perspective_image)
         gt_object = np.zeros((320, 640, 3), dtype = "uint8")
         gt_object = np.array(self.perspective_image)
-        
-        # Getting foreground object labels
-        prediction_lables = np.where(binary_seg_prediction > 0)
-        gt_labels = np.where(self.binary_seg > 0)
 
-        # Assigning foreground objects colour
-        vis_predict_object[prediction_lables[0], prediction_lables[1], 0] = 0
-        vis_predict_object[prediction_lables[0], prediction_lables[1], 1] = 255
-        vis_predict_object[prediction_lables[0], prediction_lables[1], 2] = 145
-        gt_object[gt_labels[0], gt_labels[1], 0] = 0
-        gt_object[gt_labels[0], gt_labels[1], 1] = 255
-        gt_object[gt_labels[0], gt_labels[1], 2] = 145
+        # Prediction
+        egolanes_prediction = torch.squeeze(self.pred_egolanes_tensor, 0)
+        egolanes_prediction = torch.squeeze(egolanes_prediction, 0)
+        egolanes_prediction = egolanes_prediction.cpu().detach().numpy()
+        
+        # Getting prediction and ground truth labels
+        pred_egoleft_lanes = np.where(egolanes_prediction[:,0,:,:] > 0)
+        pred_egoright_lanes = np.where(egolanes_prediction[:,1,:,:] > 0)
+        pred_other_lanes = np.where(egolanes_prediction[:,2,:,:] > 0)
+
+        gt_egoleft_lanes = np.where(self.ego_lanes_seg[:,0,:,:] > 0)
+        gt_egoright_lanes = np.where(self.ego_lanes_seg[:,1,:,:] > 0)
+        gt_other_lanes = np.where(self.ego_lanes_seg[:,2,:,:] > 0)
+
+        # Visualize EgoLeft Lane
+        vis_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 0] = 0
+        vis_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 1] = 255
+        vis_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 2] = 255
+        gt_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 0] = 0
+        gt_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 1] = 255
+        gt_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 2] = 255
+
+        # Visualize EgoRight Lane
+        vis_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 0] = 255
+        vis_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 1] = 0
+        vis_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 2] = 200
+        gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 0] = 255
+        gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 1] = 0
+        gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 2] = 200
+
+        # Visualize Other Lanes
+        vis_predict_object[pred_other_lanes[0], pred_other_lanes[1], 0] = 0
+        vis_predict_object[pred_other_lanes[0], pred_other_lanes[1], 1] = 255
+        vis_predict_object[pred_other_lanes[0], pred_other_lanes[1], 2] = 145
+        gt_object[gt_other_lanes[0], gt_other_lanes[1], 0] = 0
+        gt_object[gt_other_lanes[0], gt_other_lanes[1], 1] = 255
+        gt_object[gt_other_lanes[0], gt_other_lanes[1], 2] = 145
 
         # Alpha blended visualization
         prediction_vis = cv2.addWeighted(vis_predict_object, \
@@ -653,84 +671,15 @@ class AutoSteerTrainer():
         # Ground Truth
         axs_seg[1].set_title('Ground Truth',fontweight ="bold") 
         axs_seg[1].imshow(gt_vis)
-        '''
-        # Prediction
-        axs_seg_raw[0].set_title('Prediction',fontweight ="bold") 
-        axs_seg_raw[0].imshow(binary_seg_prediction)
-        
-        # Ground Truth
-        axs_seg_raw[1].set_title('Ground Truth',fontweight ="bold") 
-        axs_seg_raw[1].imshow(self.binary_seg)
-        '''
-
-        # Prediction
-        axs_data[0].set_title('Prediction',fontweight ="bold") 
-        axs_data[0].imshow(self.perspective_image)
-   
-        # Caclulate params
-        pred_data = self.pred_data_tensor.cpu().detach().numpy()[0]
-        left_lane_offset_pred = pred_data[0]*640
-        right_left_offset_pred = pred_data[1]*640
-        ego_path_offset_pred = pred_data[2]*640
-        start_angle_pred = pred_data[3]
-        start_delta_x_pred = ego_path_offset_pred + 100*math.sin(start_angle_pred)
-        start_delta_y_pred = 319 -(100*math.cos(start_angle_pred))
-
-        # Plot
-        axs_data[0].plot([left_lane_offset_pred, left_lane_offset_pred], [310, 319], 'pink')
-        axs_data[0].plot([right_left_offset_pred, right_left_offset_pred], [310, 319], 'pink')
-        axs_data[0].plot([left_lane_offset_pred, right_left_offset_pred], [314, 314], color='pink')
-        axs_data[0].plot([ego_path_offset_pred, ego_path_offset_pred], [310, 319], 'green')
-        axs_data[0].plot([ego_path_offset_pred, start_delta_x_pred], [310, start_delta_y_pred], color='cyan')
- 
-        
-        # Ground Truth
-        axs_data[1].set_title('Ground Truth',fontweight ="bold") 
-        axs_data[1].imshow(self.perspective_image)
-
-        # Caclulate params
-        left_lane_offset_gt = self.data[0]*640
-        right_left_offset_gt = self.data[1]*640
-        ego_path_offset_gt = self.data[2]*640
-        start_angle_gt = self.data[3]
-        start_delta_x = ego_path_offset_gt + 100*math.sin(start_angle_gt)
-        start_delta_y = 319 -(100*math.cos(start_angle_gt))
-
-        # Plot
-        axs_data[1].plot([left_lane_offset_gt, left_lane_offset_gt], [310, 319], 'pink')
-        axs_data[1].plot([right_left_offset_gt, right_left_offset_gt], [310, 319], 'pink')
-        axs_data[1].plot([left_lane_offset_gt, right_left_offset_gt], [314, 314], color='pink')
-        axs_data[1].plot([ego_path_offset_gt, ego_path_offset_gt], [310, 319], 'green')
-        axs_data[1].plot([ego_path_offset_gt, start_delta_x], [310, start_delta_y], color='cyan')
-
-
-        
+       
         # Save figure to Tensorboard
         if(is_train):
-            self.writer.add_figure("Train (Seg)", fig_seg, global_step = (log_count))
+            self.writer.add_figure("Train (Seg)", fig_lane_seg, global_step = (log_count))
         else:
-            fig_seg.savefig(vis_path + '_seg.png')
+            fig_lane_seg.savefig(vis_path + '_seg.png')
 
-        '''
-        # Save figure to Tensorboard
-        if(is_train):
-            self.writer.add_figure("Train (Seg RAW)", fig_seg_raw, global_step = (log_count))
-        else:
-            fig_seg_raw.savefig(vis_path + '_seg_raw.png')
-        '''
-        # Save figure to Tensorboard
-        if(is_train):
-            self.writer.add_figure("Train (data)", fig_data, global_step = (log_count))
-        else:
-            fig_data.savefig(vis_path + '_data.png')
-        
-        
-        #plt.close(fig_bev)
-        #plt.close(fig_perspective)
-        plt.close(fig_seg)
-        #plt.close(fig_seg_raw)
-        plt.close(fig_data)
-    
+        plt.close(fig_lane_seg)
+
     # Log validation loss for each dataset to TensorBoard
     def log_validation_dataset(self, dataset, validation_loss_dataset_total, log_count):
          self.writer.add_scalar(f"{dataset} (Validation)", validation_loss_dataset_total, log_count)
