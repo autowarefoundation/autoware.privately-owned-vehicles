@@ -239,16 +239,10 @@ class AutoSteerTrainer():
     # Run Model
     def run_model(self):
         
-        self.pred_data_tensor, self.pred_binary_seg_tensor = self.model(self.perspective_image_tensor)
-       
-        # Data Loss
-        self.data_loss = self.calc_data_loss()
+        self.pred_egolanes_tensor = self.model(self.perspective_image_tensor)
 
         # Segmentation Loss
-        self.segmentation_loss = self.calc_segmentation_loss()
-
-        # Total Loss
-        self.total_loss = self.data_loss + self.segmentation_loss
+        self.total_loss = self.calc_ego_lanes_loss()
 
     # Data loss
     def calc_data_loss(self):
@@ -261,13 +255,31 @@ class AutoSteerTrainer():
         mAE_loss = nn.L1Loss()
         denoising_loss = mAE_loss(self.pred_data_tensor, self.pred_noisy_data_tensor)
         return denoising_loss
+    
+    # EgoLanes Loss
+    def calc_ego_lanes_loss(self):
+        pred_ego_left_lane = self.pred_binary_seg_tensor[:, 0, :, :]
+        gt_ego_left_lane = self.binary_seg_tensor[:, 0, :, :]
+        left_lane_loss = self.calc_segmentation_loss(pred_ego_left_lane, gt_ego_left_lane)
+
+        pred_ego_right_lane = self.pred_binary_seg_tensor[:, 1, :, :]
+        gt_ego_right_lane = self.binary_seg_tensor[:, 1, :, :]
+        right_lane_loss = self.calc_segmentation_loss(pred_ego_right_lane, gt_ego_right_lane)
+
+        pred_other_lane = self.pred_binary_seg_tensor[:, 2, :, :]
+        gt_other_lane = self.binary_seg_tensor[:, 2, :, :]
+        other_lane_loss = self.calc_segmentation_loss(pred_other_lane, gt_other_lane)
+
+        ego_lanes_loss = left_lane_loss + right_lane_loss + other_lane_loss
+
+        return ego_lanes_loss
 
 
     # Segmentation Loss
-    def calc_segmentation_loss(self):
+    def calc_segmentation_loss(pred, gt):
         BCELoss = nn.BCEWithLogitsLoss()
-        BEV_segmentation_loss = BCELoss(self.pred_binary_seg_tensor, self.binary_seg_tensor)
-        return BEV_segmentation_loss
+        segmentation_loss = BCELoss(pred, gt)
+        return segmentation_loss
 
     def calc_multi_cale_edge_loss(self):
         downsample = nn.AvgPool2d(2, stride=2)
