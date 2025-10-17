@@ -8,6 +8,7 @@
 #include <yaml-cpp/yaml.h>
 #include <Eigen/Dense>
 #include <filesystem>
+#include <optional>
 #include "estimator.hpp"
 
 struct LanePts
@@ -30,26 +31,20 @@ struct fittedCurve
 };
 
 struct drivingCorridor{
-    std::optional<fittedCurve> egoLaneL;
-    std::optional<fittedCurve> egoLaneR;
-    std::optional<fittedCurve> egoPath;
+    fittedCurve egoLaneL;
+    fittedCurve egoLaneR;
+    fittedCurve egoPath;
     double cte;                  // Cross-track error in meters
     double yaw_error;            // Yaw error in radians
     double curvature;            // Curvature in meters^-1
     double width;
     drivingCorridor(
-        const std::optional<fittedCurve>& left,
-        const std::optional<fittedCurve>& right,
-        const std::optional<fittedCurve>& path);
+        const fittedCurve &left,
+        const fittedCurve &right,
+        const fittedCurve &path);
 };
 
-void drawLanes(const std::vector<LanePts> &lanes,
-               const std::vector<fittedCurve> &egoLanes,
-               const fittedCurve &egoPath);
-std::vector<LanePts> loadLanesFromYaml(const std::string &filename, cv::Mat &H);
-std::array<double, 2> generatePixelNoise(double max_noise);
 std::array<double, 3> fitQuadPoly(const std::vector<cv::Point2f> &points);
 cv::Mat loadHFromYaml(const std::string &filename);
-void cameraView(const std::vector<std::vector<cv::Point2f>> &lanes2d);
 fittedCurve calculateEgoPath(const fittedCurve &leftLane, const fittedCurve &rightLane);
 void estimateH(const std::string &filename);
