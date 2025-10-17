@@ -396,6 +396,9 @@ def parseData(
             logs.append(f"{i} : Lane with insufficient unique y-coords detected |")
             continue
 
+        # Polyfit line before adding anchor
+        this_lane = polyfitLine(this_lane)
+        
         # Add anchor to line, if needed
         if (this_lane and (this_lane[0][1] < H - 1)):
             this_lane.insert(0, (
