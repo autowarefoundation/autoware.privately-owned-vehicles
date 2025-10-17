@@ -99,6 +99,7 @@ def polyfitLine(
     """
     Polynomial fit a line so the algorithm knows the line shape.
     Should be cubic fit with 10 points by default.
+    Outputted line should be sorted by descending y-coords.
     """
     if (len(line) < deg + 1):
         return line
@@ -122,13 +123,17 @@ def polyfitLine(
     )
     x_new = poly_func(y_new)
 
-    fitted_line = [
-        (
-            float(x_new[i]), 
-            float(y_new[i])
-        ) 
-        for i in range(len(y_new))
-    ]
+    fitted_line = sorted(
+        [
+            (
+                float(x_new[i]), 
+                float(y_new[i])
+            ) 
+            for i in range(len(y_new))
+        ], 
+        key = lambda point: point[1], 
+        reverse = True
+    )
 
     return fitted_line
 
