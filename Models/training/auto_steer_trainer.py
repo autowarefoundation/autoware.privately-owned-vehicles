@@ -171,11 +171,11 @@ class AutoSteerTrainer():
 
         aug = Augmentations(
             is_train = is_train, 
-            data_type = "KEYPOINTS"
+            data_type = "SEGMENTATION"
         )
 
-        aug.setImage(self.perspective_image)
-        self.perspective_image = aug.applyTransformKeypoint(self.perspective_image)
+        aug.setData(self.perspective_image, self.ego_lanes_seg)
+        self.perspective_image, self.ego_lanes_seg = aug.applyTransformKeypoint(self.perspective_image)
 
     # Load data as Pytorch tensors
     def load_data(self):
