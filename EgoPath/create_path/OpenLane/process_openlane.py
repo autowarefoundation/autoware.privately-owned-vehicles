@@ -492,6 +492,18 @@ def parseData(
                 egoright_lane = None
 
     if (egoleft_lane and egoright_lane):
+        # Cut off longer ego line to match the shorter one
+        if (egoleft_lane[-1][1] < egoright_lane[-1][1]):    # Left longer
+            egoleft_lane = [
+                point for point in egoleft_lane
+                if point[1] >= egoright_lane[-1][1]
+            ]
+        elif (egoright_lane[-1][1] < egoleft_lane[-1][1]):  # Right longer
+            egoright_lane = [
+                point for point in egoright_lane
+                if point[1] >= egoleft_lane[-1][1]
+            ]
+
         drivable_path = getDrivablePath(
             left_ego = egoleft_lane,
             right_ego = egoright_lane,
