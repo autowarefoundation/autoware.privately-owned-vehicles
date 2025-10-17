@@ -91,6 +91,48 @@ def annotate_skipped_image(
 # ============================== Helper functions ============================== #
 
 
+def polyfitLine(
+    line: Line, 
+    num_points: int = 10,
+    deg: int = 3
+):
+    """
+    Polynomial fit a line so the algorithm knows the line shape.
+    Should be cubic fit with 10 points by default.
+    """
+    if (len(line) < deg + 1):
+        return line
+
+    x_coords = [point[0] for point in line]
+    y_coords = [point[1] for point in line]
+
+    poly_coeffs = np.polyfit(
+        y_coords, 
+        x_coords, 
+        deg = deg
+    )
+    poly_func = np.poly1d(poly_coeffs)
+
+    y_min = min(y_coords)
+    y_max = max(y_coords)
+    y_new = np.linspace(
+        y_min, 
+        y_max, 
+        num_points
+    )
+    x_new = poly_func(y_new)
+
+    fitted_line = [
+        (
+            float(x_new[i]), 
+            float(y_new[i])
+        ) 
+        for i in range(len(y_new))
+    ]
+
+    return fitted_line
+
+
 def normalizeCoords(
     line: Line, 
     width: int, 
