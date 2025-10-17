@@ -52,6 +52,9 @@ class AutoSteerTrainer():
         # Initializing Binary Segmentation Mask tensor
         self.binary_seg_tensor = None
 
+        # Initializing Lanes Segmentation Mask tensor
+        self.egolanes_tensor = None
+
         # Initializing Ground Truth Tensors
         self.gt_data_tensor = None
         self.gt_bev_egopath_tensor = None
@@ -68,6 +71,7 @@ class AutoSteerTrainer():
         self.pred_binary_seg_tensor = None
         self.pred_data_tensor = None
         self.pred_noisy_data_tensor = None
+        self.pred_egolanes_tensor = None
 
         # Losses
         self.data_loss = None
