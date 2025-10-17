@@ -25,8 +25,8 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH   = "DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)"
-    POV_PATH    = "PATH TO POV PROJECT ROOT"
+    ROOT_PATH   = '/home/zain/Autoware/Data/AutoSteer/'#"DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)"
+    POV_PATH    = '/home/zain/Autoware/Privately_Owned_Vehicles/'#"PATH TO POV PROJECT ROOT"
 
     # Model save root path
     MODEL_SAVE_ROOT_PATH = os.path.join(
@@ -114,10 +114,10 @@ def main():
     trainer.zero_grad()
     
     # Training loop parameters
-    NUM_EPOCHS = 10
-    LOGSTEP_LOSS = 250
-    LOGSTEP_VIS = 1000
-    LOGSTEP_MODEL = 30000
+    NUM_EPOCHS = 20
+    LOGSTEP_LOSS = 50
+    LOGSTEP_VIS = 100
+    LOGSTEP_MODEL = 5700
 
     # Val visualization param
     N_VALVIS = 25
@@ -127,7 +127,7 @@ def main():
     print('Beginning Training')
 
     # Batch Size
-    batch_size = 1
+    batch_size = 8
 
     for epoch in range(0, NUM_EPOCHS):
 
@@ -207,7 +207,7 @@ def main():
             current_dataset = data_list[msdict["data_list_count"]]
             current_dataset_iter = msdict[current_dataset]["iter"]
             [   frame_id, bev_image, raw_img_path,
-                binary_seg, data, homotrans_mat,
+                ego_lanes_seg, data, homotrans_mat,
                 bev_egopath, reproj_egopath,
                 bev_egoleft, reproj_egoleft,
                 bev_egoright, reproj_egoright,
@@ -235,7 +235,7 @@ def main():
             ).convert("RGB")
           
             # Assign data
-            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data, \
+            trainer.set_data(homotrans_mat, bev_image, perspective_image, ego_lanes_seg, data, \
                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                 reproj_egoleft, reproj_egoright)
             
@@ -296,7 +296,7 @@ def main():
 
                             # Fetch data
                             [   frame_id, bev_image, raw_img_path,
-                                binary_seg, data, homotrans_mat,
+                                ego_lanes_seg, data, homotrans_mat,
                                 bev_egopath, reproj_egopath,
                                 bev_egoleft, reproj_egoleft,
                                 bev_egoright, reproj_egoright,
@@ -324,7 +324,7 @@ def main():
                             ).convert("RGB")
 
                             # Assign data
-                            trainer.set_data(homotrans_mat, bev_image, perspective_image, binary_seg, data,\
+                            trainer.set_data(homotrans_mat, bev_image, perspective_image, ego_lanes_seg, data,\
                                 bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
                                 reproj_egoleft, reproj_egoright)
                             
