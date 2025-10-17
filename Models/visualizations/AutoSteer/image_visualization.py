@@ -21,9 +21,6 @@ def make_visualization_data(
     start_angle = prediction[3]
     start_delta_x = ego_path_offset + 100 * math.sin(start_angle)
     start_delta_y = 319 - (100 * math.cos(start_angle))
-    end_angle = prediction[4]
-    end_delta_x = ego_path_offset + 100 * math.sin(end_angle)
-    end_delta_y = 319 - (100 * math.cos(end_angle))
 
     # Start drawing
     draw = ImageDraw.Draw(image)
@@ -78,16 +75,6 @@ def make_visualization_data(
             start_delta_x, start_delta_y
         ),
         fill = COLOR_EGOPATH,
-        width = LINE_W
-    )
-
-    # End point deviation
-    draw.line(
-        (
-            ego_path_offset, DOWN_MARGIN, 
-            end_delta_x, end_delta_y
-        ),
-        fill = COLOR_END,
         width = LINE_W
     )
 
