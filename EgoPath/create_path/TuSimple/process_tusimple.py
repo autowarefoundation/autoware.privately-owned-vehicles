@@ -7,6 +7,7 @@ import pathlib
 from PIL import Image, ImageDraw
 import warnings
 from datetime import datetime
+import numpy as np
 
 # Custom warning format cuz the default one is wayyyyyy too verbose
 def custom_warning_format(message, category, filename, lineno, line=None):
@@ -231,6 +232,15 @@ def parseAnnotations(anno_path):
 
         # Determine drivable path from 2 egos
         drivable_path = getDrivablePath(left_ego, right_ego)
+
+        # Create segmentation masks:
+        # Channel 1: egoleft lane
+        # Channel 2: egoright lane
+        # Channel 3: other lanes
+        mask = np.zeros(
+            (H, W, 3), 
+            dtype = np.uint8
+        )
 
         # Parse processed data, all coords normalized
         anno_data[raw_file] = {
