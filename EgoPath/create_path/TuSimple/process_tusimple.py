@@ -3,7 +3,7 @@
 import argparse
 import json
 import os
-from PIL import Image
+from PIL import Image, ImageDraw
 import warnings
 import numpy as np
 import cv2
@@ -213,42 +213,35 @@ def calcLaneSegMask(
 
     """
 
+    # Create blank mask as new Image
     bin_seg = np.zeros(
         (height, width), 
         dtype = np.uint8
     )
+    bin_seg_img = Image.fromarray(bin_seg)
 
+    # Draw lines on mask
+    draw = ImageDraw.Draw(bin_seg_img)
     for lane in lanes:
-        
-        lane_pixels = [
-            (
-                int(x * width), 
-                int(y * height)
-            ) if (normalized) 
-            else (
-                int(x), 
-                int(y)
-            )
-            for x, y in lane
-        ]
-
-        contour = []
-        lane_w = 2
-        for (x, y) in lane_pixels:
-            contour.append((x - lane_w, y - lane_w))
-        for (x, y) in reversed(lane_pixels):
-            contour.append((x + lane_w, y + lane_w))
-
-        cv2.drawContours(
-            bin_seg,
-            [
-                np.array(
-                    contour, 
-                    dtype = np.int32
-                )
-            ],
-            0, (255), -1
+        if (normalized):
+            lane = [
+                (
+                    x * width, 
+                    y * height
+                ) 
+                for x, y in lane
+            ]
+        draw.line(
+            lane, 
+            fill = 255, 
+            width = 2
         )
+    
+    # Convert back to numpy array
+    bin_seg = np.array(
+        bin_seg_img, 
+        dtype = np.uint8
+    )
     
     return bin_seg
 
