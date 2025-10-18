@@ -332,6 +332,7 @@ def parseAnnotations(anno_path):
                     H
                 )
             ),
+            "mask" : mask.tolist(),
         }
 
     return anno_data
@@ -472,7 +473,8 @@ if __name__ == "__main__":
                 "drivable_path" : anno_entry["drivable_path"],
                 "egoleft_lane" : anno_entry["egoleft_lane"],
                 "egoright_lane" : anno_entry["egoright_lane"],
-                "other_lanes" : anno_entry["other_lanes"]
+                "other_lanes" : anno_entry["other_lanes"],
+                "mask" : anno_entry["mask"],
             }
 
         print(f"Processed {len(this_data)} entries in above file.\n")
