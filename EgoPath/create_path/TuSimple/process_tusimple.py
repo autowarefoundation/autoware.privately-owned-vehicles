@@ -403,7 +403,8 @@ if __name__ == "__main__":
             data_master[str(img_id_counter).zfill(6)] = {
                 "drivable_path" : anno_entry["drivable_path"],
                 "egoleft_lane" : anno_entry["egoleft_lane"],
-                "egoright_lane" : anno_entry["egoright_lane"]
+                "egoright_lane" : anno_entry["egoright_lane"],
+                "other_lanes" : anno_entry["other_lanes"]
             }
 
         print(f"Processed {len(this_data)} entries in above file.\n")
