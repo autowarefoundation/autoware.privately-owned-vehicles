@@ -372,17 +372,20 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataset_dir", 
+        "-i",
         type = str, 
         help = "TuSimple directory (right after extraction)"
     )
     parser.add_argument(
-        "--output_dir", 
+        "--output_dir",
+        "-o", 
         type = str, 
         help = "Output directory"
     )
     # For debugging only
     parser.add_argument(
         "--early_stopping",
+        "-e",
         type = int,
         help = "Num. files each split/class you wanna limit, instead of whole set.",
         required = False
