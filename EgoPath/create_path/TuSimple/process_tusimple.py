@@ -224,17 +224,25 @@ def parseAnnotations(anno_path):
 
         left_ego = lanes_decoupled[ego_indexes[0]]
         right_ego = lanes_decoupled[ego_indexes[1]]
+        other_lanes = [
+            lane for idx, lane in enumerate(lanes_decoupled)
+            if idx not in ego_indexes
+        ]
 
         # Determine drivable path from 2 egos
         drivable_path = getDrivablePath(left_ego, right_ego)
 
         # Parse processed data, all coords normalized
         anno_data[raw_file] = {
-            "lanes" : [
-                roundLineFloats(normalizeCoords(lane, W, H)) 
-                for lane in lanes_decoupled
+            "other_lanes" : [
+                roundLineFloats(
+                    normalizeCoords(
+                        lane, 
+                        W, 
+                        H
+                    )
+                ) for lane in other_lanes
             ],
-            "ego_indexes" : ego_indexes,
             "drivable_path" : roundLineFloats(
                 normalizeCoords(
                     drivable_path, 
