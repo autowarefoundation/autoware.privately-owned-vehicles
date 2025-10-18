@@ -234,7 +234,7 @@ def calcLaneSegMask(
         draw.line(
             lane, 
             fill = 255, 
-            width = 2
+            width = 4
         )
     
     # Convert back to numpy array
