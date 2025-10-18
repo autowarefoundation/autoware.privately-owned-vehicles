@@ -284,6 +284,21 @@ def parseAnnotations(anno_path):
             (H, W, 3), 
             dtype = np.uint8
         )
+        mask[:, :, 0] = calcLaneSegMask(
+            [left_ego], 
+            W, H, 
+            normalized = False
+        )
+        mask[:, :, 1] = calcLaneSegMask(
+            [right_ego], 
+            W, H, 
+            normalized = False
+        )
+        mask[:, :, 2] = calcLaneSegMask(
+            other_lanes, 
+            W, H, 
+            normalized = False
+        )
 
         # Parse processed data, all coords normalized
         anno_data[raw_file] = {
