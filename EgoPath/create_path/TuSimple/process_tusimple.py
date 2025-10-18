@@ -240,7 +240,16 @@ def calcLaneSegMask(
         for (x, y) in reversed(lane_pixels):
             contour.append((x + lane_w, y + lane_w))
 
-        cv2.drawContours(bin_seg,[contour],0,(255),-1)
+        cv2.drawContours(
+            bin_seg,
+            [
+                np.array(
+                    contour, 
+                    dtype = np.int32
+                )
+            ],
+            0, (255), -1
+        )
     
     return bin_seg
 
