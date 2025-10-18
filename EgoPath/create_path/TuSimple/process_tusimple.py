@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw
 import warnings
 from datetime import datetime
 import numpy as np
+import cv2
 
 # Custom warning format cuz the default one is wayyyyyy too verbose
 def custom_warning_format(message, category, filename, lineno, line=None):
@@ -190,6 +191,48 @@ def annotateGT(
         visualization_dir, 
         save_name.replace(".png", ".jpg")
     ))
+
+
+def calcLaneSegMask(
+    lanes, 
+    width, height,
+    normalized: bool = True
+):
+    """
+    Calculates binary segmentation mask for some lane lines.
+
+    """
+
+    bin_seg = np.zeros(
+        (height, width), 
+        dtype = np.uint8
+    )
+
+    for lane in lanes:
+        
+        lane_pixels = [
+            (
+                int(x * width), 
+                int(y * height)
+            ) if (normalized) 
+            else (
+                int(x), 
+                int(y)
+            )
+            for x, y in lane
+        ]
+
+        contour = []
+        lane_w = 2
+        for (x, y) in lane_pixels:
+            contour.append((x - lane_w, y - lane_w))
+        for (x, y) in reversed(lane_pixels):
+            contour.append((x + lane_w, y + lane_w))
+
+        cv2.drawContours(bin_seg,[contour],0,(255),-1)
+    
+    return bin_seg
+
 
 def parseAnnotations(anno_path):
     """
