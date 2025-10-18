@@ -464,7 +464,6 @@ if __name__ == "__main__":
             raw_file = frame_data["raw_file"]
             anno_entry = parseAnnotations(frame_data)
             if (anno_entry is None):
-                img_id_counter -= 1
                 continue
             
             # Annotate raw images
