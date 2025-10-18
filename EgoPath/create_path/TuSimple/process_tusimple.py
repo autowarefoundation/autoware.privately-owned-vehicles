@@ -3,12 +3,11 @@
 import argparse
 import json
 import os
-import pathlib
-from PIL import Image, ImageDraw
+from PIL import Image
 import warnings
-from datetime import datetime
 import numpy as np
 import cv2
+import shutil
 
 # Custom warning format cuz the default one is wayyyyyy too verbose
 def custom_warning_format(message, category, filename, lineno, line=None):
@@ -410,6 +409,12 @@ if __name__ == "__main__":
     """
     dataset_dir = args.dataset_dir
     output_dir = args.output_dir
+
+    if (os.path.exists(output_dir)):
+        print(f"Output dir {output_dir} already exists, purged!")
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
     list_subdirs = ["image", "visualization"]
     for subdir in list_subdirs:
         subdir_path = os.path.join(output_dir, subdir)
