@@ -392,6 +392,12 @@ if __name__ == "__main__":
                 key = lambda p: p[1],
                 reverse = True
             )
+            for i in range(len(anno_entry["other_lanes"])):
+                anno_entry["other_lanes"][i] = sorted(
+                    anno_entry["other_lanes"][i],
+                    key = lambda p: p[1],
+                    reverse = True
+                )
 
             # Change `raw_file` to 6-digit incremental index
             data_master[str(img_id_counter).zfill(6)] = {
