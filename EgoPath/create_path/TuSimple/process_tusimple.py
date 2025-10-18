@@ -161,36 +161,47 @@ def annotateGT(
     # Copy raw img and put it in raw dir.
     raw_img.save(os.path.join(raw_dir, save_name))
     
-    # Draw all lanes & lines
-    draw = ImageDraw.Draw(raw_img)
-    lane_colors = {
-        "outer_red": (255, 0, 0), 
-        "ego_green": (0, 255, 0), 
-        "drive_path_yellow": (255, 255, 0)
-    }
-    lane_w = 5
-    # Draw lanes
-    for idx, lane in enumerate(anno_entry["lanes"]):
-        if (normalized):
-            lane = [(x * W, y * H) for x, y in lane]
-        if (idx in anno_entry["ego_indexes"]):
-            # Ego lanes, in green
-            draw.line(lane, fill = lane_colors["ego_green"], width = lane_w)
-        else:
-            # Outer lanes, in red
-            draw.line(lane, fill = lane_colors["outer_red"], width = lane_w)
-    # Drivable path, in yellow
-    if (normalized):
-        drivable_renormed = [(x * W, y * H) for x, y in anno_entry["drivable_path"]]
-    else:
-        drivable_renormed = anno_entry["drivable_path"]
-    draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
+    # # Draw all lanes & lines
+    # draw = ImageDraw.Draw(raw_img)
+    # lane_colors = {
+    #     "outer_red": (255, 0, 0), 
+    #     "ego_green": (0, 255, 0), 
+    #     "drive_path_yellow": (255, 255, 0)
+    # }
+    # lane_w = 5
+    # # Draw lanes
+    # for idx, lane in enumerate(anno_entry["lanes"]):
+    #     if (normalized):
+    #         lane = [(x * W, y * H) for x, y in lane]
+    #     if (idx in anno_entry["ego_indexes"]):
+    #         # Ego lanes, in green
+    #         draw.line(lane, fill = lane_colors["ego_green"], width = lane_w)
+    #     else:
+    #         # Outer lanes, in red
+    #         draw.line(lane, fill = lane_colors["outer_red"], width = lane_w)
+    # # Drivable path, in yellow
+    # if (normalized):
+    #     drivable_renormed = [(x * W, y * H) for x, y in anno_entry["drivable_path"]]
+    # else:
+    #     drivable_renormed = anno_entry["drivable_path"]
+    # draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
+
+    # Fetch seg mask as RGB
+    mask_array = np.array(
+        anno_entry["mask"], 
+        dtype = np.uint8
+    )
+    mask_img = Image.fromarray(mask_array, mode = "RGB")
+
+    # Overlay mask on raw image, ratio 1:1
+    overlayed_img = Image.blend(
+        raw_img, 
+        mask_img, 
+        alpha = 0.5
+    )
 
     # Save visualization img, JPG for lighter weight, just different dir
-    raw_img.save(os.path.join(
-        visualization_dir, 
-        save_name.replace(".png", ".jpg")
-    ))
+    overlayed_img.save(os.path.join(visualization_dir, save_name))
 
 
 def calcLaneSegMask(
@@ -338,6 +349,8 @@ def parseAnnotations(anno_path):
     return anno_data
 
             
+# ====================================== MAIN RUN ====================================== #
+
 if __name__ == "__main__":
 
     # ============================== Dataset structure ============================== #
