@@ -288,8 +288,8 @@ def parseAnnotations(item: dict):
         if idx not in ego_indexes
     ]
 
-    # Determine drivable path from 2 egos
-    drivable_path = getDrivablePath(left_ego, right_ego)
+    # # Determine drivable path from 2 egos
+    # drivable_path = getDrivablePath(left_ego, right_ego)
 
     # Create segmentation masks:
     # Channel 1: egoleft lane
