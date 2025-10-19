@@ -42,14 +42,14 @@ DYNAMIC_HOMOTRANS_DATASETS = [
 class LoadDataAutoSteer():
     def __init__(
             self, 
-            labels_filepath: str,
+            # labels_filepath: str,
             images_filepath: str,
             dataset: VALID_DATASET_LITERALS,
     ):
         
         # ================= Parsing param ================= #
 
-        self.label_filepath = labels_filepath
+        # self.label_filepath = labels_filepath
         self.image_dirpath = images_filepath
         self.dataset_name = dataset
 
@@ -58,15 +58,15 @@ class LoadDataAutoSteer():
         if not (self.dataset_name in VALID_DATASET_LIST):
             raise ValueError("Unknown dataset! Contact our team so we can work on this.")
 
-        # Load JSON labels, get homotrans matrix as well
-        with open(self.label_filepath, "r") as f:
-            json_data = json.load(f)
-            if (self.dataset_name in FIXED_HOMOTRANS_DATASETS):
-                homotrans_mat = json_data.pop("standard_homomatrix")
-                self.BEV_to_image_transform = np.linalg.inv(homotrans_mat)
-            else:
-                self.BEV_to_image_transform = None
-            self.labels = json_data
+        # # Load JSON labels, get homotrans matrix as well
+        # with open(self.label_filepath, "r") as f:
+        #     json_data = json.load(f)
+        #     if (self.dataset_name in FIXED_HOMOTRANS_DATASETS):
+        #         homotrans_mat = json_data.pop("standard_homomatrix")
+        #         self.BEV_to_image_transform = np.linalg.inv(homotrans_mat)
+        #     else:
+        #         self.BEV_to_image_transform = None
+        #     self.labels = json_data
 
         self.images = sorted([
             f for f in pathlib.Path(self.image_dirpath).glob("*.png")
@@ -161,8 +161,8 @@ class LoadDataAutoSteer():
     def getItem(self, index, is_train: bool):
         if (is_train):
 
-            # BEV Image
-            bev_img = Image.open(str(self.train_images[index])).convert("RGB")
+            # # BEV Image
+            # bev_img = Image.open(str(self.train_images[index])).convert("RGB")
 
             # Frame ID
             frame_id = self.train_ids[index]
@@ -174,47 +174,47 @@ class LoadDataAutoSteer():
                 else None
             )
 
-            # BEV-to-image transform
-            bev_to_image_transform = (
-                self.BEV_to_image_transform
-                if (self.BEV_to_image_transform is not None)
-                else np.linalg.inv(self.train_labels[index]["homomatrix"])
-            )
+            # # BEV-to-image transform
+            # bev_to_image_transform = (
+            #     self.BEV_to_image_transform
+            #     if (self.BEV_to_image_transform is not None)
+            #     else np.linalg.inv(self.train_labels[index]["homomatrix"])
+            # )
 
-            # BEV EgoPath
-            bev_egopath = self.train_labels[index]["bev_egopath"]
-            bev_egopath = [lab[0:2] for lab in bev_egopath]
+            # # BEV EgoPath
+            # bev_egopath = self.train_labels[index]["bev_egopath"]
+            # bev_egopath = [lab[0:2] for lab in bev_egopath]
 
-            # Reprojected EgoPath
-            reproj_egopath = self.train_labels[index]["reproj_egopath"]
-            reproj_egopath = [lab[0:2] for lab in reproj_egopath]
+            # # Reprojected EgoPath
+            # reproj_egopath = self.train_labels[index]["reproj_egopath"]
+            # reproj_egopath = [lab[0:2] for lab in reproj_egopath]
 
-            # BEV EgoLeft Lane
-            bev_egoleft = self.train_labels[index]["bev_egoleft"]
-            bev_egoleft = [lab[0:2] for lab in bev_egoleft]
+            # # BEV EgoLeft Lane
+            # bev_egoleft = self.train_labels[index]["bev_egoleft"]
+            # bev_egoleft = [lab[0:2] for lab in bev_egoleft]
 
-            # Reprojected EgoLeft Lane
-            reproj_egoleft = self.train_labels[index]["reproj_egoleft"]
-            reproj_egoleft = [lab[0:2] for lab in reproj_egoleft]
+            # # Reprojected EgoLeft Lane
+            # reproj_egoleft = self.train_labels[index]["reproj_egoleft"]
+            # reproj_egoleft = [lab[0:2] for lab in reproj_egoleft]
 
-            # BEV EgoRight Lane
-            bev_egoright = self.train_labels[index]["bev_egoright"]
-            bev_egoright = [lab[0:2] for lab in bev_egoright]
+            # # BEV EgoRight Lane
+            # bev_egoright = self.train_labels[index]["bev_egoright"]
+            # bev_egoright = [lab[0:2] for lab in bev_egoright]
 
-            # Reprojected EgoRight Lane
-            reproj_egoright = self.train_labels[index]["reproj_egoright"]
-            reproj_egoright = [lab[0:2] for lab in reproj_egoright]
+            # # Reprojected EgoRight Lane
+            # reproj_egoright = self.train_labels[index]["reproj_egoright"]
+            # reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
             # Binary Segmentation Mask
             binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
 
-            # Data vector
-            data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
+            # # Data vector
+            # data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
            
         else:
 
-            # BEV Image
-            bev_img = Image.open(str(self.val_images[index])).convert("RGB")
+            # # BEV Image
+            # bev_img = Image.open(str(self.val_images[index])).convert("RGB")
 
             # Frame ID
             frame_id = self.val_ids[index]
@@ -226,52 +226,55 @@ class LoadDataAutoSteer():
                 else None
             )
 
-            # BEV-to-image transform
-            bev_to_image_transform = (
-                self.BEV_to_image_transform
-                if (self.BEV_to_image_transform is not None)
-                else np.linalg.inv(self.val_labels[index]["homomatrix"])
-            )
+            # # BEV-to-image transform
+            # bev_to_image_transform = (
+            #     self.BEV_to_image_transform
+            #     if (self.BEV_to_image_transform is not None)
+            #     else np.linalg.inv(self.val_labels[index]["homomatrix"])
+            # )
             
-            # BEV EgoPath
-            bev_egopath = self.val_labels[index]["bev_egopath"]
-            bev_egopath = [lab[0:2] for lab in bev_egopath]
+            # # BEV EgoPath
+            # bev_egopath = self.val_labels[index]["bev_egopath"]
+            # bev_egopath = [lab[0:2] for lab in bev_egopath]
 
-            # Reprojected EgoPath
-            reproj_egopath = self.val_labels[index]["reproj_egopath"]
-            reproj_egopath = [lab[0:2] for lab in reproj_egopath]
+            # # Reprojected EgoPath
+            # reproj_egopath = self.val_labels[index]["reproj_egopath"]
+            # reproj_egopath = [lab[0:2] for lab in reproj_egopath]
 
-            # BEV EgoLeft Lane
-            bev_egoleft = self.val_labels[index]["bev_egoleft"]
-            bev_egoleft = [lab[0:2] for lab in bev_egoleft]
+            # # BEV EgoLeft Lane
+            # bev_egoleft = self.val_labels[index]["bev_egoleft"]
+            # bev_egoleft = [lab[0:2] for lab in bev_egoleft]
 
-            # Reprojected EgoLeft Lane
-            reproj_egoleft = self.val_labels[index]["reproj_egoleft"]
-            reproj_egoleft = [lab[0:2] for lab in reproj_egoleft]
+            # # Reprojected EgoLeft Lane
+            # reproj_egoleft = self.val_labels[index]["reproj_egoleft"]
+            # reproj_egoleft = [lab[0:2] for lab in reproj_egoleft]
 
-            # BEV EgoRight Lane
-            bev_egoright = self.val_labels[index]["bev_egoright"]
-            bev_egoright = [lab[0:2] for lab in bev_egoright]
+            # # BEV EgoRight Lane
+            # bev_egoright = self.val_labels[index]["bev_egoright"]
+            # bev_egoright = [lab[0:2] for lab in bev_egoright]
             
-            # Reprojected EgoRight Lane
-            reproj_egoright = self.val_labels[index]["reproj_egoright"]
-            reproj_egoright = [lab[0:2] for lab in reproj_egoright]
+            # # Reprojected EgoRight Lane
+            # reproj_egoright = self.val_labels[index]["reproj_egoright"]
+            # reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
             # Binary Segmentation Mask
             binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
 
-            # Data vector
-            data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
+            # # Data vector
+            # data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
 
         # Convert image to OpenCV/Numpy format for augmentations
         bev_img = np.array(bev_img)
 
         return [
-            frame_id, bev_img, raw_img_path,
-            binary_seg, data,
-            self.BEV_to_image_transform,
-            bev_egopath, reproj_egopath,
-            bev_egoleft, reproj_egoleft,
-            bev_egoright, reproj_egoright,
+            frame_id, 
+            # bev_img, 
+            raw_img_path,
+            binary_seg, 
+            # data,
+            # self.BEV_to_image_transform,
+            # bev_egopath, reproj_egopath,
+            # bev_egoleft, reproj_egoleft,
+            # bev_egoright, reproj_egoright,
         ]
 
