@@ -156,8 +156,11 @@ def getDrivablePath(left_ego, right_ego):
 
 
 def annotateGT(
-    anno_entry, anno_raw_file, 
-    raw_dir, visualization_dir,
+    anno_entry, 
+    anno_raw_file, 
+    raw_dir, 
+    mask_dir,
+    visualization_dir,
 ):
     """
     Annotates and saves an image with:
@@ -209,6 +212,9 @@ def annotateGT(
     )
     mask_img = Image.fromarray(mask_array).convert("RGB")
 
+    # Save mask
+    mask_img.save(os.path.join(mask_dir, save_name))
+
     # Overlay mask on raw image, ratio 1:1
     overlayed_img = Image.blend(
         raw_img, 
@@ -217,7 +223,7 @@ def annotateGT(
     )
 
     # Save visualization img, JPG for lighter weight, just different dir
-    overlayed_img.save(os.path.join(visualization_dir, save_name))
+    overlayed_img.save(os.path.join(visualization_dir, save_name.replace(".png", ".jpg")))
 
 
 def calcLaneSegMask(
@@ -421,6 +427,7 @@ if __name__ == "__main__":
     """
     --output_dir
         |----image
+        |----mask
         |----visualization
         |----drivable_path.json
     """
@@ -432,7 +439,7 @@ if __name__ == "__main__":
         shutil.rmtree(output_dir)
     os.makedirs(output_dir)
 
-    list_subdirs = ["image", "visualization"]
+    list_subdirs = ["image", "mask", "visualization"]
     for subdir in list_subdirs:
         subdir_path = os.path.join(output_dir, subdir)
         if (not os.path.exists(subdir_path)):
@@ -499,8 +506,9 @@ if __name__ == "__main__":
             # Annotate raw images
             annotateGT(
                 anno_entry,
-                anno_raw_file = os.path.join(set_dir, raw_file), 
+                anno_raw_file = os.path.join(set_dir, raw_file),
                 raw_dir = os.path.join(output_dir, "image"),
+                mask_dir =  os.path.join(output_dir, "mask"),
                 visualization_dir = os.path.join(output_dir, "visualization")
             )
 
