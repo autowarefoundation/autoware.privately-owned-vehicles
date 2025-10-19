@@ -326,13 +326,13 @@ def parseAnnotations(item: dict):
                 )
             ) for lane in other_lanes
         ],
-        "drivable_path" : roundLineFloats(
-            normalizeCoords(
-                drivable_path, 
-                W, 
-                H
-            )
-        ),
+        # "drivable_path" : roundLineFloats(
+        #     normalizeCoords(
+        #         drivable_path, 
+        #         W, 
+        #         H
+        #     )
+        # ),
         "egoleft_lane" : roundLineFloats(
             normalizeCoords(
                 left_ego, 
@@ -484,11 +484,11 @@ if __name__ == "__main__":
             )
 
             # Reorder all lines by decreasing y
-            anno_entry["drivable_path"] = sorted(
-                anno_entry["drivable_path"],
-                key = lambda p: p[1],
-                reverse = True
-            )
+            # anno_entry["drivable_path"] = sorted(
+            #     anno_entry["drivable_path"],
+            #     key = lambda p: p[1],
+            #     reverse = True
+            # )
             anno_entry["egoleft_lane"] = sorted(
                 anno_entry["egoleft_lane"],
                 key = lambda p: p[1],
@@ -508,7 +508,7 @@ if __name__ == "__main__":
 
             # Change `raw_file` to 6-digit incremental index
             data_master[str(img_id_counter).zfill(6)] = {
-                "drivable_path" : anno_entry["drivable_path"],
+                # "drivable_path" : anno_entry["drivable_path"],
                 "egoleft_lane" : anno_entry["egoleft_lane"],
                 "egoright_lane" : anno_entry["egoright_lane"],
                 "other_lanes" : anno_entry["other_lanes"],
