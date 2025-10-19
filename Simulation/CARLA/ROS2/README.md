@@ -50,9 +50,6 @@ ros2 run odom_publisher pub_odom_node
 3. Run [CARLA server with ROS2 enabled](../../README.md)
 4. Wait for world to be loaded, then launch VisionPilot pipeline
    ```sh 
-   # must launch from this directory
-   cd .../Simulation/CARLA/ROS2/
-
    # CARLA 0.9.16
    ros2 launch vision_pilot_bringup demo_carla9_launch.py    
    
