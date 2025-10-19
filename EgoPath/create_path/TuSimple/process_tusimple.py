@@ -18,6 +18,7 @@ warnings.formatwarning = custom_warning_format
 
 # ============================== Helper functions ============================== #
 
+
 def roundLineFloats(line, ndigits = 4):
     line = list(line)
     for i in range(len(line)):
@@ -27,6 +28,14 @@ def roundLineFloats(line, ndigits = 4):
         ]
     line = tuple(line)
     return line
+
+
+def sortByYDesc(line):
+    return sorted(
+        line,
+        key = lambda p: p[1],
+        reverse = True
+    )
 
 
 def normalizeCoords(lane, width, height):
