@@ -46,25 +46,33 @@ def normalizeCoords(lane, width, height):
     return [(x / width, y / height) for x, y in lane]
 
 
-def getLaneAnchor(lane):
+def getLineAnchor(line):
     """
     Determine "anchor" point of a lane.
 
     """
-    (x2, y2) = lane[-1]
-    (x1, y1) = lane[-2]
-    for i in range(len(lane) - 2, 0, -1):
-        if (lane[i][0] != x2):
-            (x1, y1) = lane[i]
+    (x2, y2) = line[0]
+    (x1, y1) = line[1]
+    
+    for i in range(1, len(line) - 1, 1):
+        if (line[i][0] != x2) & (line[i][1] != y2):
+            (x1, y1) = line[i]
             break
-    if (x1 == x2):
-        warnings.warn(f"Vertical lane detected: {lane}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
+
+    if (x1 == x2) or (y1 == y2):
+        if (x1 == x2):
+            error_lane = "Vertical"
+        elif (y1 == y2):
+            error_lane = "Horizontal"
+        warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
         return (x1, None, None)
+    
     a = (y2 - y1) / (x2 - x1)
     b = y1 - a * x1
-    x0 = (H - b) / a
-    
+    x0 = (H - 1 - b) / a
+
     return (x0, a, b)
+
 
 
 def getEgoIndexes(anchors):
@@ -280,7 +288,7 @@ def parseAnnotations(item: dict):
 
     # Add anchor points to each lane
     lane_anchors = [
-        getLaneAnchor(lane) 
+        getLineAnchor(lane) 
         for lane in lanes_decoupled
     ]
     for i, anchor in enumerate(lane_anchors):
