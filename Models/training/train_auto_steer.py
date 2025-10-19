@@ -195,22 +195,30 @@ def main():
 
             # Fetch data from current processed dataset
             frame_id = 0
-            bev_image = None
-            homotrans_mat = []
-            bev_egopath = []
-            reproj_egopath = []
-            bev_egoleft = []
-            reproj_egoleft = []
-            bev_egoright = []
-            reproj_egoright = []
+            # bev_image = None
+            # homotrans_mat = []
+            # bev_egopath = []
+            # reproj_egopath = []
+            # bev_egoleft = []
+            # reproj_egoleft = []
+            # bev_egoright = []
+            # reproj_egoright = []
            
             current_dataset = data_list[msdict["data_list_count"]]
             current_dataset_iter = msdict[current_dataset]["iter"]
-            [   frame_id, bev_image, raw_img_path,
-                ego_lanes_seg, data, homotrans_mat,
-                bev_egopath, reproj_egopath,
-                bev_egoleft, reproj_egoleft,
-                bev_egoright, reproj_egoright,
+            [
+                frame_id, 
+                # bev_image, 
+                raw_img_path,
+                ego_lanes_seg, 
+                # data, 
+                # homotrans_mat,
+                # bev_egopath, 
+                # reproj_egopath,
+                # bev_egoleft, 
+                # reproj_egoleft,
+                # bev_egoright, 
+                # reproj_egoright,
             ] = msdict[current_dataset]["loader"].getItem(
                 msdict[current_dataset]["sample_list"][current_dataset_iter],
                 is_train = True
@@ -295,11 +303,19 @@ def main():
                         for val_count in range(0, msdict[dataset]["N_vals"]):
 
                             # Fetch data
-                            [   frame_id, bev_image, raw_img_path,
-                                ego_lanes_seg, data, homotrans_mat,
-                                bev_egopath, reproj_egopath,
-                                bev_egoleft, reproj_egoleft,
-                                bev_egoright, reproj_egoright,
+                            [
+                                frame_id, 
+                                # bev_image, 
+                                raw_img_path,
+                                ego_lanes_seg, 
+                                # data, 
+                                # homotrans_mat,
+                                # bev_egopath, 
+                                # reproj_egopath,
+                                # bev_egoleft, 
+                                # reproj_egoleft,
+                                # bev_egoright, 
+                                # reproj_egoright,
                             ] = msdict[dataset]["loader"].getItem(
                                 val_count,
                                 is_train = False
