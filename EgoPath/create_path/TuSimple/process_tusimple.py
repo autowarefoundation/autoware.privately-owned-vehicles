@@ -272,6 +272,12 @@ def parseAnnotations(item: dict):
         for lane in lanes if sum(1 for x in lane if x != -2) >= 2     # Filter out lanes < 2 points (there's actually a bunch of em)
     ]
 
+    # Sort each lane by decreasing y
+    lanes_decoupled = [
+        sortByYDesc(lane) 
+        for lane in lanes_decoupled
+    ]
+
     # Determine 2 ego lanes
     lane_anchors = [getLaneAnchor(lane) for lane in lanes_decoupled]
     ego_indexes = getEgoIndexes(lane_anchors)
@@ -482,29 +488,6 @@ if __name__ == "__main__":
                 raw_dir = os.path.join(output_dir, "image"),
                 visualization_dir = os.path.join(output_dir, "visualization")
             )
-
-            # Reorder all lines by decreasing y
-            # anno_entry["drivable_path"] = sorted(
-            #     anno_entry["drivable_path"],
-            #     key = lambda p: p[1],
-            #     reverse = True
-            # )
-            anno_entry["egoleft_lane"] = sorted(
-                anno_entry["egoleft_lane"],
-                key = lambda p: p[1],
-                reverse = True
-            )
-            anno_entry["egoright_lane"] = sorted(
-                anno_entry["egoright_lane"],
-                key = lambda p: p[1],
-                reverse = True
-            )
-            for i in range(len(anno_entry["other_lanes"])):
-                anno_entry["other_lanes"][i] = sorted(
-                    anno_entry["other_lanes"][i],
-                    key = lambda p: p[1],
-                    reverse = True
-                )
 
             # Change `raw_file` to 6-digit incremental index
             data_master[str(img_id_counter).zfill(6)] = {
