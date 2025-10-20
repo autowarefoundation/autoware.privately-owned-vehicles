@@ -15,8 +15,10 @@ from Models.training.auto_steer_trainer import AutoSteerTrainer
 BEV_JSON_PATH = "drivable_path_bev.json"
 BEV_IMG_PATH = "image_bev"
 BEV_VIS_PATH = "visualization_bev"
+PERSPECTIVE_JSON_PATH = "drivable_path.json"
 PERSPECTIVE_IMG_PATH = "image"
 PERSPECTIVE_VIS_PATH = "visualization"
+PERSPECTIVE_MASK_PATH = "mask"
 
 
 def main():
@@ -25,8 +27,8 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH   = '/home/zain/Autoware/Data/AutoSteer/'#"DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)"
-    POV_PATH    = '/home/zain/Autoware/Privately_Owned_Vehicles/'#"PATH TO POV PROJECT ROOT"
+    ROOT_PATH   = "/mnt/Storage/pov_datasets/"
+    POV_PATH    = "/home/tranhuunhathuy/Documents/Autoware/autoware.privately-owned-vehicles/"
 
     # Model save root path
     MODEL_SAVE_ROOT_PATH = os.path.join(
@@ -51,11 +53,12 @@ def main():
     msdict = {}
     for dataset in VALID_DATASET_LIST:
         msdict[dataset] = {
-            "path_labels"   : os.path.join(ROOT_PATH, dataset, BEV_JSON_PATH),
-            "path_images"   : os.path.join(ROOT_PATH, dataset, BEV_IMG_PATH),
-            "path_perspective_vis" : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_VIS_PATH),
+            "path_labels"   : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_JSON_PATH),
+            "path_masks"    : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_MASK_PATH),
+            # "path_images"   : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_IMG_PATH),
+            # "path_perspective_vis" : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_VIS_PATH),
             "path_perspective_image": os.path.join(ROOT_PATH, dataset, PERSPECTIVE_IMG_PATH),
-            "path_bev_vis" : os.path.join(ROOT_PATH, dataset, BEV_VIS_PATH)
+            # "path_bev_vis" : os.path.join(ROOT_PATH, dataset, BEV_VIS_PATH)
         }
 
     # Deal with TEST dataset
@@ -73,7 +76,8 @@ def main():
     for dataset in VALID_DATASET_LIST:
         this_dataset_loader = LoadDataAutoSteer(
             labels_filepath = msdict[dataset]["path_labels"],
-            images_filepath = msdict[dataset]["path_images"],
+            mask_dirpath = msdict[dataset]["path_masks"],
+            images_filepath = msdict[dataset]["path_perspective_image"],
             dataset = dataset
         )
         N_trains, N_vals = this_dataset_loader.getItemCount()
@@ -234,13 +238,13 @@ def main():
                 )
             ).convert("RGB")
             
-            # BEV visualization
-            bev_vis = Image.open(
-                os.path.join(
-                    msdict[current_dataset]["path_bev_vis"],
-                    f"{frame_id}.jpg"
-                )
-            ).convert("RGB")
+            # # BEV visualization
+            # bev_vis = Image.open(
+            #     os.path.join(
+            #         msdict[current_dataset]["path_bev_vis"],
+            #         f"{frame_id}.jpg"
+            #     )
+            # ).convert("RGB")
           
             # Assign data
             trainer.set_data(
@@ -277,9 +281,9 @@ def main():
             if ((msdict["sample_counter"] + 1) % LOGSTEP_LOSS == 0):
                 trainer.log_loss(msdict["log_counter"] + 1)
             
-            # Logging Visualization to Tensor Board
-            if((msdict["sample_counter"] + 1) % LOGSTEP_VIS == 0):  
-                trainer.save_visualization(msdict["log_counter"] + 1, bev_vis, is_train=True)
+            # # Logging Visualization to Tensor Board
+            # if((msdict["sample_counter"] + 1) % LOGSTEP_VIS == 0):  
+            #     trainer.save_visualization(msdict["log_counter"] + 1, bev_vis, is_train=True)
             
             # Save model and run Validation on entire validation dataset
             if ((msdict["sample_counter"] + 1) % LOGSTEP_MODEL == 0):
@@ -341,13 +345,13 @@ def main():
                                 )
                             ).convert("RGB")
 
-                            # BEV visualization
-                            bev_vis = Image.open(
-                                os.path.join(
-                                    msdict[dataset]["path_bev_vis"],
-                                    f"{frame_id}.jpg"
-                                )
-                            ).convert("RGB")
+                            # # BEV visualization
+                            # bev_vis = Image.open(
+                            #     os.path.join(
+                            #         msdict[dataset]["path_bev_vis"],
+                            #         f"{frame_id}.jpg"
+                            #     )
+                            # ).convert("RGB")
 
                             # Assign data
                             trainer.set_data(
@@ -376,11 +380,11 @@ def main():
                             # Get running total of loss value
                             msdict[dataset]["total_running"] += trainer.get_validation_loss_value()
 
-                            # Save visualization to Tensorboard
-                            if(val_count < N_VALVIS): 
-                                vis_path = VIS_SAVE_ROOT_PATH + dataset + '_epoch_'+ str(epoch) + '_step_' + \
-                                    str(msdict["log_counter"] + 1) + '_image_' + str(frame_id)
-                                trainer.save_visualization(msdict["log_counter"] + 1 + val_count, bev_vis, vis_path, is_train=False)
+                            # # Save visualization to Tensorboard
+                            # if(val_count < N_VALVIS): 
+                            #     vis_path = VIS_SAVE_ROOT_PATH + dataset + '_epoch_'+ str(epoch) + '_step_' + \
+                            #         str(msdict["log_counter"] + 1) + '_image_' + str(frame_id)
+                            #     trainer.save_visualization(msdict["log_counter"] + 1 + val_count, bev_vis, vis_path, is_train=False)
 
 
                     # Calculate final validation scores for network on each dataset

@@ -42,7 +42,7 @@ DYNAMIC_HOMOTRANS_DATASETS = [
 class LoadDataAutoSteer():
     def __init__(
             self, 
-            # labels_filepath: str,
+            labels_filepath: str,
             mask_dirpath: str,
             images_filepath: str,
             dataset: VALID_DATASET_LITERALS,
@@ -50,7 +50,7 @@ class LoadDataAutoSteer():
         
         # ================= Parsing param ================= #
 
-        # self.label_filepath = labels_filepath
+        self.labels_filepath = labels_filepath
         self.mask_dirpath = mask_dirpath
         self.image_dirpath = images_filepath
         self.dataset_name = dataset
@@ -60,15 +60,15 @@ class LoadDataAutoSteer():
         if not (self.dataset_name in VALID_DATASET_LIST):
             raise ValueError("Unknown dataset! Contact our team so we can work on this.")
 
-        # # Load JSON labels, get homotrans matrix as well
-        # with open(self.label_filepath, "r") as f:
-        #     json_data = json.load(f)
-        #     if (self.dataset_name in FIXED_HOMOTRANS_DATASETS):
-        #         homotrans_mat = json_data.pop("standard_homomatrix")
-        #         self.BEV_to_image_transform = np.linalg.inv(homotrans_mat)
-        #     else:
-        #         self.BEV_to_image_transform = None
-        #     self.labels = json_data
+        # Load JSON labels, get homotrans matrix as well
+        with open(self.labels_filepath, "r") as f:
+            json_data = json.load(f)
+            # if (self.dataset_name in FIXED_HOMOTRANS_DATASETS):
+            #     homotrans_mat = json_data.pop("standard_homomatrix")
+            #     self.BEV_to_image_transform = np.linalg.inv(homotrans_mat)
+            # else:
+            #     self.BEV_to_image_transform = None
+            self.labels = json_data
 
         self.images = sorted([
             f for f in pathlib.Path(self.image_dirpath).glob("*.png")
@@ -77,7 +77,7 @@ class LoadDataAutoSteer():
             f for f in pathlib.Path(self.mask_dirpath).glob("*.png")
         )
 
-        # self.N_labels = len(self.labels)
+        self.N_labels = len(self.labels)
         self.N_masks = len(self.masks)
         self.N_images = len(self.images)
 
@@ -273,7 +273,7 @@ class LoadDataAutoSteer():
             # data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
 
         # Convert image to OpenCV/Numpy format for augmentations
-        bev_img = np.array(bev_img)
+        # bev_img = np.array(bev_img)
 
         return [
             frame_id, 

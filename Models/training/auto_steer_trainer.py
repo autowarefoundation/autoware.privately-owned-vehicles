@@ -148,23 +148,34 @@ class AutoSteerTrainer():
         self.learning_rate = learning_rate
         
     # Assign input variables
-    def set_data(self, homotrans_mat, bev_image, perspective_image, ego_lanes_seg, data, \
-                bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
-                reproj_egoleft, reproj_egoright):
+    def set_data(
+            self, 
+            # homotrans_mat, 
+            # bev_image, 
+            perspective_image, 
+            ego_lanes_seg, 
+            # data,
+            # bev_egopath, 
+            # bev_egoleft, 
+            # bev_egoright, 
+            # reproj_egopath,
+            # reproj_egoleft, 
+            # reproj_egoright
+        ):
 
-        self.homotrans_mat = np.array(homotrans_mat, dtype = "float32")
-        self.bev_image = np.array(bev_image)
+        # self.homotrans_mat = np.array(homotrans_mat, dtype = "float32")
+        # self.bev_image = np.array(bev_image)
         self.ego_lanes_seg = np.array(ego_lanes_seg)
-        self.data = np.array(data)
         self.perspective_image = np.array(perspective_image)
-        self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
-        self.bev_egoleft = np.array(bev_egoleft, dtype = "float32").transpose()
-        self.bev_egoright = np.array(bev_egoright, dtype = "float32").transpose()
-        self.reproj_egopath = np.array(reproj_egopath, dtype = "float32").transpose()
-        self.reproj_egoleft = np.array(reproj_egoleft, dtype = "float32").transpose()
-        self.reproj_egoright = np.array(reproj_egoright, dtype = "float32").transpose()
+        # self.data = np.array(data)
+        # self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
+        # self.bev_egoleft = np.array(bev_egoleft, dtype = "float32").transpose()
+        # self.bev_egoright = np.array(bev_egoright, dtype = "float32").transpose()
+        # self.reproj_egopath = np.array(reproj_egopath, dtype = "float32").transpose()
+        # self.reproj_egoleft = np.array(reproj_egoleft, dtype = "float32").transpose()
+        # self.reproj_egoright = np.array(reproj_egoright, dtype = "float32").transpose()
         self.perspective_H, self.perspective_W, _ = self.perspective_image.shape
-        self.BEV_H, self.BEV_W, _ = self.bev_image.shape
+        # self.BEV_H, self.BEV_W, _ = self.bev_image.shape
 
     # Image agumentations
     def apply_augmentations(self, is_train):
@@ -175,20 +186,23 @@ class AutoSteerTrainer():
         )
 
         aug.setData(self.perspective_image, self.ego_lanes_seg)
-        self.perspective_image, self.ego_lanes_seg = aug.applyTransformSeg(self.perspective_image)
+        self.perspective_image, self.ego_lanes_seg = aug.applyTransformSeg(
+            self.perspective_image, 
+            self.ego_lanes_seg
+        )
 
     # Load data as Pytorch tensors
     def load_data(self):
 
-        # BEV to Image matrix
-        homotrans_mat_tensor = torch.from_numpy(self.homotrans_mat)
-        homotrans_mat_tensor = homotrans_mat_tensor.type(torch.FloatTensor)
-        self.homotrans_mat_tensor = homotrans_mat_tensor.to(self.device)
+        # # BEV to Image matrix
+        # homotrans_mat_tensor = torch.from_numpy(self.homotrans_mat)
+        # homotrans_mat_tensor = homotrans_mat_tensor.type(torch.FloatTensor)
+        # self.homotrans_mat_tensor = homotrans_mat_tensor.to(self.device)
 
-        # BEV Image
-        bev_image_tensor = self.image_loader(self.bev_image)
-        bev_image_tensor = bev_image_tensor.unsqueeze(0)
-        self.bev_image_tensor = bev_image_tensor.to(self.device)
+        # # BEV Image
+        # bev_image_tensor = self.image_loader(self.bev_image)
+        # bev_image_tensor = bev_image_tensor.unsqueeze(0)
+        # self.bev_image_tensor = bev_image_tensor.to(self.device)
 
         # Perspective Image
         perspective_image_tensor = self.image_loader(self.perspective_image)
