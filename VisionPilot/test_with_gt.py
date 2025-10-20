@@ -5,6 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 import argparse
 import itertools
+import yaml
 from waymo_open_dataset.utils import frame_utils
 from waymo_open_dataset import dataset_pb2 as open_dataset
 
@@ -46,14 +47,30 @@ def get_manual_bbox(camera_image, points_all, cp_points_all):
     
     return BBOX
 
+def load_homography_from_yaml(filename="homography.yaml"):
+    """Loads a homography matrix from a YAML file."""
+    try:
+        with open(filename, 'r') as f:
+            yaml_data = yaml.safe_load(f)
+            
+            rows = yaml_data['homography_matrix']['rows']
+            cols = yaml_data['homography_matrix']['cols']
+            data = yaml_data['homography_matrix']['data']
+            
+            H = np.array(data).reshape((rows, cols))
+            print(f"Successfully loaded {filename}")
+            return H
+            
+    except (FileNotFoundError, KeyError) as e:
+        print(f"Error: Could not load or parse {filename}. Please run compute_homography.py first.")
+        print(e)
+        return None
+
 def main(args):
     # --- 1. Setup ---
-    # Load the pre-computed homography matrix
-    try:
-        H = np.load("homography.npy")
-        print("Successfully loaded homography.npy")
-    except FileNotFoundError:
-        print("Error: homography.npy not found. Please run compute_homography.py first.")
+    # Load the pre-computed homography matrix from YAML
+    H = load_homography_from_yaml()
+    if H is None:
         return
 
     # Use the same data file as the homography calculation for a fair test
