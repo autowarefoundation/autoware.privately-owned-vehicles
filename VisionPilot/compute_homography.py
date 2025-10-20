@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 import matplotlib.pyplot as plt
 import cv2
+import yaml
 
 # Enable eager execution for TensorFlow
 tf.enable_eager_execution()
@@ -190,6 +191,31 @@ def compute_homography(projected_points_in_roi, points_in_roi):
 
     return homography_matrix
 
+def save_homography_to_yaml(H, filename="homography.yaml"):
+    """Saves the homography matrix to a YAML file."""
+    if H is not None:
+        print("Successfully calculated reference homography matrix:")
+        print(H)
+        
+        # Convert the NumPy array to a list for YAML serialization
+        data_list = H.flatten().tolist()
+        
+        yaml_data = {
+            'homography_matrix': {
+                'rows': H.shape[0],
+                'cols': H.shape[1],
+                'data': data_list
+            }
+        }
+
+        with open(filename, 'w') as f:
+            yaml.dump(yaml_data, f, default_flow_style=False)
+        
+        print(f"Reference homography saved to {filename}")
+    else:
+        print("Could not compute reference homography. Exiting.")
+
+
 def main(args):
     # TODO: Replace with the actual path to your TFRecord file
     FILENAME = args.filename
@@ -252,10 +278,7 @@ def main(args):
             H_ref = compute_homography(projected_points_in_roi, points_in_roi)
 
             if H_ref is not None:
-                print("Successfully calculated reference homography matrix:")
-                print(H_ref)
-                np.save("homography.npy", H_ref)
-                print("Reference homography saved to homography.npy")
+                save_homography_to_yaml(H_ref)
             else:
                 print("Could not compute reference homography. Exiting.")
                 return
