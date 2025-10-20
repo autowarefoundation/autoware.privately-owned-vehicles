@@ -212,6 +212,7 @@ class AutoSteerTrainer():
 
         # Egolanes Segmentation
         egolanes_tensor = self.seg_loader(self.ego_lanes_seg)
+        egolanes_tensor = egolanes_tensor.type(torch.cuda.FloatTensor)
         egolanes_tensor = egolanes_tensor.unsqueeze(0)
         self.egolanes_tensor = egolanes_tensor.to(self.device)
 
@@ -274,15 +275,24 @@ class AutoSteerTrainer():
     def calc_ego_lanes_loss(self):
         pred_ego_left_lane = self.pred_binary_seg_tensor[:, 0, :, :]
         gt_ego_left_lane = self.egolanes_tensor[:, 0, :, :]
-        left_lane_loss = self.calc_segmentation_loss(pred_ego_left_lane, gt_ego_left_lane)
+        left_lane_loss = (
+            self.calc_multi_scale_edge_loss(pred_ego_left_lane, gt_ego_left_lane) + \
+            self.calc_segmentation_loss(pred_ego_left_lane, gt_ego_left_lane)
+        )
 
         pred_ego_right_lane = self.pred_binary_seg_tensor[:, 1, :, :]
         gt_ego_right_lane = self.egolanes_tensor[:, 1, :, :]
-        right_lane_loss = self.calc_segmentation_loss(pred_ego_right_lane, gt_ego_right_lane)
+        right_lane_loss = (
+            self.calc_multi_scale_edge_loss(pred_ego_right_lane, gt_ego_right_lane) + \
+            self.calc_segmentation_loss(pred_ego_right_lane, gt_ego_right_lane)
+        )
 
         pred_other_lane = self.pred_binary_seg_tensor[:, 2, :, :]
         gt_other_lane = self.egolanes_tensor[:, 2, :, :]
-        other_lane_loss = self.calc_segmentation_loss(pred_other_lane, gt_other_lane)
+        other_lane_loss = (
+            self.calc_multi_scale_edge_loss(pred_other_lane, gt_other_lane) + \
+            self.calc_segmentation_loss(pred_other_lane, gt_other_lane)
+        )
 
         ego_lanes_loss = left_lane_loss + right_lane_loss + other_lane_loss
 
@@ -291,25 +301,31 @@ class AutoSteerTrainer():
 
     # Segmentation Loss
     def calc_segmentation_loss(self, pred, gt):
+        
         BCELoss = nn.BCEWithLogitsLoss()
         segmentation_loss = BCELoss(pred, gt)
+
         return segmentation_loss
 
-    def calc_multi_scale_edge_loss(self):
+
+    def calc_multi_scale_edge_loss(self, pred, gt):
+
         downsample = nn.AvgPool2d(2, stride=2)
         threshold = torch.nn.Threshold(0.0, 1.0, inplace=False)
+        relu = nn.ReLU()
+        pred = relu(pred)
 
-        prediction_thresholded = threshold(self.pred_binary_seg_tensor)
+        prediction_thresholded = threshold(pred)
         prediction_d1 = downsample(prediction_thresholded)
         prediction_d2 = downsample(prediction_d1)
         prediction_d3 = downsample(prediction_d2)
         prediction_d4 = downsample(prediction_d3)
-        gt_d1 = downsample(self.binary_seg_tensor)
+        gt_d1 = downsample(gt)
         gt_d2 = downsample(gt_d1)
         gt_d3 = downsample(gt_d2)
         gt_d4 = downsample(gt_d3)
 
-        edge_loss_d0 = self.calc_edge_loss(self.pred_binary_seg_tensor, self.binary_seg_tensor)
+        edge_loss_d0 = self.calc_edge_loss(pred, gt)
         edge_loss_d1 = self.calc_edge_loss(prediction_d1, gt_d1)
         edge_loss_d2 = self.calc_edge_loss(prediction_d2, gt_d2)
         edge_loss_d3 = self.calc_edge_loss(prediction_d3, gt_d3)
@@ -631,9 +647,6 @@ class AutoSteerTrainer():
 
         # Visualize Binary Segmentation - Raw Lane Segs
         fig_raw_lane_seg, axs_raw_seg = plt.subplots(2,1, figsize=(8, 8))
-
-        # Figure RAW mask
-        fig_raw_mask, axs_raw_mask = plt.subplots(2,1, figsize=(8, 8))
               
         # blend factor
         alpha = 0.5
@@ -750,23 +763,6 @@ class AutoSteerTrainer():
             fig_raw_lane_seg.savefig(vis_path + '_seg.png')
 
         plt.close(fig_raw_lane_seg)
-
-        # FOR RAW MASK
-
-        # Prediction
-        egolanes_prediction[egolanes_prediction < 0.0] = 0
-        axs_raw_mask[0].set_title('Prediction (RAW MASK)',fontweight ="bold") 
-        axs_raw_mask[0].imshow(np.moveaxis(egolanes_prediction, 0, -1))
-        # Ground Truth
-        axs_raw_mask[1].set_title('Ground Truth (RAW MASK)',fontweight ="bold") 
-        axs_raw_mask[1].imshow(np.moveaxis(egolanes_gt, 0, -1))
-        # Save figure to Tensorboard
-        if(is_train):
-            self.writer.add_figure("Train (Seg) RAW MASK", fig_raw_mask, global_step = (log_count))
-        else:
-            fig_raw_mask.savefig(vis_path + '_seg.png')
-
-        plt.close(fig_raw_mask)
 
     # Log validation loss for each dataset to TensorBoard
     def log_validation_dataset(self, dataset, validation_loss_dataset_total, log_count):
