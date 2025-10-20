@@ -253,7 +253,7 @@ class AutoSteerTrainer():
     # Run Model
     def run_model(self):
         
-        self.pred_egolanes_tensor = self.model(self.perspective_image_tensor)
+        self.pred_binary_seg_tensor = self.model(self.perspective_image_tensor)
 
         # Segmentation Loss
         self.total_loss = self.calc_ego_lanes_loss()
@@ -273,15 +273,15 @@ class AutoSteerTrainer():
     # EgoLanes Loss
     def calc_ego_lanes_loss(self):
         pred_ego_left_lane = self.pred_binary_seg_tensor[:, 0, :, :]
-        gt_ego_left_lane = self.binary_seg_tensor[:, 0, :, :]
+        gt_ego_left_lane = self.egolanes_tensor[:, 0, :, :]
         left_lane_loss = self.calc_segmentation_loss(pred_ego_left_lane, gt_ego_left_lane)
 
         pred_ego_right_lane = self.pred_binary_seg_tensor[:, 1, :, :]
-        gt_ego_right_lane = self.binary_seg_tensor[:, 1, :, :]
+        gt_ego_right_lane = self.egolanes_tensor[:, 1, :, :]
         right_lane_loss = self.calc_segmentation_loss(pred_ego_right_lane, gt_ego_right_lane)
 
         pred_other_lane = self.pred_binary_seg_tensor[:, 2, :, :]
-        gt_other_lane = self.binary_seg_tensor[:, 2, :, :]
+        gt_other_lane = self.egolanes_tensor[:, 2, :, :]
         other_lane_loss = self.calc_segmentation_loss(pred_other_lane, gt_other_lane)
 
         ego_lanes_loss = left_lane_loss + right_lane_loss + other_lane_loss
@@ -290,12 +290,12 @@ class AutoSteerTrainer():
 
 
     # Segmentation Loss
-    def calc_segmentation_loss(pred, gt):
+    def calc_segmentation_loss(self, pred, gt):
         BCELoss = nn.BCEWithLogitsLoss()
         segmentation_loss = BCELoss(pred, gt)
         return segmentation_loss
 
-    def calc_multi_cale_edge_loss(self):
+    def calc_multi_scale_edge_loss(self):
         downsample = nn.AvgPool2d(2, stride=2)
         threshold = torch.nn.Threshold(0.0, 1.0, inplace=False)
 
