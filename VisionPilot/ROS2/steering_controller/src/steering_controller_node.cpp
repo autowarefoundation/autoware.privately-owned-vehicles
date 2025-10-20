@@ -1,16 +1,7 @@
 #include "steering_controller_node.hpp"
 
-// it is observed that turning radius increases with speed, with the same steering angle command
-// velocity m/s, turning radius m
-// <=2.5 , 3.0
-// 5.0   , 3.5
-// 7.5   , 4
-
-// TODO: ackermann model with 48deg and 70deg, turning radius seems to be f(steering_angle, speed)
-// control_msg.steer = std::clamp((180.0 / M_PI) * (steering_angle_ / 49.0), -1.0, 1.0); // 49deg is for low speeds 0.5m/s
-
 SteeringControllerNode::SteeringControllerNode(const rclcpp::NodeOptions &options) : Node("steering_controller_node", "", options),
-                                                                                    sc(2.85, 2.0, 3.0, 0.1, 4.0)
+                                                                                    sc(2.85, 3.0, 0.1)
 {
   this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 10, std::bind(&SteeringControllerNode::stateCallback, this, std::placeholders::_1));
