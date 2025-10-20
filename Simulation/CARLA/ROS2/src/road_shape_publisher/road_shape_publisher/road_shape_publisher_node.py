@@ -12,7 +12,7 @@ LOCAL_PATH_LEN = 20.0     # meters
 STEP_DISTANCE = 0.5       # distance between waypoints
 LANE_WIDTH = 4.0          # meters, typical lane width
 FRONT2BASE = 1.425        # meters, distance from front of vehicle to hero base link
-NEAREST_VISIBLE = FRONT2BASE     # meters, nearest visible waypoint in front of ego vehicle
+NEAREST_VISIBLE = 5     # meters, nearest visible waypoint in front of ego vehicle
 
 # TESTS:
 # working: 
@@ -193,7 +193,7 @@ class RoadShapePublisher(Node):
 
         # Extract local horizon waypoints
         horizon = int(LOCAL_PATH_LEN / STEP_DISTANCE)
-        offset = 0#int(NEAREST_VISIBLE / STEP_DISTANCE) # offset to account for visibility in camera FOV 
+        offset = int(NEAREST_VISIBLE / STEP_DISTANCE) # offset to account for visibility in camera FOV 
         local_wps = [waypoints[(nearest_idx + i + offset) % len(waypoints)] for i in range(horizon)]
         print(len(local_wps), "local waypoints extracted")
         

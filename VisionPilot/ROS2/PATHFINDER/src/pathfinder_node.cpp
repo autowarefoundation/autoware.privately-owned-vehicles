@@ -1,6 +1,6 @@
 #include "pathfinder_node.hpp"
 
-//TODO: track and update curvature over time instead of only at current timestep
+// TODO: track and update curvature over time instead of only at current timestep
 
 PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathfinder_node", "/pathfinder", options)
 {
@@ -98,14 +98,14 @@ void PathFinderNode::timer_callback()
     // measurement[i].variance = meas_SD * meas_SD;
   }
   double STD_P_YAW = 0.2;    // rad
-  double STD_P_CURV = 0.1;   // 1/m
+  double STD_P_CURV = 0.05;  // 1/m
   double STD_P_CTE = 0.5;    // m
   double STD_P_WIDTH = 0.01; // m
 
-  double STD_M_YAW = 0.01;   // rad
-  double STD_M_CURV = 0.1;   // 1/m
-  double STD_M_CTE = 0.1;    // m
-  double STD_M_WIDTH = 0.01; // m
+  double STD_M_YAW = 0.01;            // rad
+  double STD_M_CURV = 2 * STD_P_CURV; // 1/m
+  double STD_M_CTE = 0.1;             // m
+  double STD_M_WIDTH = 0.01;          // m
 
   process[0].variance = STD_P_CTE * STD_P_CTE;
   process[1].variance = STD_P_CTE * STD_P_CTE;
@@ -259,7 +259,7 @@ void PathFinderNode::timer_callback()
   // pub_path_->publish(path);
   // pub_laneL_->publish(laneL);
   // pub_laneR_->publish(laneR);
-  
+
   // publishLaneMarker(state[12].mean, state[0].mean, state[4].mean, state[8].mean, {0.0, 1.0, 0.0, 0.8});  // raw egoPath
   // publishLaneMarker(state[12].mean, state[1].mean, state[5].mean, state[9].mean, {1.0, 0.0, 0.0, 0.8});  // raw egoLaneL
   // publishLaneMarker(state[12].mean, state[2].mean, state[6].mean, state[10].mean, {0.0, 0.0, 1.0, 0.8}); // raw egoLaneR
