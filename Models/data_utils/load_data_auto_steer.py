@@ -144,9 +144,9 @@ class LoadDataAutoSteer():
 
         # Get binary segmentation mask
         contour = np.array(contour_points, dtype=np.int32)
-        binary_segmenation = np.zeros([320, 640], np.uint8)
-        cv2.drawContours(binary_segmenation,[contour],0,(255),-1)
-        return binary_segmenation
+        binary_segmentation = np.zeros([320, 640], np.float32)
+        cv2.drawContours(binary_segmentation,[contour],0,(255),-1)
+        return binary_segmentation
 
     def calcData(self, ego_left, ego_right, ego_path):
         x_left_lane_offset = ego_left[0][0]
@@ -212,9 +212,9 @@ class LoadDataAutoSteer():
             # reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
             # Binary Segmentation Mask
-            binary_seg = np.array(
-                Image.open(self.train_masks[index]).convert("RGB")
-            )   # shape = (H, W, 3)
+            binary_seg = cv2.imread(self.train_masks[index], cv2.IMREAD_COLOR)
+            binary_seg = cv2.cvtColor(binary_seg, cv2.COLOR_BGR2RGB)
+            binary_seg = binary_seg / 255.0
 
             # # Data vector
             # data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
@@ -265,16 +265,16 @@ class LoadDataAutoSteer():
             # reproj_egoright = self.val_labels[index]["reproj_egoright"]
             # reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
-            binary_seg = np.array(
-                Image.open(self.train_masks[index]).convert("RGB")
-            )   # shape = (H, W, 3)
+            binary_seg = cv2.imread(self.val_masks[index], cv2.IMREAD_COLOR)
+            binary_seg = cv2.cvtColor(binary_seg, cv2.COLOR_BGR2RGB)
+            binary_seg = binary_seg / 255.0
 
             # # Data vector
             # data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
 
         # Convert image to OpenCV/Numpy format for augmentations
         # bev_img = np.array(bev_img)
-
+        
         return [
             frame_id, 
             # bev_img, 

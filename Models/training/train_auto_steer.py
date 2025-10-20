@@ -2,6 +2,7 @@
 #! /usr/bin/env python3
 
 import os
+import cv2
 import random
 import torch
 import matplotlib.pyplot as plt
@@ -147,12 +148,13 @@ def main():
         #    batch_size = 4
       
         # Learning Rate Schedule
-        if (epoch <= 3):
-            trainer.set_learning_rate(0.0005)
-        elif(epoch > 3 and epoch <= 7):
-            trainer.set_learning_rate(0.0001)
-        elif(epoch > 7):
-            trainer.set_learning_rate(0.00005)
+        trainer.set_learning_rate(1e-4)
+        # if (epoch <= 3):
+        #     trainer.set_learning_rate(0.0005)
+        # elif(epoch > 3 and epoch <= 7):
+        #     trainer.set_learning_rate(0.0001)
+        # elif(epoch > 7):
+        #     trainer.set_learning_rate(0.00005)
 
         # Augmentation Schedule
         apply_augmentation = True
@@ -285,7 +287,6 @@ def main():
             if((msdict["sample_counter"] + 1) % LOGSTEP_VIS == 0):  
                 trainer.save_visualization(
                     msdict["log_counter"] + 1, 
-                    vis_gt_img, 
                     is_train = True
                 )
             
@@ -390,7 +391,6 @@ def main():
                                     str(msdict["log_counter"] + 1) + '_image_' + dataset + "_" + str(frame_id)
                                 trainer.save_visualization(
                                     msdict["log_counter"] + 1 + val_count, 
-                                    vis_gt_img, 
                                     vis_path, 
                                     is_train = False
                                 )

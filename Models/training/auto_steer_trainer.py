@@ -619,13 +619,24 @@ class AutoSteerTrainer():
         print("Finished training")
 
     # Save predicted visualization
-    def save_visualization(self, log_count, bev_vis, vis_path = "", is_train = False):
+    def save_visualization(
+            self, 
+            log_count, 
+            vis_path = "", 
+            is_train = False
+    ):
 
-        # Visualize Binary Segmentation - Ground Truth and Predictions (BEV)
+        # Visualize Binary Segmentation - Ground Truth and Predictions
         fig_lane_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
+
+        # Visualize Binary Segmentation - Raw Lane Segs
+        fig_raw_lane_seg, axs_raw_seg = plt.subplots(2,1, figsize=(8, 8))
+
+        # Figure RAW mask
+        fig_raw_mask, axs_raw_mask = plt.subplots(2,1, figsize=(8, 8))
               
         # blend factor
-        alpha = 0.5 
+        alpha = 0.5
 
         # Creating visualization image
         vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
@@ -633,19 +644,28 @@ class AutoSteerTrainer():
         gt_object = np.zeros((320, 640, 3), dtype = "uint8")
         gt_object = np.array(self.perspective_image)
 
+        # Creating raw visualization images
+        vis_raw_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
+        gt_raw_object = np.zeros((320, 640, 3), dtype = "uint8")
+
         # Prediction
-        egolanes_prediction = torch.squeeze(self.pred_egolanes_tensor, 0)
+        egolanes_prediction = torch.squeeze(self.pred_binary_seg_tensor, 0)
         egolanes_prediction = torch.squeeze(egolanes_prediction, 0)
         egolanes_prediction = egolanes_prediction.cpu().detach().numpy()
         
+        # GT
+        egolanes_gt = torch.squeeze(self.egolanes_tensor, 0)
+        egolanes_gt = torch.squeeze(egolanes_gt, 0)
+        egolanes_gt = egolanes_gt.cpu().detach().numpy()
+        
         # Getting prediction and ground truth labels
-        pred_egoleft_lanes = np.where(egolanes_prediction[:,0,:,:] > 0)
-        pred_egoright_lanes = np.where(egolanes_prediction[:,1,:,:] > 0)
-        pred_other_lanes = np.where(egolanes_prediction[:,2,:,:] > 0)
+        pred_egoleft_lanes = np.where(egolanes_prediction[0,:,:] > 0)
+        pred_egoright_lanes = np.where(egolanes_prediction[1,:,:] > 0)
+        pred_other_lanes = np.where(egolanes_prediction[2,:,:] > 0)
 
-        gt_egoleft_lanes = np.where(self.ego_lanes_seg[:,0,:,:] > 0)
-        gt_egoright_lanes = np.where(self.ego_lanes_seg[:,1,:,:] > 0)
-        gt_other_lanes = np.where(self.ego_lanes_seg[:,2,:,:] > 0)
+        gt_egoleft_lanes = np.where(egolanes_gt[0,:,:] > 0)
+        gt_egoright_lanes = np.where(egolanes_gt[1,:,:] > 0)
+        gt_other_lanes = np.where(egolanes_gt[2,:,:] > 0)
 
         # Visualize EgoLeft Lane
         vis_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 0] = 0
@@ -655,6 +675,13 @@ class AutoSteerTrainer():
         gt_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 1] = 255
         gt_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 2] = 255
 
+        vis_raw_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 0] = 0
+        vis_raw_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 1] = 255
+        vis_raw_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 2] = 255
+        gt_raw_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 0] = 0
+        gt_raw_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 1] = 255
+        gt_raw_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 2] = 255
+
         # Visualize EgoRight Lane
         vis_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 0] = 255
         vis_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 1] = 0
@@ -662,6 +689,13 @@ class AutoSteerTrainer():
         gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 0] = 255
         gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 1] = 0
         gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 2] = 200
+
+        vis_raw_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 0] = 255
+        vis_raw_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 1] = 0
+        vis_raw_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 2] = 200
+        gt_raw_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 0] = 255
+        gt_raw_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 1] = 0
+        gt_raw_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 2] = 200
 
         # Visualize Other Lanes
         vis_predict_object[pred_other_lanes[0], pred_other_lanes[1], 0] = 0
@@ -671,21 +705,28 @@ class AutoSteerTrainer():
         gt_object[gt_other_lanes[0], gt_other_lanes[1], 1] = 255
         gt_object[gt_other_lanes[0], gt_other_lanes[1], 2] = 145
 
+        vis_raw_predict_object[pred_other_lanes[0], pred_other_lanes[1], 0] = 0
+        vis_raw_predict_object[pred_other_lanes[0], pred_other_lanes[1], 1] = 255
+        vis_raw_predict_object[pred_other_lanes[0], pred_other_lanes[1], 2] = 145
+        gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 0] = 0
+        gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 1] = 255
+        gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 2] = 145
+
         # Alpha blended visualization
         prediction_vis = cv2.addWeighted(vis_predict_object, \
             alpha, self.perspective_image, 1 - alpha, 0)    
 
         gt_vis = cv2.addWeighted(gt_object, \
-            alpha, self.perspective_image, 1 - alpha, 0)    
+            alpha, self.perspective_image, 1 - alpha, 0)
 
+        # FOR NORMAL VIS
+        
         # Prediction
         axs_seg[0].set_title('Prediction',fontweight ="bold") 
         axs_seg[0].imshow(prediction_vis)
-        
         # Ground Truth
         axs_seg[1].set_title('Ground Truth',fontweight ="bold") 
         axs_seg[1].imshow(gt_vis)
-       
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (Seg)", fig_lane_seg, global_step = (log_count))
@@ -693,6 +734,39 @@ class AutoSteerTrainer():
             fig_lane_seg.savefig(vis_path + '_seg.png')
 
         plt.close(fig_lane_seg)
+
+        # FOR RAW VIS
+
+        # Prediction
+        axs_raw_seg[0].set_title('Prediction (RAW)',fontweight ="bold") 
+        axs_raw_seg[0].imshow(vis_raw_predict_object)
+        # Ground Truth
+        axs_raw_seg[1].set_title('Ground Truth (RAW)',fontweight ="bold") 
+        axs_raw_seg[1].imshow(gt_raw_object)
+        # Save figure to Tensorboard
+        if(is_train):
+            self.writer.add_figure("Train (Seg) RAW", fig_raw_lane_seg, global_step = (log_count))
+        else:
+            fig_raw_lane_seg.savefig(vis_path + '_seg.png')
+
+        plt.close(fig_raw_lane_seg)
+
+        # FOR RAW MASK
+
+        # Prediction
+        egolanes_prediction[egolanes_prediction < 0.0] = 0
+        axs_raw_mask[0].set_title('Prediction (RAW MASK)',fontweight ="bold") 
+        axs_raw_mask[0].imshow(np.moveaxis(egolanes_prediction, 0, -1))
+        # Ground Truth
+        axs_raw_mask[1].set_title('Ground Truth (RAW MASK)',fontweight ="bold") 
+        axs_raw_mask[1].imshow(np.moveaxis(egolanes_gt, 0, -1))
+        # Save figure to Tensorboard
+        if(is_train):
+            self.writer.add_figure("Train (Seg) RAW MASK", fig_raw_mask, global_step = (log_count))
+        else:
+            fig_raw_mask.savefig(vis_path + '_seg.png')
+
+        plt.close(fig_raw_mask)
 
     # Log validation loss for each dataset to TensorBoard
     def log_validation_dataset(self, dataset, validation_loss_dataset_total, log_count):
