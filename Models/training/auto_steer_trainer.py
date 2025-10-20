@@ -215,40 +215,40 @@ class AutoSteerTrainer():
         egolanes_tensor = egolanes_tensor.unsqueeze(0)
         self.egolanes_tensor = egolanes_tensor.to(self.device)
 
-        # Data Tensor
-        data_tensor = torch.from_numpy(self.data)
-        data_tensor = data_tensor.type(torch.FloatTensor).unsqueeze(0)
-        self.gt_data_tensor = data_tensor.to(self.device)
+        # # Data Tensor
+        # data_tensor = torch.from_numpy(self.data)
+        # data_tensor = data_tensor.type(torch.FloatTensor).unsqueeze(0)
+        # self.gt_data_tensor = data_tensor.to(self.device)
 
-        # BEV Egopath
-        bev_egopath_tensor = torch.from_numpy(self.bev_egopath)
-        bev_egopath_tensor = bev_egopath_tensor.type(torch.FloatTensor)
-        self.gt_bev_egopath_tensor = bev_egopath_tensor.to(self.device)
+        # # BEV Egopath
+        # bev_egopath_tensor = torch.from_numpy(self.bev_egopath)
+        # bev_egopath_tensor = bev_egopath_tensor.type(torch.FloatTensor)
+        # self.gt_bev_egopath_tensor = bev_egopath_tensor.to(self.device)
 
-        # BEV Egoleft Lane
-        bev_egoleft_lane_tensor = torch.from_numpy(self.bev_egoleft)
-        bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.type(torch.FloatTensor)
-        self.gt_bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.to(self.device)
+        # # BEV Egoleft Lane
+        # bev_egoleft_lane_tensor = torch.from_numpy(self.bev_egoleft)
+        # bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.type(torch.FloatTensor)
+        # self.gt_bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.to(self.device)
 
-        # BEV Egoright Lane
-        bev_egoright_lane_tensor = torch.from_numpy(self.bev_egoright)
-        bev_egoright_lane_tensor = bev_egoright_lane_tensor.type(torch.FloatTensor)
-        self.gt_bev_egoright_lane_tensor = bev_egoright_lane_tensor.to(self.device)
+        # # BEV Egoright Lane
+        # bev_egoright_lane_tensor = torch.from_numpy(self.bev_egoright)
+        # bev_egoright_lane_tensor = bev_egoright_lane_tensor.type(torch.FloatTensor)
+        # self.gt_bev_egoright_lane_tensor = bev_egoright_lane_tensor.to(self.device)
         
-        # Reprojected Egopath
-        reproj_egopath_tensor = torch.from_numpy(self.reproj_egopath)
-        reproj_egopath_tensor = reproj_egopath_tensor.type(torch.FloatTensor)
-        self.gt_reproj_egopath_tensor = reproj_egopath_tensor.to(self.device)
+        # # Reprojected Egopath
+        # reproj_egopath_tensor = torch.from_numpy(self.reproj_egopath)
+        # reproj_egopath_tensor = reproj_egopath_tensor.type(torch.FloatTensor)
+        # self.gt_reproj_egopath_tensor = reproj_egopath_tensor.to(self.device)
 
-        # Reprojected Egoleft Lane
-        reproj_egoleft_lane_tensor = torch.from_numpy(self.reproj_egoleft)
-        reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.type(torch.FloatTensor)
-        self.gt_reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.to(self.device)
+        # # Reprojected Egoleft Lane
+        # reproj_egoleft_lane_tensor = torch.from_numpy(self.reproj_egoleft)
+        # reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.type(torch.FloatTensor)
+        # self.gt_reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.to(self.device)
 
-        # Reprojected Egoright Lane
-        reproj_egoright_lane_tensor = torch.from_numpy(self.reproj_egoright)
-        reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.type(torch.FloatTensor)
-        self.gt_reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.to(self.device)
+        # # Reprojected Egoright Lane
+        # reproj_egoright_lane_tensor = torch.from_numpy(self.reproj_egoright)
+        # reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.type(torch.FloatTensor)
+        # self.gt_reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.to(self.device)
     
     # Run Model
     def run_model(self):
