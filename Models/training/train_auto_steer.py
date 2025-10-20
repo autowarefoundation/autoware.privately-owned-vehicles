@@ -56,7 +56,7 @@ def main():
             "path_labels"   : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_JSON_PATH),
             "path_masks"    : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_MASK_PATH),
             # "path_images"   : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_IMG_PATH),
-            # "path_perspective_vis" : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_VIS_PATH),
+            "path_perspective_vis" : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_VIS_PATH),
             "path_perspective_image": os.path.join(ROOT_PATH, dataset, PERSPECTIVE_IMG_PATH),
             # "path_bev_vis" : os.path.join(ROOT_PATH, dataset, BEV_VIS_PATH)
         }
@@ -120,7 +120,7 @@ def main():
     # Training loop parameters
     NUM_EPOCHS = 20
     LOGSTEP_LOSS = 50
-    LOGSTEP_VIS = 100
+    LOGSTEP_VIS = 10
     LOGSTEP_MODEL = 5700
 
     # Val visualization param
@@ -238,13 +238,13 @@ def main():
                 )
             ).convert("RGB")
             
-            # # BEV visualization
-            # bev_vis = Image.open(
-            #     os.path.join(
-            #         msdict[current_dataset]["path_bev_vis"],
-            #         f"{frame_id}.jpg"
-            #     )
-            # ).convert("RGB")
+            # Visualization
+            vis_gt_img = Image.open(
+                os.path.join(
+                    msdict[current_dataset]["path_perspective_vis"],
+                    f"{frame_id}.jpg"
+                )
+            ).convert("RGB")
           
             # Assign data
             trainer.set_data(
@@ -281,9 +281,13 @@ def main():
             if ((msdict["sample_counter"] + 1) % LOGSTEP_LOSS == 0):
                 trainer.log_loss(msdict["log_counter"] + 1)
             
-            # # Logging Visualization to Tensor Board
-            # if((msdict["sample_counter"] + 1) % LOGSTEP_VIS == 0):  
-            #     trainer.save_visualization(msdict["log_counter"] + 1, bev_vis, is_train=True)
+            # Logging Visualization to Tensor Board
+            if((msdict["sample_counter"] + 1) % LOGSTEP_VIS == 0):  
+                trainer.save_visualization(
+                    msdict["log_counter"] + 1, 
+                    vis_gt_img, 
+                    is_train = True
+                )
             
             # Save model and run Validation on entire validation dataset
             if ((msdict["sample_counter"] + 1) % LOGSTEP_MODEL == 0):
@@ -345,13 +349,13 @@ def main():
                                 )
                             ).convert("RGB")
 
-                            # # BEV visualization
-                            # bev_vis = Image.open(
-                            #     os.path.join(
-                            #         msdict[dataset]["path_bev_vis"],
-                            #         f"{frame_id}.jpg"
-                            #     )
-                            # ).convert("RGB")
+                            # Visualization
+                            vis_gt_img = Image.open(
+                                os.path.join(
+                                    msdict[dataset]["path_perspective_vis"],
+                                    f"{frame_id}.jpg"
+                                )
+                            ).convert("RGB")
 
                             # Assign data
                             trainer.set_data(
@@ -380,11 +384,16 @@ def main():
                             # Get running total of loss value
                             msdict[dataset]["total_running"] += trainer.get_validation_loss_value()
 
-                            # # Save visualization to Tensorboard
-                            # if(val_count < N_VALVIS): 
-                            #     vis_path = VIS_SAVE_ROOT_PATH + dataset + '_epoch_'+ str(epoch) + '_step_' + \
-                            #         str(msdict["log_counter"] + 1) + '_image_' + str(frame_id)
-                            #     trainer.save_visualization(msdict["log_counter"] + 1 + val_count, bev_vis, vis_path, is_train=False)
+                            # Save visualization to Tensorboard
+                            if(val_count < N_VALVIS): 
+                                vis_path = VIS_SAVE_ROOT_PATH + 'epoch_'+ str(epoch) + '_step_' + \
+                                    str(msdict["log_counter"] + 1) + '_image_' + dataset + "_" + str(frame_id)
+                                trainer.save_visualization(
+                                    msdict["log_counter"] + 1 + val_count, 
+                                    vis_gt_img, 
+                                    vis_path, 
+                                    is_train = False
+                                )
 
 
                     # Calculate final validation scores for network on each dataset
