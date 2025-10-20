@@ -292,15 +292,11 @@ def parseAnnotations(item: dict):
         for lane in lanes_decoupled
     ]
 
-    # Add anchor points to each lane
+    # Determine 2 ego lanes
     lane_anchors = [
         getLineAnchor(lane) 
         for lane in lanes_decoupled
     ]
-    for i, anchor in enumerate(lane_anchors):
-        lanes_decoupled[i] = [(anchor[0], H - 1)] + lanes_decoupled[i]
-
-    # Determine 2 ego lanes
     ego_indexes = getEgoIndexes(lane_anchors)
 
     if (type(ego_indexes) is str):
