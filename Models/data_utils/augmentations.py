@@ -137,8 +137,8 @@ class Augmentations():
         
         if(self.is_train):
 
-            # Resize and random horiztonal flip
-            self.adjust_shape = self.transform_shape(
+            # Resize only
+            self.adjust_shape = self.transform_shape_test(
                 image = self.image,
                 masks = masks_list
             )
