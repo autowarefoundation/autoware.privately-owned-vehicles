@@ -294,7 +294,7 @@ class AutoSteerTrainer():
             self.calc_segmentation_loss(pred_other_lane, gt_other_lane)
         )
 
-        ego_lanes_loss = left_lane_loss + right_lane_loss + other_lane_loss
+        ego_lanes_loss = 2 * left_lane_loss + 2 * right_lane_loss + other_lane_loss
 
         return ego_lanes_loss
 
