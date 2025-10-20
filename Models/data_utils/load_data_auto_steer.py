@@ -43,6 +43,7 @@ class LoadDataAutoSteer():
     def __init__(
             self, 
             # labels_filepath: str,
+            mask_dirpath: str,
             images_filepath: str,
             dataset: VALID_DATASET_LITERALS,
     ):
@@ -50,6 +51,7 @@ class LoadDataAutoSteer():
         # ================= Parsing param ================= #
 
         # self.label_filepath = labels_filepath
+        self.mask_dirpath = mask_dirpath
         self.image_dirpath = images_filepath
         self.dataset_name = dataset
 
@@ -71,23 +73,27 @@ class LoadDataAutoSteer():
         self.images = sorted([
             f for f in pathlib.Path(self.image_dirpath).glob("*.png")
         ])
+        self.masks = sorted(
+            f for f in pathlib.Path(self.mask_dirpath).glob("*.png")
+        )
 
-        self.N_labels = len(self.labels)
+        # self.N_labels = len(self.labels)
+        self.N_masks = len(self.masks)
         self.N_images = len(self.images)
 
         # Sanity check func by Mr. Zain
         checkData = CheckData(
             self.N_images,
-            self.N_labels
+            self.N_masks
         )
 
         # ================= Initiate data loading ================= #
 
         self.train_images = []
-        self.train_labels = []
+        self.train_masks = []
         self.train_ids = []
         self.val_images = []
-        self.val_labels = []
+        self.val_masks = []
         self.val_ids = []
 
         self.N_trains = 0
@@ -103,13 +109,13 @@ class LoadDataAutoSteer():
                     if (set_idx % 10 == 0):
                         # Slap it to Val
                         self.val_images.append(str(self.images[set_idx]))
-                        self.val_labels.append(self.labels[frame_id])
+                        self.val_masks.append(str(self.masks[set_idx]))
                         self.val_ids.append(frame_id)
                         self.N_vals += 1 
                     else:
                         # Slap it to Train
                         self.train_images.append(str(self.images[set_idx]))
-                        self.train_labels.append(self.labels[frame_id])
+                        self.train_masks.append(str(self.masks[set_idx]))
                         self.train_ids.append(frame_id)
                         self.N_trains += 1
                 else:
@@ -206,7 +212,9 @@ class LoadDataAutoSteer():
             # reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
             # Binary Segmentation Mask
-            binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
+            binary_seg = np.array(
+                Image.open(self.train_masks[index]).convert("RGB")
+            )   # shape = (H, W, 3)
 
             # # Data vector
             # data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
@@ -257,8 +265,9 @@ class LoadDataAutoSteer():
             # reproj_egoright = self.val_labels[index]["reproj_egoright"]
             # reproj_egoright = [lab[0:2] for lab in reproj_egoright]
 
-            # Binary Segmentation Mask
-            binary_seg = self.calcSegMask(reproj_egoleft, reproj_egoright)
+            binary_seg = np.array(
+                Image.open(self.train_masks[index]).convert("RGB")
+            )   # shape = (H, W, 3)
 
             # # Data vector
             # data = self.calcData(reproj_egoleft, reproj_egoright, reproj_egopath)
