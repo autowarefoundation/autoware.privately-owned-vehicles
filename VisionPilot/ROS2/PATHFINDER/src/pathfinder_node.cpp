@@ -1,5 +1,7 @@
 #include "pathfinder_node.hpp"
 
+//TODO: track and update curvature over time instead of only at current timestep
+
 PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathfinder_node", "/pathfinder", options)
 {
   this->set_parameter(rclcpp::Parameter("use_sim_time", true));

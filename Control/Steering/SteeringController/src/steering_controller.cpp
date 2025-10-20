@@ -14,6 +14,7 @@ SteeringController::SteeringController(double wheelbase, double K_yaw, double K_
 double SteeringController::computeSteering(double cte, double yaw_error, double forward_velocity, double curvature)
 {
     // Stanley + curvature feedforward
-    double steering_angle = K_yaw * yaw_error + std::atan(K_cte * cte / (forward_velocity + K_damp)) - K_ff * std::atan(curvature * wheelbase_);
+    // double steering_angle = K_yaw * yaw_error + std::atan(K_cte * cte / (forward_velocity + K_damp)) - K_ff * std::atan(curvature * wheelbase_);
+    double steering_angle = std::atan(K_cte * cte / (forward_velocity + K_damp)) + yaw_error - std::atan(curvature * wheelbase_);
     return steering_angle;
 }

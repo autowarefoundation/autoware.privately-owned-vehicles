@@ -10,7 +10,7 @@
 // control_msg.steer = std::clamp((180.0 / M_PI) * (steering_angle_ / 49.0), -1.0, 1.0); // 49deg is for low speeds 0.5m/s
 
 SteeringControllerNode::SteeringControllerNode(const rclcpp::NodeOptions &options) : Node("steering_controller_node", "", options),
-                                                                                    sc(2.85, 2.0, 2.8, 1.0, 4.0)
+                                                                                    sc(2.85, 2.0, 3.0, 0.1, 4.0)
 {
   this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 10, std::bind(&SteeringControllerNode::stateCallback, this, std::placeholders::_1));

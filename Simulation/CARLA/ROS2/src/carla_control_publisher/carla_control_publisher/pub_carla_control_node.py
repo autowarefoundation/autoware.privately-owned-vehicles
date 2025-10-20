@@ -18,7 +18,7 @@ class CarlaControlPublisher(Node):
     def timer_callback(self):
         msg = CarlaEgoVehicleControl()
         msg.throttle = self.throttle_cmd if self.throttle_cmd > 0 else 0.0
-        msg.steer = np.clip((180.0 / np.pi) * (self.steering_angle_cmd / 49.0), -1.0, 1.0) # vehicle specific
+        msg.steer = np.clip((180.0 / np.pi) * (self.steering_angle_cmd / 70.0), -1.0, 1.0) # vehicle specific
         msg.brake = - self.throttle_cmd if self.throttle_cmd < 0 else 0.0
         msg.hand_brake = False
         msg.reverse = False
