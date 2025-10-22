@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
-from image_visualization import make_visualization_data, make_visualization_seg
+from image_visualization import make_visualization_data
 
 FRAME_INF_SIZE = (640, 320)
 FRAME_ORI_SIZE = (1280, 720)
@@ -55,25 +55,13 @@ def main():
         print("Error opening video stream or file")
         return
     
-    # For data visualization
+    # Visualization preparation
     output_filepath_data = os.path.join(
         args.output_video_dir,
         "output_video_data.avi"
     )
     writer_data = cv2.VideoWriter(
         output_filepath_data,
-        cv2.VideoWriter_fourcc(*"MJPG"), 
-        cap.get(cv2.CAP_PROP_FPS),
-        FRAME_ORI_SIZE
-    )
-    
-    # For segmentation visualization
-    output_filepath_seg = os.path.join(
-        args.output_video_dir,
-        "output_video_seg.avi"
-    )
-    writer_seg = cv2.VideoWriter(
-        output_filepath_seg,
         cv2.VideoWriter_fourcc(*"MJPG"), 
         cap.get(cv2.CAP_PROP_FPS),
         FRAME_ORI_SIZE
@@ -105,20 +93,13 @@ def main():
         vis_image_data = np.array(vis_image_data)
         vis_image_data = cv2.resize(vis_image_data, FRAME_ORI_SIZE)
 
-        vis_image_seg = make_visualization_seg(image.copy(), seg_pred)
-        vis_image_seg = np.array(vis_image_seg)
-        vis_image_seg = cv2.resize(vis_image_seg, FRAME_ORI_SIZE)
-
         # Write to outputs
         writer_data.write(vis_image_data)
-        writer_seg.write(vis_image_seg)
 
     # Release resources
     cap.release()
     writer_data.release()
-    writer_seg.release()
-    print(f"Data         visualization video saved to: {output_filepath_data}")
-    print(f"Segmentation visualization video saved to: {output_filepath_seg}")
+    print(f"Visualization video saved to: {output_filepath_data}")
 
 
 if (__name__ == "__main__"):
