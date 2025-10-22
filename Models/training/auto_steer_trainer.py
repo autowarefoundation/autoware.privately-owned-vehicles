@@ -148,23 +148,34 @@ class AutoSteerTrainer():
         self.learning_rate = learning_rate
         
     # Assign input variables
-    def set_data(self, homotrans_mat, bev_image, perspective_image, ego_lanes_seg, data, \
-                bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
-                reproj_egoleft, reproj_egoright):
+    def set_data(
+            self, 
+            # homotrans_mat, 
+            # bev_image, 
+            perspective_image, 
+            ego_lanes_seg, 
+            # data,
+            # bev_egopath, 
+            # bev_egoleft, 
+            # bev_egoright, 
+            # reproj_egopath,
+            # reproj_egoleft, 
+            # reproj_egoright
+        ):
 
-        self.homotrans_mat = np.array(homotrans_mat, dtype = "float32")
-        self.bev_image = np.array(bev_image)
+        # self.homotrans_mat = np.array(homotrans_mat, dtype = "float32")
+        # self.bev_image = np.array(bev_image)
         self.ego_lanes_seg = np.array(ego_lanes_seg)
-        self.data = np.array(data)
         self.perspective_image = np.array(perspective_image)
-        self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
-        self.bev_egoleft = np.array(bev_egoleft, dtype = "float32").transpose()
-        self.bev_egoright = np.array(bev_egoright, dtype = "float32").transpose()
-        self.reproj_egopath = np.array(reproj_egopath, dtype = "float32").transpose()
-        self.reproj_egoleft = np.array(reproj_egoleft, dtype = "float32").transpose()
-        self.reproj_egoright = np.array(reproj_egoright, dtype = "float32").transpose()
+        # self.data = np.array(data)
+        # self.bev_egopath = np.array(bev_egopath, dtype = "float32").transpose()
+        # self.bev_egoleft = np.array(bev_egoleft, dtype = "float32").transpose()
+        # self.bev_egoright = np.array(bev_egoright, dtype = "float32").transpose()
+        # self.reproj_egopath = np.array(reproj_egopath, dtype = "float32").transpose()
+        # self.reproj_egoleft = np.array(reproj_egoleft, dtype = "float32").transpose()
+        # self.reproj_egoright = np.array(reproj_egoright, dtype = "float32").transpose()
         self.perspective_H, self.perspective_W, _ = self.perspective_image.shape
-        self.BEV_H, self.BEV_W, _ = self.bev_image.shape
+        # self.BEV_H, self.BEV_W, _ = self.bev_image.shape
 
     # Image agumentations
     def apply_augmentations(self, is_train):
@@ -175,20 +186,23 @@ class AutoSteerTrainer():
         )
 
         aug.setData(self.perspective_image, self.ego_lanes_seg)
-        self.perspective_image, self.ego_lanes_seg = aug.applyTransformSeg(self.perspective_image)
+        self.perspective_image, self.ego_lanes_seg = aug.applyTransformSeg(
+            self.perspective_image, 
+            self.ego_lanes_seg
+        )
 
     # Load data as Pytorch tensors
     def load_data(self):
 
-        # BEV to Image matrix
-        homotrans_mat_tensor = torch.from_numpy(self.homotrans_mat)
-        homotrans_mat_tensor = homotrans_mat_tensor.type(torch.FloatTensor)
-        self.homotrans_mat_tensor = homotrans_mat_tensor.to(self.device)
+        # # BEV to Image matrix
+        # homotrans_mat_tensor = torch.from_numpy(self.homotrans_mat)
+        # homotrans_mat_tensor = homotrans_mat_tensor.type(torch.FloatTensor)
+        # self.homotrans_mat_tensor = homotrans_mat_tensor.to(self.device)
 
-        # BEV Image
-        bev_image_tensor = self.image_loader(self.bev_image)
-        bev_image_tensor = bev_image_tensor.unsqueeze(0)
-        self.bev_image_tensor = bev_image_tensor.to(self.device)
+        # # BEV Image
+        # bev_image_tensor = self.image_loader(self.bev_image)
+        # bev_image_tensor = bev_image_tensor.unsqueeze(0)
+        # self.bev_image_tensor = bev_image_tensor.to(self.device)
 
         # Perspective Image
         perspective_image_tensor = self.image_loader(self.perspective_image)
@@ -198,48 +212,49 @@ class AutoSteerTrainer():
 
         # Egolanes Segmentation
         egolanes_tensor = self.seg_loader(self.ego_lanes_seg)
+        egolanes_tensor = egolanes_tensor.type(torch.cuda.FloatTensor)
         egolanes_tensor = egolanes_tensor.unsqueeze(0)
         self.egolanes_tensor = egolanes_tensor.to(self.device)
 
-        # Data Tensor
-        data_tensor = torch.from_numpy(self.data)
-        data_tensor = data_tensor.type(torch.FloatTensor).unsqueeze(0)
-        self.gt_data_tensor = data_tensor.to(self.device)
+        # # Data Tensor
+        # data_tensor = torch.from_numpy(self.data)
+        # data_tensor = data_tensor.type(torch.FloatTensor).unsqueeze(0)
+        # self.gt_data_tensor = data_tensor.to(self.device)
 
-        # BEV Egopath
-        bev_egopath_tensor = torch.from_numpy(self.bev_egopath)
-        bev_egopath_tensor = bev_egopath_tensor.type(torch.FloatTensor)
-        self.gt_bev_egopath_tensor = bev_egopath_tensor.to(self.device)
+        # # BEV Egopath
+        # bev_egopath_tensor = torch.from_numpy(self.bev_egopath)
+        # bev_egopath_tensor = bev_egopath_tensor.type(torch.FloatTensor)
+        # self.gt_bev_egopath_tensor = bev_egopath_tensor.to(self.device)
 
-        # BEV Egoleft Lane
-        bev_egoleft_lane_tensor = torch.from_numpy(self.bev_egoleft)
-        bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.type(torch.FloatTensor)
-        self.gt_bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.to(self.device)
+        # # BEV Egoleft Lane
+        # bev_egoleft_lane_tensor = torch.from_numpy(self.bev_egoleft)
+        # bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.type(torch.FloatTensor)
+        # self.gt_bev_egoleft_lane_tensor = bev_egoleft_lane_tensor.to(self.device)
 
-        # BEV Egoright Lane
-        bev_egoright_lane_tensor = torch.from_numpy(self.bev_egoright)
-        bev_egoright_lane_tensor = bev_egoright_lane_tensor.type(torch.FloatTensor)
-        self.gt_bev_egoright_lane_tensor = bev_egoright_lane_tensor.to(self.device)
+        # # BEV Egoright Lane
+        # bev_egoright_lane_tensor = torch.from_numpy(self.bev_egoright)
+        # bev_egoright_lane_tensor = bev_egoright_lane_tensor.type(torch.FloatTensor)
+        # self.gt_bev_egoright_lane_tensor = bev_egoright_lane_tensor.to(self.device)
         
-        # Reprojected Egopath
-        reproj_egopath_tensor = torch.from_numpy(self.reproj_egopath)
-        reproj_egopath_tensor = reproj_egopath_tensor.type(torch.FloatTensor)
-        self.gt_reproj_egopath_tensor = reproj_egopath_tensor.to(self.device)
+        # # Reprojected Egopath
+        # reproj_egopath_tensor = torch.from_numpy(self.reproj_egopath)
+        # reproj_egopath_tensor = reproj_egopath_tensor.type(torch.FloatTensor)
+        # self.gt_reproj_egopath_tensor = reproj_egopath_tensor.to(self.device)
 
-        # Reprojected Egoleft Lane
-        reproj_egoleft_lane_tensor = torch.from_numpy(self.reproj_egoleft)
-        reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.type(torch.FloatTensor)
-        self.gt_reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.to(self.device)
+        # # Reprojected Egoleft Lane
+        # reproj_egoleft_lane_tensor = torch.from_numpy(self.reproj_egoleft)
+        # reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.type(torch.FloatTensor)
+        # self.gt_reproj_egoleft_lane_tensor = reproj_egoleft_lane_tensor.to(self.device)
 
-        # Reprojected Egoright Lane
-        reproj_egoright_lane_tensor = torch.from_numpy(self.reproj_egoright)
-        reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.type(torch.FloatTensor)
-        self.gt_reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.to(self.device)
+        # # Reprojected Egoright Lane
+        # reproj_egoright_lane_tensor = torch.from_numpy(self.reproj_egoright)
+        # reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.type(torch.FloatTensor)
+        # self.gt_reproj_egoright_lane_tensor = reproj_egoright_lane_tensor.to(self.device)
     
     # Run Model
     def run_model(self):
         
-        self.pred_egolanes_tensor = self.model(self.perspective_image_tensor)
+        self.pred_binary_seg_tensor = self.model(self.perspective_image_tensor)
 
         # Segmentation Loss
         self.total_loss = self.calc_ego_lanes_loss()
@@ -259,43 +274,58 @@ class AutoSteerTrainer():
     # EgoLanes Loss
     def calc_ego_lanes_loss(self):
         pred_ego_left_lane = self.pred_binary_seg_tensor[:, 0, :, :]
-        gt_ego_left_lane = self.binary_seg_tensor[:, 0, :, :]
-        left_lane_loss = self.calc_segmentation_loss(pred_ego_left_lane, gt_ego_left_lane)
+        gt_ego_left_lane = self.egolanes_tensor[:, 0, :, :]
+        left_lane_loss = (
+            self.calc_multi_scale_edge_loss(pred_ego_left_lane, gt_ego_left_lane) + \
+            self.calc_segmentation_loss(pred_ego_left_lane, gt_ego_left_lane)
+        )
 
         pred_ego_right_lane = self.pred_binary_seg_tensor[:, 1, :, :]
-        gt_ego_right_lane = self.binary_seg_tensor[:, 1, :, :]
-        right_lane_loss = self.calc_segmentation_loss(pred_ego_right_lane, gt_ego_right_lane)
+        gt_ego_right_lane = self.egolanes_tensor[:, 1, :, :]
+        right_lane_loss = (
+            self.calc_multi_scale_edge_loss(pred_ego_right_lane, gt_ego_right_lane) + \
+            self.calc_segmentation_loss(pred_ego_right_lane, gt_ego_right_lane)
+        )
 
         pred_other_lane = self.pred_binary_seg_tensor[:, 2, :, :]
-        gt_other_lane = self.binary_seg_tensor[:, 2, :, :]
-        other_lane_loss = self.calc_segmentation_loss(pred_other_lane, gt_other_lane)
+        gt_other_lane = self.egolanes_tensor[:, 2, :, :]
+        other_lane_loss = (
+            self.calc_multi_scale_edge_loss(pred_other_lane, gt_other_lane) + \
+            self.calc_segmentation_loss(pred_other_lane, gt_other_lane)
+        )
 
-        ego_lanes_loss = left_lane_loss + right_lane_loss + other_lane_loss
+        ego_lanes_loss = 2 * left_lane_loss + 2 * right_lane_loss + other_lane_loss
 
         return ego_lanes_loss
 
 
     # Segmentation Loss
-    def calc_segmentation_loss(pred, gt):
+    def calc_segmentation_loss(self, pred, gt):
+        
         BCELoss = nn.BCEWithLogitsLoss()
         segmentation_loss = BCELoss(pred, gt)
+
         return segmentation_loss
 
-    def calc_multi_cale_edge_loss(self):
+
+    def calc_multi_scale_edge_loss(self, pred, gt):
+
         downsample = nn.AvgPool2d(2, stride=2)
         threshold = torch.nn.Threshold(0.0, 1.0, inplace=False)
+        relu = nn.ReLU()
+        pred = relu(pred)
 
-        prediction_thresholded = threshold(self.pred_binary_seg_tensor)
+        prediction_thresholded = threshold(pred)
         prediction_d1 = downsample(prediction_thresholded)
         prediction_d2 = downsample(prediction_d1)
         prediction_d3 = downsample(prediction_d2)
         prediction_d4 = downsample(prediction_d3)
-        gt_d1 = downsample(self.binary_seg_tensor)
+        gt_d1 = downsample(gt)
         gt_d2 = downsample(gt_d1)
         gt_d3 = downsample(gt_d2)
         gt_d4 = downsample(gt_d3)
 
-        edge_loss_d0 = self.calc_edge_loss(self.pred_binary_seg_tensor, self.binary_seg_tensor)
+        edge_loss_d0 = self.calc_edge_loss(pred, gt)
         edge_loss_d1 = self.calc_edge_loss(prediction_d1, gt_d1)
         edge_loss_d2 = self.calc_edge_loss(prediction_d2, gt_d2)
         edge_loss_d3 = self.calc_edge_loss(prediction_d3, gt_d3)
@@ -605,13 +635,21 @@ class AutoSteerTrainer():
         print("Finished training")
 
     # Save predicted visualization
-    def save_visualization(self, log_count, bev_vis, vis_path = "", is_train = False):
+    def save_visualization(
+            self, 
+            log_count, 
+            vis_path = "", 
+            is_train = False
+    ):
 
-        # Visualize Binary Segmentation - Ground Truth and Predictions (BEV)
+        # Visualize Binary Segmentation - Ground Truth and Predictions
         fig_lane_seg, axs_seg = plt.subplots(2,1, figsize=(8, 8))
+
+        # Visualize Binary Segmentation - Raw Lane Segs
+        fig_raw_lane_seg, axs_raw_seg = plt.subplots(2,1, figsize=(8, 8))
               
         # blend factor
-        alpha = 0.5 
+        alpha = 0.5
 
         # Creating visualization image
         vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
@@ -619,19 +657,28 @@ class AutoSteerTrainer():
         gt_object = np.zeros((320, 640, 3), dtype = "uint8")
         gt_object = np.array(self.perspective_image)
 
+        # Creating raw visualization images
+        vis_raw_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
+        gt_raw_object = np.zeros((320, 640, 3), dtype = "uint8")
+
         # Prediction
-        egolanes_prediction = torch.squeeze(self.pred_egolanes_tensor, 0)
+        egolanes_prediction = torch.squeeze(self.pred_binary_seg_tensor, 0)
         egolanes_prediction = torch.squeeze(egolanes_prediction, 0)
         egolanes_prediction = egolanes_prediction.cpu().detach().numpy()
         
+        # GT
+        egolanes_gt = torch.squeeze(self.egolanes_tensor, 0)
+        egolanes_gt = torch.squeeze(egolanes_gt, 0)
+        egolanes_gt = egolanes_gt.cpu().detach().numpy()
+        
         # Getting prediction and ground truth labels
-        pred_egoleft_lanes = np.where(egolanes_prediction[:,0,:,:] > 0)
-        pred_egoright_lanes = np.where(egolanes_prediction[:,1,:,:] > 0)
-        pred_other_lanes = np.where(egolanes_prediction[:,2,:,:] > 0)
+        pred_egoleft_lanes = np.where(egolanes_prediction[0,:,:] > 0)
+        pred_egoright_lanes = np.where(egolanes_prediction[1,:,:] > 0)
+        pred_other_lanes = np.where(egolanes_prediction[2,:,:] > 0)
 
-        gt_egoleft_lanes = np.where(self.ego_lanes_seg[:,0,:,:] > 0)
-        gt_egoright_lanes = np.where(self.ego_lanes_seg[:,1,:,:] > 0)
-        gt_other_lanes = np.where(self.ego_lanes_seg[:,2,:,:] > 0)
+        gt_egoleft_lanes = np.where(egolanes_gt[0,:,:] > 0)
+        gt_egoright_lanes = np.where(egolanes_gt[1,:,:] > 0)
+        gt_other_lanes = np.where(egolanes_gt[2,:,:] > 0)
 
         # Visualize EgoLeft Lane
         vis_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 0] = 0
@@ -641,6 +688,13 @@ class AutoSteerTrainer():
         gt_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 1] = 255
         gt_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 2] = 255
 
+        vis_raw_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 0] = 0
+        vis_raw_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 1] = 255
+        vis_raw_predict_object[pred_egoleft_lanes[0], pred_egoleft_lanes[1], 2] = 255
+        gt_raw_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 0] = 0
+        gt_raw_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 1] = 255
+        gt_raw_object[gt_egoleft_lanes[0], gt_egoleft_lanes[1], 2] = 255
+
         # Visualize EgoRight Lane
         vis_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 0] = 255
         vis_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 1] = 0
@@ -648,6 +702,13 @@ class AutoSteerTrainer():
         gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 0] = 255
         gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 1] = 0
         gt_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 2] = 200
+
+        vis_raw_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 0] = 255
+        vis_raw_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 1] = 0
+        vis_raw_predict_object[pred_egoright_lanes[0], pred_egoright_lanes[1], 2] = 200
+        gt_raw_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 0] = 255
+        gt_raw_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 1] = 0
+        gt_raw_object[gt_egoright_lanes[0], gt_egoright_lanes[1], 2] = 200
 
         # Visualize Other Lanes
         vis_predict_object[pred_other_lanes[0], pred_other_lanes[1], 0] = 0
@@ -657,21 +718,28 @@ class AutoSteerTrainer():
         gt_object[gt_other_lanes[0], gt_other_lanes[1], 1] = 255
         gt_object[gt_other_lanes[0], gt_other_lanes[1], 2] = 145
 
+        vis_raw_predict_object[pred_other_lanes[0], pred_other_lanes[1], 0] = 0
+        vis_raw_predict_object[pred_other_lanes[0], pred_other_lanes[1], 1] = 255
+        vis_raw_predict_object[pred_other_lanes[0], pred_other_lanes[1], 2] = 145
+        gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 0] = 0
+        gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 1] = 255
+        gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 2] = 145
+
         # Alpha blended visualization
         prediction_vis = cv2.addWeighted(vis_predict_object, \
             alpha, self.perspective_image, 1 - alpha, 0)    
 
         gt_vis = cv2.addWeighted(gt_object, \
-            alpha, self.perspective_image, 1 - alpha, 0)    
+            alpha, self.perspective_image, 1 - alpha, 0)
 
+        # FOR NORMAL VIS
+        
         # Prediction
         axs_seg[0].set_title('Prediction',fontweight ="bold") 
         axs_seg[0].imshow(prediction_vis)
-        
         # Ground Truth
         axs_seg[1].set_title('Ground Truth',fontweight ="bold") 
         axs_seg[1].imshow(gt_vis)
-       
         # Save figure to Tensorboard
         if(is_train):
             self.writer.add_figure("Train (Seg)", fig_lane_seg, global_step = (log_count))
@@ -679,6 +747,22 @@ class AutoSteerTrainer():
             fig_lane_seg.savefig(vis_path + '_seg.png')
 
         plt.close(fig_lane_seg)
+
+        # FOR RAW VIS
+
+        # Prediction
+        axs_raw_seg[0].set_title('Prediction (RAW)',fontweight ="bold") 
+        axs_raw_seg[0].imshow(vis_raw_predict_object)
+        # Ground Truth
+        axs_raw_seg[1].set_title('Ground Truth (RAW)',fontweight ="bold") 
+        axs_raw_seg[1].imshow(gt_raw_object)
+        # Save figure to Tensorboard
+        if(is_train):
+            self.writer.add_figure("Train (Seg) RAW", fig_raw_lane_seg, global_step = (log_count))
+        else:
+            fig_raw_lane_seg.savefig(vis_path + '_seg.png')
+
+        plt.close(fig_raw_lane_seg)
 
     # Log validation loss for each dataset to TensorBoard
     def log_validation_dataset(self, dataset, validation_loss_dataset_total, log_count):

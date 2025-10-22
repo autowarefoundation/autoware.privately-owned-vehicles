@@ -2,6 +2,7 @@
 #! /usr/bin/env python3
 
 import os
+import cv2
 import random
 import torch
 import matplotlib.pyplot as plt
@@ -15,8 +16,10 @@ from Models.training.auto_steer_trainer import AutoSteerTrainer
 BEV_JSON_PATH = "drivable_path_bev.json"
 BEV_IMG_PATH = "image_bev"
 BEV_VIS_PATH = "visualization_bev"
+PERSPECTIVE_JSON_PATH = "drivable_path.json"
 PERSPECTIVE_IMG_PATH = "image"
 PERSPECTIVE_VIS_PATH = "visualization"
+PERSPECTIVE_MASK_PATH = "mask"
 
 
 def main():
@@ -25,8 +28,8 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH   = '/home/zain/Autoware/Data/AutoSteer/'#"DATASET ROOT HERE (INCLUDING MULTIPLE PROCESSED DATASETS)"
-    POV_PATH    = '/home/zain/Autoware/Privately_Owned_Vehicles/'#"PATH TO POV PROJECT ROOT"
+    ROOT_PATH   = "/mnt/Storage/pov_datasets/"
+    POV_PATH    = "/home/tranhuunhathuy/Documents/Autoware/autoware.privately-owned-vehicles/"
 
     # Model save root path
     MODEL_SAVE_ROOT_PATH = os.path.join(
@@ -51,11 +54,12 @@ def main():
     msdict = {}
     for dataset in VALID_DATASET_LIST:
         msdict[dataset] = {
-            "path_labels"   : os.path.join(ROOT_PATH, dataset, BEV_JSON_PATH),
-            "path_images"   : os.path.join(ROOT_PATH, dataset, BEV_IMG_PATH),
+            "path_labels"   : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_JSON_PATH),
+            "path_masks"    : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_MASK_PATH),
+            # "path_images"   : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_IMG_PATH),
             "path_perspective_vis" : os.path.join(ROOT_PATH, dataset, PERSPECTIVE_VIS_PATH),
             "path_perspective_image": os.path.join(ROOT_PATH, dataset, PERSPECTIVE_IMG_PATH),
-            "path_bev_vis" : os.path.join(ROOT_PATH, dataset, BEV_VIS_PATH)
+            # "path_bev_vis" : os.path.join(ROOT_PATH, dataset, BEV_VIS_PATH)
         }
 
     # Deal with TEST dataset
@@ -73,7 +77,8 @@ def main():
     for dataset in VALID_DATASET_LIST:
         this_dataset_loader = LoadDataAutoSteer(
             labels_filepath = msdict[dataset]["path_labels"],
-            images_filepath = msdict[dataset]["path_images"],
+            mask_dirpath = msdict[dataset]["path_masks"],
+            images_filepath = msdict[dataset]["path_perspective_image"],
             dataset = dataset
         )
         N_trains, N_vals = this_dataset_loader.getItemCount()
@@ -114,9 +119,9 @@ def main():
     trainer.zero_grad()
     
     # Training loop parameters
-    NUM_EPOCHS = 20
-    LOGSTEP_LOSS = 50
-    LOGSTEP_VIS = 100
+    NUM_EPOCHS = 50
+    LOGSTEP_LOSS = 250
+    LOGSTEP_VIS = 500
     LOGSTEP_MODEL = 5700
 
     # Val visualization param
@@ -143,12 +148,13 @@ def main():
         #    batch_size = 4
       
         # Learning Rate Schedule
-        if (epoch <= 3):
-            trainer.set_learning_rate(0.0005)
-        elif(epoch > 3 and epoch <= 7):
-            trainer.set_learning_rate(0.0001)
-        elif(epoch > 7):
-            trainer.set_learning_rate(0.00005)
+        trainer.set_learning_rate(1e-4)
+        # if (epoch <= 3):
+        #     trainer.set_learning_rate(0.0005)
+        # elif(epoch > 3 and epoch <= 7):
+        #     trainer.set_learning_rate(0.0001)
+        # elif(epoch > 7):
+        #     trainer.set_learning_rate(0.00005)
 
         # Augmentation Schedule
         apply_augmentation = True
@@ -195,22 +201,30 @@ def main():
 
             # Fetch data from current processed dataset
             frame_id = 0
-            bev_image = None
-            homotrans_mat = []
-            bev_egopath = []
-            reproj_egopath = []
-            bev_egoleft = []
-            reproj_egoleft = []
-            bev_egoright = []
-            reproj_egoright = []
+            # bev_image = None
+            # homotrans_mat = []
+            # bev_egopath = []
+            # reproj_egopath = []
+            # bev_egoleft = []
+            # reproj_egoleft = []
+            # bev_egoright = []
+            # reproj_egoright = []
            
             current_dataset = data_list[msdict["data_list_count"]]
             current_dataset_iter = msdict[current_dataset]["iter"]
-            [   frame_id, bev_image, raw_img_path,
-                ego_lanes_seg, data, homotrans_mat,
-                bev_egopath, reproj_egopath,
-                bev_egoleft, reproj_egoleft,
-                bev_egoright, reproj_egoright,
+            [
+                frame_id, 
+                # bev_image, 
+                raw_img_path,
+                ego_lanes_seg, 
+                # data, 
+                # homotrans_mat,
+                # bev_egopath, 
+                # reproj_egopath,
+                # bev_egoleft, 
+                # reproj_egoleft,
+                # bev_egoright, 
+                # reproj_egoright,
             ] = msdict[current_dataset]["loader"].getItem(
                 msdict[current_dataset]["sample_list"][current_dataset_iter],
                 is_train = True
@@ -226,18 +240,28 @@ def main():
                 )
             ).convert("RGB")
             
-            # BEV visualization
-            bev_vis = Image.open(
+            # Visualization
+            vis_gt_img = Image.open(
                 os.path.join(
-                    msdict[current_dataset]["path_bev_vis"],
+                    msdict[current_dataset]["path_perspective_vis"],
                     f"{frame_id}.jpg"
                 )
             ).convert("RGB")
           
             # Assign data
-            trainer.set_data(homotrans_mat, bev_image, perspective_image, ego_lanes_seg, data, \
-                bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
-                reproj_egoleft, reproj_egoright)
+            trainer.set_data(
+                # homotrans_mat, 
+                # bev_image, 
+                perspective_image, 
+                ego_lanes_seg, 
+                # data,
+                # bev_egopath, 
+                # bev_egoleft, 
+                # bev_egoright, 
+                # reproj_egopath,
+                # reproj_egoleft, 
+                # reproj_egoright
+            )
             
             # Augment image
             trainer.apply_augmentations(apply_augmentation)
@@ -261,7 +285,10 @@ def main():
             
             # Logging Visualization to Tensor Board
             if((msdict["sample_counter"] + 1) % LOGSTEP_VIS == 0):  
-                trainer.save_visualization(msdict["log_counter"] + 1, bev_vis, is_train=True)
+                trainer.save_visualization(
+                    msdict["log_counter"] + 1, 
+                    is_train = True
+                )
             
             # Save model and run Validation on entire validation dataset
             if ((msdict["sample_counter"] + 1) % LOGSTEP_MODEL == 0):
@@ -295,11 +322,19 @@ def main():
                         for val_count in range(0, msdict[dataset]["N_vals"]):
 
                             # Fetch data
-                            [   frame_id, bev_image, raw_img_path,
-                                ego_lanes_seg, data, homotrans_mat,
-                                bev_egopath, reproj_egopath,
-                                bev_egoleft, reproj_egoleft,
-                                bev_egoright, reproj_egoright,
+                            [
+                                frame_id, 
+                                # bev_image, 
+                                raw_img_path,
+                                ego_lanes_seg, 
+                                # data, 
+                                # homotrans_mat,
+                                # bev_egopath, 
+                                # reproj_egopath,
+                                # bev_egoleft, 
+                                # reproj_egoleft,
+                                # bev_egoright, 
+                                # reproj_egoright,
                             ] = msdict[dataset]["loader"].getItem(
                                 val_count,
                                 is_train = False
@@ -315,18 +350,28 @@ def main():
                                 )
                             ).convert("RGB")
 
-                            # BEV visualization
-                            bev_vis = Image.open(
+                            # Visualization
+                            vis_gt_img = Image.open(
                                 os.path.join(
-                                    msdict[dataset]["path_bev_vis"],
+                                    msdict[dataset]["path_perspective_vis"],
                                     f"{frame_id}.jpg"
                                 )
                             ).convert("RGB")
 
                             # Assign data
-                            trainer.set_data(homotrans_mat, bev_image, perspective_image, ego_lanes_seg, data,\
-                                bev_egopath, bev_egoleft, bev_egoright, reproj_egopath, \
-                                reproj_egoleft, reproj_egoright)
+                            trainer.set_data(
+                                # homotrans_mat, 
+                                # bev_image, 
+                                perspective_image, 
+                                ego_lanes_seg, 
+                                # data,
+                                # bev_egopath, 
+                                # bev_egoleft, 
+                                # bev_egoright, 
+                                # reproj_egopath,
+                                # reproj_egoleft, 
+                                # reproj_egoright
+                            )
                             
                             # Augment image
                             trainer.apply_augmentations(False)
@@ -342,9 +387,13 @@ def main():
 
                             # Save visualization to Tensorboard
                             if(val_count < N_VALVIS): 
-                                vis_path = VIS_SAVE_ROOT_PATH + dataset + '_epoch_'+ str(epoch) + '_step_' + \
-                                    str(msdict["log_counter"] + 1) + '_image_' + str(frame_id)
-                                trainer.save_visualization(msdict["log_counter"] + 1 + val_count, bev_vis, vis_path, is_train=False)
+                                vis_path = VIS_SAVE_ROOT_PATH + 'epoch_'+ str(epoch) + '_step_' + \
+                                    str(msdict["log_counter"] + 1) + '_image_' + dataset + "_" + str(frame_id)
+                                trainer.save_visualization(
+                                    msdict["log_counter"] + 1 + val_count, 
+                                    vis_path, 
+                                    is_train = False
+                                )
 
 
                     # Calculate final validation scores for network on each dataset

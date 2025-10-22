@@ -3,10 +3,12 @@
 import argparse
 import json
 import os
-import pathlib
 from PIL import Image, ImageDraw
 import warnings
-from datetime import datetime
+import numpy as np
+import cv2
+import shutil
+from tqdm import tqdm
 
 # Custom warning format cuz the default one is wayyyyyy too verbose
 def custom_warning_format(message, category, filename, lineno, line=None):
@@ -15,6 +17,7 @@ def custom_warning_format(message, category, filename, lineno, line=None):
 warnings.formatwarning = custom_warning_format
 
 # ============================== Helper functions ============================== #
+
 
 def roundLineFloats(line, ndigits = 4):
     line = list(line)
@@ -27,6 +30,14 @@ def roundLineFloats(line, ndigits = 4):
     return line
 
 
+def sortByYDesc(line):
+    return sorted(
+        line,
+        key = lambda p: p[1],
+        reverse = True
+    )
+
+
 def normalizeCoords(lane, width, height):
     """
     Normalize the coords of lane points.
@@ -35,25 +46,33 @@ def normalizeCoords(lane, width, height):
     return [(x / width, y / height) for x, y in lane]
 
 
-def getLaneAnchor(lane):
+def getLineAnchor(line):
     """
     Determine "anchor" point of a lane.
 
     """
-    (x2, y2) = lane[-1]
-    (x1, y1) = lane[-2]
-    for i in range(len(lane) - 2, 0, -1):
-        if (lane[i][0] != x2):
-            (x1, y1) = lane[i]
+    (x2, y2) = line[0]
+    (x1, y1) = line[1]
+    
+    for i in range(1, len(line) - 1, 1):
+        if (line[i][0] != x2) & (line[i][1] != y2):
+            (x1, y1) = line[i]
             break
-    if (x1 == x2):
-        warnings.warn(f"Vertical lane detected: {lane}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
+
+    if (x1 == x2) or (y1 == y2):
+        if (x1 == x2):
+            error_lane = "Vertical"
+        elif (y1 == y2):
+            error_lane = "Horizontal"
+        warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
         return (x1, None, None)
+    
     a = (y2 - y1) / (x2 - x1)
     b = y1 - a * x1
-    x0 = (H - b) / a
-    
+    x0 = (H - 1 - b) / a
+
     return (x0, a, b)
+
 
 
 def getEgoIndexes(anchors):
@@ -137,9 +156,11 @@ def getDrivablePath(left_ego, right_ego):
 
 
 def annotateGT(
-    anno_entry, anno_raw_file, 
-    raw_dir, visualization_dir,
-    normalized = True
+    anno_entry, 
+    anno_raw_file, 
+    raw_dir, 
+    mask_dir,
+    visualization_dir,
 ):
     """
     Annotates and saves an image with:
@@ -159,108 +180,204 @@ def annotateGT(
     # Copy raw img and put it in raw dir.
     raw_img.save(os.path.join(raw_dir, save_name))
     
-    # Draw all lanes & lines
-    draw = ImageDraw.Draw(raw_img)
-    lane_colors = {
-        "outer_red": (255, 0, 0), 
-        "ego_green": (0, 255, 0), 
-        "drive_path_yellow": (255, 255, 0)
-    }
-    lane_w = 5
-    # Draw lanes
-    for idx, lane in enumerate(anno_entry["lanes"]):
-        if (normalized):
-            lane = [(x * W, y * H) for x, y in lane]
-        if (idx in anno_entry["ego_indexes"]):
-            # Ego lanes, in green
-            draw.line(lane, fill = lane_colors["ego_green"], width = lane_w)
-        else:
-            # Outer lanes, in red
-            draw.line(lane, fill = lane_colors["outer_red"], width = lane_w)
-    # Drivable path, in yellow
-    if (normalized):
-        drivable_renormed = [(x * W, y * H) for x, y in anno_entry["drivable_path"]]
-    else:
-        drivable_renormed = anno_entry["drivable_path"]
-    draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
+    # # Draw all lanes & lines
+    # draw = ImageDraw.Draw(raw_img)
+    # lane_colors = {
+    #     "outer_red": (255, 0, 0), 
+    #     "ego_green": (0, 255, 0), 
+    #     "drive_path_yellow": (255, 255, 0)
+    # }
+    # lane_w = 5
+    # # Draw lanes
+    # for idx, lane in enumerate(anno_entry["lanes"]):
+    #     if (normalized):
+    #         lane = [(x * W, y * H) for x, y in lane]
+    #     if (idx in anno_entry["ego_indexes"]):
+    #         # Ego lanes, in green
+    #         draw.line(lane, fill = lane_colors["ego_green"], width = lane_w)
+    #     else:
+    #         # Outer lanes, in red
+    #         draw.line(lane, fill = lane_colors["outer_red"], width = lane_w)
+    # # Drivable path, in yellow
+    # if (normalized):
+    #     drivable_renormed = [(x * W, y * H) for x, y in anno_entry["drivable_path"]]
+    # else:
+    #     drivable_renormed = anno_entry["drivable_path"]
+    # draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
+
+    # Fetch seg mask as RGB
+    mask_array = np.array(
+        anno_entry["mask"], 
+        dtype = np.uint8
+    )
+    mask_img = Image.fromarray(mask_array).convert("RGB")
+
+    # Save mask
+    mask_img.save(os.path.join(mask_dir, save_name))
+
+    # Overlay mask on raw image, ratio 1:1
+    overlayed_img = Image.blend(
+        raw_img, 
+        mask_img, 
+        alpha = 0.5
+    )
 
     # Save visualization img, JPG for lighter weight, just different dir
-    raw_img.save(os.path.join(
-        visualization_dir, 
-        save_name.replace(".png", ".jpg")
-    ))
+    overlayed_img.save(os.path.join(visualization_dir, save_name.replace(".png", ".jpg")))
 
-def parseAnnotations(anno_path):
+
+def calcLaneSegMask(
+    lanes, 
+    width, height,
+    normalized: bool = True
+):
     """
-    Parses lane annotations from raw dataset file, then extracts normalized GT data.
+    Calculates binary segmentation mask for some lane lines.
 
     """
-    # Read each line of GT text file as JSON
-    with open(anno_path, "r") as f:
-        read_data = [json.loads(line) for line in f.readlines()]
 
-    # Parse data from those JSON lines
-    anno_data = {}
-    for item in read_data:
-        lanes = item["lanes"]
-        h_samples = item["h_samples"]
-        raw_file = item["raw_file"]
+    # Create blank mask as new Image
+    bin_seg = np.zeros(
+        (height, width), 
+        dtype = np.uint8
+    )
+    bin_seg_img = Image.fromarray(bin_seg)
 
-        # Decouple from {lanes: [xi1, xi2, ...], h_samples: [y1, y2, ...]} to [(xi1, y1), (xi2, y2), ...]
-        # `lane_decoupled` is a list of sublists representing lanes, each lane is a list of (x, y) tuples.
-        lanes_decoupled = [
-            [(x, y) for x, y in zip(lane, h_samples) if x != -2]
-            for lane in lanes if sum(1 for x in lane if x != -2) >= 2     # Filter out lanes < 2 points (there's actually a bunch of em)
-        ]
+    # Draw lines on mask
+    draw = ImageDraw.Draw(bin_seg_img)
+    for lane in lanes:
+        if (normalized):
+            lane = [
+                (
+                    x * width, 
+                    y * height
+                ) 
+                for x, y in lane
+            ]
+        draw.line(
+            lane, 
+            fill = 255, 
+            width = 4
+        )
+    
+    # Convert back to numpy array
+    bin_seg = np.array(
+        bin_seg_img, 
+        dtype = np.uint8
+    )
+    
+    return bin_seg
 
-        # Determine 2 ego lanes
-        lane_anchors = [getLaneAnchor(lane) for lane in lanes_decoupled]
-        ego_indexes = getEgoIndexes(lane_anchors)
 
-        if (type(ego_indexes) is str):
-            if (ego_indexes.startswith("NO")):
-                warnings.warn(f"Parsing {raw_file}: {ego_indexes}")
-                continue
+def parseAnnotations(item: dict):
+    """
+    Parses lane annotations from a dict structure read from a TuSimple label JSON file.
 
-        left_ego = lanes_decoupled[ego_indexes[0]]
-        right_ego = lanes_decoupled[ego_indexes[1]]
+    """
+    
+    lanes = item["lanes"]
+    h_samples = item["h_samples"]
+    raw_file = item["raw_file"]
 
-        # Determine drivable path from 2 egos
-        drivable_path = getDrivablePath(left_ego, right_ego)
+    # Decouple from {lanes: [xi1, xi2, ...], h_samples: [y1, y2, ...]} to [(xi1, y1), (xi2, y2), ...]
+    # `lane_decoupled` is a list of sublists representing lanes, each lane is a list of (x, y) tuples.
+    lanes_decoupled = [
+        [(x, y) for x, y in zip(lane, h_samples) if x != -2]
+        for lane in lanes if sum(1 for x in lane if x != -2) >= 2     # Filter out lanes < 2 points (there's actually a bunch of em)
+    ]
 
-        # Parse processed data, all coords normalized
-        anno_data[raw_file] = {
-            "lanes" : [
-                roundLineFloats(normalizeCoords(lane, W, H)) 
-                for lane in lanes_decoupled
-            ],
-            "ego_indexes" : ego_indexes,
-            "drivable_path" : roundLineFloats(
+    # Sort each lane by decreasing y
+    lanes_decoupled = [
+        sortByYDesc(lane) 
+        for lane in lanes_decoupled
+    ]
+
+    # Determine 2 ego lanes
+    lane_anchors = [
+        getLineAnchor(lane) 
+        for lane in lanes_decoupled
+    ]
+    ego_indexes = getEgoIndexes(lane_anchors)
+
+    if (type(ego_indexes) is str):
+        if (ego_indexes.startswith("NO")):
+            warnings.warn(f"Parsing {raw_file}: {ego_indexes}")
+            return None
+
+    left_ego = lanes_decoupled[ego_indexes[0]]
+    right_ego = lanes_decoupled[ego_indexes[1]]
+    other_lanes = [
+        lane for idx, lane in enumerate(lanes_decoupled)
+        if idx not in ego_indexes
+    ]
+
+    # # Determine drivable path from 2 egos
+    # drivable_path = getDrivablePath(left_ego, right_ego)
+
+    # Create segmentation masks:
+    # Channel 1: egoleft lane
+    # Channel 2: egoright lane
+    # Channel 3: other lanes
+    mask = np.zeros(
+        (H, W, 3), 
+        dtype = np.uint8
+    )
+    mask[:, :, 0] = calcLaneSegMask(
+        [left_ego], 
+        W, H, 
+        normalized = False
+    )
+    mask[:, :, 1] = calcLaneSegMask(
+        [right_ego], 
+        W, H, 
+        normalized = False
+    )
+    mask[:, :, 2] = calcLaneSegMask(
+        other_lanes, 
+        W, H, 
+        normalized = False
+    )
+
+    # Parse processed data, all coords normalized
+    anno_data = {
+        "other_lanes" : [
+            roundLineFloats(
                 normalizeCoords(
-                    drivable_path, 
+                    lane, 
                     W, 
                     H
                 )
-            ),
-            "egoleft_lane" : roundLineFloats(
-                normalizeCoords(
-                    left_ego, 
-                    W, 
-                    H
-                )
-            ),
-            "egoright_lane" : roundLineFloats(
-                normalizeCoords(
-                    right_ego, 
-                    W, 
-                    H
-                )
-            ),
-        }
+            ) for lane in other_lanes
+        ],
+        # "drivable_path" : roundLineFloats(
+        #     normalizeCoords(
+        #         drivable_path, 
+        #         W, 
+        #         H
+        #     )
+        # ),
+        "egoleft_lane" : roundLineFloats(
+            normalizeCoords(
+                left_ego, 
+                W, 
+                H
+            )
+        ),
+        "egoright_lane" : roundLineFloats(
+            normalizeCoords(
+                right_ego, 
+                W, 
+                H
+            )
+        ),
+        "mask" : mask.tolist(),
+    }
 
     return anno_data
 
             
+# ====================================== MAIN RUN ====================================== #
+
 if __name__ == "__main__":
 
     # ============================== Dataset structure ============================== #
@@ -282,17 +399,20 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataset_dir", 
+        "-i",
         type = str, 
         help = "TuSimple directory (right after extraction)"
     )
     parser.add_argument(
-        "--output_dir", 
+        "--output_dir",
+        "-o", 
         type = str, 
         help = "Output directory"
     )
     # For debugging only
     parser.add_argument(
         "--early_stopping",
+        "-e",
         type = int,
         help = "Num. files each split/class you wanna limit, instead of whole set.",
         required = False
@@ -303,12 +423,19 @@ if __name__ == "__main__":
     """
     --output_dir
         |----image
+        |----mask
         |----visualization
         |----drivable_path.json
     """
     dataset_dir = args.dataset_dir
     output_dir = args.output_dir
-    list_subdirs = ["image", "visualization"]
+
+    if (os.path.exists(output_dir)):
+        print(f"Output dir {output_dir} already exists, purged!")
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
+    list_subdirs = ["image", "mask", "visualization"]
     for subdir in list_subdirs:
         subdir_path = os.path.join(output_dir, subdir)
         if (not os.path.exists(subdir_path)):
@@ -342,11 +469,18 @@ if __name__ == "__main__":
     img_id_counter = -1
 
     for anno_file in label_files:
+
         print(f"\n==================== Processing data in label file {anno_file} ====================\n")
-        this_data = parseAnnotations(anno_file)
         
-        list_raw_files = list(this_data.keys())
-        for raw_file in list_raw_files:
+        # Read each line of GT text file as JSON
+        with open(anno_file, "r") as f:
+            read_data = [json.loads(line) for line in f.readlines()]
+
+        for frame_data in tqdm(
+            read_data,
+            desc = f"Parsing annotations of {os.path.basename(anno_file)}",
+            colour = "green"
+        ):
 
             # Conduct index increment
             img_id_counter += 1
@@ -359,40 +493,30 @@ if __name__ == "__main__":
             set_dir= os.path.dirname(anno_file)
             set_dir = os.path.join(set_dir, test_dir) if test_file in anno_file else set_dir    # Tricky test dir
 
+            # Parse annotations
+            raw_file = frame_data["raw_file"]
+            anno_entry = parseAnnotations(frame_data)
+            if (anno_entry is None):
+                continue
+            
             # Annotate raw images
-            anno_entry = this_data[raw_file]
             annotateGT(
                 anno_entry,
-                anno_raw_file = os.path.join(set_dir, raw_file), 
+                anno_raw_file = os.path.join(set_dir, raw_file),
                 raw_dir = os.path.join(output_dir, "image"),
+                mask_dir =  os.path.join(output_dir, "mask"),
                 visualization_dir = os.path.join(output_dir, "visualization")
-            )
-
-            # Reorder all lines by decreasing y
-            anno_entry["drivable_path"] = sorted(
-                anno_entry["drivable_path"],
-                key = lambda p: p[1],
-                reverse = True
-            )
-            anno_entry["egoleft_lane"] = sorted(
-                anno_entry["egoleft_lane"],
-                key = lambda p: p[1],
-                reverse = True
-            )
-            anno_entry["egoright_lane"] = sorted(
-                anno_entry["egoright_lane"],
-                key = lambda p: p[1],
-                reverse = True
             )
 
             # Change `raw_file` to 6-digit incremental index
             data_master[str(img_id_counter).zfill(6)] = {
-                "drivable_path" : anno_entry["drivable_path"],
+                # "drivable_path" : anno_entry["drivable_path"],
                 "egoleft_lane" : anno_entry["egoleft_lane"],
-                "egoright_lane" : anno_entry["egoright_lane"]
+                "egoright_lane" : anno_entry["egoright_lane"],
+                "other_lanes" : anno_entry["other_lanes"],
             }
 
-        print(f"Processed {len(this_data)} entries in above file.\n")
+        print(f"Processed {len(read_data)} entries in above file.\n")
 
     print(f"Done processing data with {len(data_master)} entries in total.\n")
 
