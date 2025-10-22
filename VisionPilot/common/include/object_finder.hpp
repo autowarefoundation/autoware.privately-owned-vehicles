@@ -63,17 +63,12 @@ struct CIPOInfo {
     int track_id;
     int class_id;
     
-    // Spatial information
+    // Core spatial information
     float distance_m;         // Current distance in meters
     float velocity_ms;        // Current velocity in m/s (negative = approaching)
-    float lateral_offset_m;   // Lateral position relative to ego centerline
-    
-    // Safety metrics
-    float ttc;                // Time-to-collision (seconds)
     
     CIPOInfo() : exists(false), track_id(-1), class_id(-1), 
-                 distance_m(0.0f), velocity_ms(0.0f), lateral_offset_m(0.0f),
-                 ttc(std::numeric_limits<float>::infinity()) {}
+                 distance_m(0.0f), velocity_ms(0.0f) {}
 };
 
 class ObjectFinder {
