@@ -23,18 +23,26 @@ def make_visualization_data(
     pred_other_lanes    = np.where(prediction[2,:,:] > 0)
 
     # Color codes
-    egoleft_color = [0, 255, 255]
-    
+    egoleft_color   = [0, 255, 255]
+    egoright_color  = [255, 0, 200]
 
-    # Visualize EgoLeft Lane
+    # Visualize egoleft
     for i in range(3):
         vis_predict_object[
             pred_egoleft_lanes[0], 
             pred_egoleft_lanes[1], 
             i
         ] = egoleft_color[i]
-    
 
+    # Visualize egoright
+    for i in range(3):
+        vis_predict_object[
+            pred_egoright_lanes[0],
+            pred_egoright_lanes[1],
+            i
+        ] = egoright_color[i]
+
+    
 
     # Start drawing
     draw = ImageDraw.Draw(image)
