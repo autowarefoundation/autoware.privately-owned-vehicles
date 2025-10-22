@@ -1,16 +1,14 @@
 import os
 import sys
 import cv2
-import math
 import numpy as np
-from PIL import Image, ImageDraw
 from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
 
     
 def make_visualization_data(
-        image: Image,
+        image: np.ndarray,
         prediction: np.ndarray
 ):
     
@@ -51,74 +49,15 @@ def make_visualization_data(
             i
         ] = others_color[i]
 
-    # Start drawing
-    draw = ImageDraw.Draw(image)
-    POINT_R = 3
-    LINE_W = 2
-    DOWN_MARGIN = 310
-    COLOR_OFFSET = (0, 255, 0)      # Lime
-    COLOR_EGOPATH = (255, 255, 0)   # Cyan
-    COLOR_END = (0, 0, 255)         # Red
-
-    # Offsets
-    draw.ellipse(
-        (
-            left_lane_offset - POINT_R, 
-            DOWN_MARGIN - POINT_R, 
-            left_lane_offset + POINT_R, 
-            DOWN_MARGIN + POINT_R
-        ), 
-        fill = COLOR_OFFSET
-    )
-    draw.ellipse(
-        (
-            right_left_offset - POINT_R, 
-            DOWN_MARGIN - POINT_R, 
-            right_left_offset + POINT_R, 
-            DOWN_MARGIN + POINT_R
-        ), 
-        fill = COLOR_OFFSET
-    )
-    draw.line(
-        (
-            left_lane_offset, DOWN_MARGIN, 
-            right_left_offset, DOWN_MARGIN
-        ),
-        fill = COLOR_OFFSET,
-        width = LINE_W
+    # Fuse image with mask
+    alpha = 0.5
+    fused_image = cv2.addWeighted(
+        vis_predict_object, alpha,
+        image, 1 - alpha,
+        0
     )
 
-    # Ego path
-    draw.ellipse(
-        (
-            ego_path_offset - POINT_R, 
-            DOWN_MARGIN - POINT_R, 
-            ego_path_offset + POINT_R, 
-            DOWN_MARGIN + POINT_R
-        ), 
-        fill = COLOR_EGOPATH
-    )
-    draw.line(
-        (
-            ego_path_offset, DOWN_MARGIN, 
-            start_delta_x, start_delta_y
-        ),
-        fill = COLOR_EGOPATH,
-        width = LINE_W
-    )
-
-    # End point deviation
-    draw.line(
-        (
-            ego_path_offset, DOWN_MARGIN, 
-            end_delta_x, end_delta_y
-        ),
-        fill = COLOR_END,
-        width = LINE_W
-    )
-
-    # Return visualized image
-    return image
+    return fused_image
 
 
 def make_visualization_seg(
