@@ -25,6 +25,7 @@ def make_visualization_data(
     # Color codes
     egoleft_color   = [0, 255, 255]
     egoright_color  = [255, 0, 200]
+    others_color    = [0, 255, 145]
 
     # Visualize egoleft
     for i in range(3):
@@ -42,7 +43,13 @@ def make_visualization_data(
             i
         ] = egoright_color[i]
 
-    
+    # Visualize other lanes
+    for i in range(3):
+        vis_predict_object[
+            pred_other_lanes[0],
+            pred_other_lanes[1],
+            i
+        ] = others_color[i]
 
     # Start drawing
     draw = ImageDraw.Draw(image)
