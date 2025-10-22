@@ -13,11 +13,28 @@ def make_visualization_data(
         image: Image,
         prediction: np.ndarray
 ):
+    
+    # Prepping canvas
+    vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
 
     # Fetch predictions and groundtruth labels
-    pred_egoleft_lanes = np.where(prediction[0,:,:] > 0)
+    pred_egoleft_lanes  = np.where(prediction[0,:,:] > 0)
     pred_egoright_lanes = np.where(prediction[1,:,:] > 0)
-    pred_other_lanes = np.where(prediction[2,:,:] > 0)
+    pred_other_lanes    = np.where(prediction[2,:,:] > 0)
+
+    # Color codes
+    egoleft_color = [0, 255, 255]
+    
+
+    # Visualize EgoLeft Lane
+    for i in range(3):
+        vis_predict_object[
+            pred_egoleft_lanes[0], 
+            pred_egoleft_lanes[1], 
+            i
+        ] = egoleft_color[i]
+    
+
 
     # Start drawing
     draw = ImageDraw.Draw(image)
