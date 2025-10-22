@@ -22,9 +22,9 @@ def make_visualization(
     pred_other_lanes    = np.where(prediction[2,:,:] > 0)
 
     # Color codes
-    egoleft_color   = [0, 255, 255]
-    egoright_color  = [255, 0, 200]
-    others_color    = [0, 255, 145]
+    egoleft_color   = [0, 255, 255] # Kinda blue
+    egoright_color  = [255, 0, 200] # Magenta
+    others_color    = [0, 153, 0]   # Quite green
 
     # Visualize egoleft
     for i in range(3):
@@ -51,13 +51,11 @@ def make_visualization(
         ] = others_color[i]
 
     # Fuse image with mask
-    alpha = 0.5
     fused_image = cv2.addWeighted(
-        vis_predict_object, alpha,
+        cv2.cvtColor(vis_predict_object, cv2.COLOR_BGR2RGB), 1,
         image, 1,
         0
     )
-    fused_image = cv2.cvtColor(fused_image, cv2.COLOR_BGR2RGB)
     fused_image = Image.fromarray(fused_image)
 
     return fused_image
