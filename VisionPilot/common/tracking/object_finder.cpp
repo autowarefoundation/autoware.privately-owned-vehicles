@@ -292,46 +292,23 @@ CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
     CIPOInfo cipo;
     cipo.exists = false;
     
-    if (tracked_objects_.empty()) {
-        return cipo;
-    }
-    
+    float min_distance = std::numeric_limits<float>::infinity();
     int best_idx = -1;
-    int min_class_id = std::numeric_limits<int>::max();
-    float min_ttc_at_min_class = std::numeric_limits<float>::infinity();
     
+    // The CIPO is now defined as the closest tracked object with class_id == 0.
     for (size_t i = 0; i < tracked_objects_.size(); i++) {
         const auto& obj = tracked_objects_[i];
         
-        // Skip objects not tracked long enough for stable velocity estimate
-        if (obj.frames_tracked < 3) continue;
+        // Skip objects that are not the target class or not tracked long enough
+        if (obj.class_id != 0 || obj.frames_tracked < 3) continue;
         
-        // Consider only objects in front of us (positive Y is forward in world coordinates)
+        // Consider only objects in front of us
         bool in_front = obj.world_position.y > 0;
         if (!in_front) continue;
 
-        // CIPO logic: Prioritize the lowest class ID.
-        // If class IDs are the same, prioritize the one with the lower TTC.
-        if (obj.class_id < min_class_id) {
-            min_class_id = obj.class_id;
+        if (obj.distance_m < min_distance) {
+            min_distance = obj.distance_m;
             best_idx = i;
-            // Reset TTC for the new best class
-            min_ttc_at_min_class = std::numeric_limits<float>::infinity(); 
-            
-            float relative_velocity = ego_velocity - obj.velocity_ms;
-            if (relative_velocity > 0.1f) {
-                min_ttc_at_min_class = obj.distance_m / relative_velocity;
-            }
-
-        } else if (obj.class_id == min_class_id) {
-            float relative_velocity = ego_velocity - obj.velocity_ms;
-            if (relative_velocity > 0.1f) {
-                float current_ttc = obj.distance_m / relative_velocity;
-                if (current_ttc < min_ttc_at_min_class) {
-                    min_ttc_at_min_class = current_ttc;
-                    best_idx = i;
-                }
-            }
         }
     }
     
@@ -343,15 +320,6 @@ CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
         cipo.class_id = obj.class_id;
         cipo.distance_m = obj.distance_m;
         cipo.velocity_ms = obj.velocity_ms;
-        cipo.lateral_offset_m = obj.world_position.x;
-
-        // Recalculate final TTC for the chosen object
-        float relative_velocity = ego_velocity - obj.velocity_ms;
-        if (relative_velocity > 0.1f) {
-            cipo.ttc = obj.distance_m / relative_velocity;
-        } else {
-            cipo.ttc = std::numeric_limits<float>::infinity();
-        }
     }
     
     return cipo;
