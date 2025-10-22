@@ -178,20 +178,30 @@ void objectFinderThread(ObjectFinder& finder,
         
         int count = metrics.frame_count.fetch_add(1) + 1;
         
-        // Print CIPO information
-        if (cipo.exists) {
-            std::cout << "\n========== CIPO DETECTED (Frame " << count << ") ==========\n";
-            std::cout << "Track ID: " << cipo.track_id << " | Class: " << cipo.class_id << "\n";
-            std::cout << "Distance: " << std::fixed << std::setprecision(2) 
-                     << cipo.distance_m << " m\n";
-            std::cout << "Velocity: " << cipo.velocity_ms << " m/s\n";
-            std::cout << "Lateral Offset: " << cipo.lateral_offset_m << " m\n";
-            std::cout << "Time-to-Collision: " << cipo.ttc << " s\n";
-            std::cout << "RSS Safe Distance: " << cipo.safe_distance_rss << " m\n";
-            std::cout << "Status: " << (cipo.is_safe ? "SAFE ✓" : "UNSAFE - BRAKE! ✗") << "\n";
-            std::cout << "Priority Score: " << cipo.priority_score << "\n";
-            std::cout << "========================================\n";
+        // Print a clean table of all tracked objects
+        std::cout << "\n--- [Frame " << count << "] Tracked Objects ---\n";
+        std::cout << std::left << std::setw(10) << "Track ID"
+                  << std::setw(10) << "Class ID"
+                  << std::setw(15) << "Distance (m)"
+                  << std::setw(15) << "Velocity (m/s)" << std::endl;
+        std::cout << "--------------------------------------------------\n";
+
+        for (const auto& obj : tracked) {
+            std::cout << std::left << std::setw(10) << obj.track_id
+                      << std::setw(10) << obj.class_id
+                      << std::fixed << std::setprecision(2) << std::setw(15) << obj.distance_m
+                      << std::fixed << std::setprecision(2) << std::setw(15) << obj.velocity_ms 
+                      << std::endl;
         }
+
+        // Print a simple CIPO summary
+        if (cipo.exists) {
+            std::cout << "\n> CIPO (Closest, Class 0): Track " << cipo.track_id 
+                      << " | Distance: " << std::fixed << std::setprecision(2) << cipo.distance_m << " m\n";
+        } else {
+            std::cout << "\n> CIPO (Closest, Class 0): None\n";
+        }
+        std::cout << "--------------------------------------------------\n";
         
         // Print metrics every 100 frames
         if (metrics.measure_latency && count % 100 == 0) {
@@ -268,20 +278,6 @@ int main(int argc, char** argv)
     std::cout << "Loading homography from: " << homography_yaml << std::endl;
     ObjectFinder finder(homography_yaml, fps);
     
-    // Configure RSS parameters (conservative defaults)
-    RSSParameters rss_params;
-    rss_params.response_time = 1.0f;      // 1 second reaction time
-    rss_params.max_accel = 2.0f;          // 2 m/s² max acceleration
-    rss_params.min_brake_ego = 4.0f;      // 4 m/s² min braking (ego)
-    rss_params.max_brake_front = 6.0f;    // 6 m/s² max braking (front vehicle)
-    finder.setRSSParameters(rss_params);
-    
-    std::cout << "RSS Parameters:" << std::endl;
-    std::cout << "  Response time: " << rss_params.response_time << " s" << std::endl;
-    std::cout << "  Max accel: " << rss_params.max_accel << " m/s²" << std::endl;
-    std::cout << "  Min brake (ego): " << rss_params.min_brake_ego << " m/s²" << std::endl;
-    std::cout << "  Max brake (front): " << rss_params.max_brake_front << " m/s²" << std::endl;
-
     // Queues
     ThreadSafeQueue<TimestampedFrame> capture_queue;
     ThreadSafeQueue<InferenceResult> inference_queue;
