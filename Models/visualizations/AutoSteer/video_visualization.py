@@ -30,14 +30,11 @@ def main():
     )
     parser.add_argument(
         "-o", 
-        "--output_video_dir", 
-        dest = "output_video_dir", 
-        help = "Path to output video directory where the output videos will be saved"
+        "--output_video_path", 
+        dest = "output_video_path", 
+        help = "Path to output video where the output video will be saved"
     )
     args = parser.parse_args()
-
-    if (not os.path.exists(args.output_video_dir)):
-        os.makedirs(args.output_video_dir)
 
     # Saved model checkpoint path
     model_checkpoint_path = args.model_checkpoint_path
@@ -56,10 +53,7 @@ def main():
         return
     
     # Visualization preparation
-    output_filepath_data = os.path.join(
-        args.output_video_dir,
-        "output_video_data.avi"
-    )
+    output_filepath_data = args.output_video_path
     writer_data = cv2.VideoWriter(
         output_filepath_data,
         cv2.VideoWriter_fourcc(*"MJPG"), 
