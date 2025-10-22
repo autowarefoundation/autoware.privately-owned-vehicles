@@ -8,7 +8,7 @@ sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
 
     
-def make_visualization_data(
+def make_visualization(
         image: np.ndarray,
         prediction: np.ndarray
 ):
@@ -120,12 +120,12 @@ def main():
             image = np.array(image)
 
             # Inference
-            binary_segg_pred, path_data_pred = model.inference(image)
+            prediction = model.inference(image)
 
             # Visualization
-            vis_image = make_visualization_data(
+            vis_image = make_visualization(
                 image.copy(), 
-                path_data_pred
+                prediction
             )
             
             output_image_filepath = os.path.join(

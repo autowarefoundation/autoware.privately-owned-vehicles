@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
-from image_visualization import make_visualization_data
+from image_visualization import make_visualization
 
 FRAME_INF_SIZE = (640, 320)
 FRAME_ORI_SIZE = (1280, 720)
@@ -84,12 +84,13 @@ def main():
         # Fetch frame
         image = Image.fromarray(frame)
         image = image.resize(FRAME_INF_SIZE)
+        image = np.array(image)
 
         # Inference
-        seg_pred, data_pred = model.inference(image)
+        prediction = model.inference(image)
 
         # Frame preprocessing
-        vis_image_data = make_visualization_data(image.copy(), data_pred)
+        vis_image_data = make_visualization(image.copy(), prediction)
         vis_image_data = np.array(vis_image_data)
         vis_image_data = cv2.resize(vis_image_data, FRAME_ORI_SIZE)
 
