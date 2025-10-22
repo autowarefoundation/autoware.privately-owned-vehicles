@@ -2,6 +2,7 @@ import os
 import sys
 import cv2
 import numpy as np
+from PIL import Image
 from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
@@ -53,53 +54,12 @@ def make_visualization_data(
     alpha = 0.5
     fused_image = cv2.addWeighted(
         vis_predict_object, alpha,
-        image, 1 - alpha,
+        image, 1,
         0
     )
+    fused_image = Image.fromarray(fused_image)
 
     return fused_image
-
-
-def make_visualization_seg(
-        image: Image,
-        prediction: np.ndarray
-):
-    
-    # Creating visualization object
-    shape = prediction.shape
-    row = shape[0]
-    col = shape[1]
-    seg_pred_object = np.array(
-        np.zeros(
-            (row, col, 3), 
-            dtype = "uint8"
-        )
-    )
-
-    # Foreground object labels
-    pred_labels = np.where(prediction > 0)
-
-    # Visualization
-    COLOR_SEG = (0, 255, 145)       # Lil lime green
-    for i in range(3):
-        seg_pred_object[
-            pred_labels[0],
-            pred_labels[1], 
-            i
-        ] = COLOR_SEG[i]
-    
-    # Alpha blending
-    alpha = 0.5
-    pred_vis = cv2.addWeighted(
-        seg_pred_object, 
-        alpha, 
-        np.array(image), 
-        1,
-        0
-    )
-
-    vis_image = Image.fromarray(pred_vis)
-    return vis_image
 
 
 def main(): 
@@ -157,11 +117,12 @@ def main():
             print(f"Reading Image: {input_image_filepath}")
             image = Image.open(input_image_filepath).convert("RGB")
             image = image.resize((640, 320))
+            image = np.array(image)
 
             # Inference
             binary_segg_pred, path_data_pred = model.inference(image)
 
-            # Data visualization
+            # Visualization
             vis_image = make_visualization_data(
                 image.copy(), 
                 path_data_pred
@@ -172,18 +133,6 @@ def main():
                 f"{img_id}_data.png"
             )
             vis_image.save(output_image_filepath)
-
-            # Segmentation visualization
-            vis_seg = make_visualization_seg(
-                image.copy(), 
-                binary_segg_pred
-            )
-
-            output_seg_filepath = os.path.join(
-                output_image_dirpath,
-                f"{img_id}_seg.png"
-            )
-            vis_seg.save(output_seg_filepath)
 
         else:
             print(f"Skipping non-image file: {filename}")
