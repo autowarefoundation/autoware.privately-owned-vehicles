@@ -57,6 +57,7 @@ def make_visualization(
         image, 1,
         0
     )
+    fused_image = cv2.cvtColor(fused_image, cv2.COLOR_BGR2RGB)
     fused_image = Image.fromarray(fused_image)
 
     return fused_image
