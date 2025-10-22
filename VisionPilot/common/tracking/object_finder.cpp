@@ -77,26 +77,27 @@ float ObjectKalmanFilter::getVelocity() const {
 
 ObjectFinder::ObjectFinder(const std::string& homography_yaml, float fps)
     : fps_(fps), dt_(1.0f / fps), next_track_id_(0), 
-      max_track_age_(10.0f), iou_threshold_(0.3f), ego_lane_width_(3.6f) {
+      max_track_age_(10.0f), iou_threshold_(0.3f) {
     
-    // Load homography matrix from YAML (PathFinder format)
+    // Load homography matrix from YAML
     try {
         YAML::Node config = YAML::LoadFile(homography_yaml);
         
-        if (config["H"]) {
-            std::vector<float> H_data = config["H"].as<std::vector<float>>();
-            if (H_data.size() == 9) {
-                H_ = cv::Mat(3, 3, CV_32F);
-                for (int i = 0; i < 9; i++) {
-                    H_.at<float>(i / 3, i % 3) = H_data[i];
-                }
+        if (config["homography_matrix"]) {
+            const auto& h_node = config["homography_matrix"];
+            int rows = h_node["rows"].as<int>();
+            int cols = h_node["cols"].as<int>();
+            std::vector<float> H_data = h_node["data"].as<std::vector<float>>();
+            
+            if (H_data.size() == 9 && rows == 3 && cols == 3) {
+                H_ = cv::Mat(rows, cols, CV_32F, H_data.data()).clone();
                 LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
             } else {
-                LOG_ERROR("Homography matrix must have 9 elements");
+                LOG_ERROR("Homography matrix must be 3x3 with 9 elements");
                 throw std::runtime_error("Invalid homography format");
             }
         } else {
-            LOG_ERROR("No 'H' field found in YAML file");
+            LOG_ERROR("No 'homography_matrix' field found in YAML file");
             throw std::runtime_error("Missing homography in YAML");
         }
     } catch (const std::exception& e) {
@@ -129,30 +130,6 @@ float ObjectFinder::calculateIoU(const cv::Rect& a, const cv::Rect& b) {
     int union_area = a.area() + b.area() - intersection;
     
     return union_area > 0 ? static_cast<float>(intersection) / union_area : 0.0f;
-}
-
-float ObjectFinder::getClassPriority(int class_id) {
-    // Higher priority = more important for CIPO selection
-    // AutoSpeed classes (adjust based on your training):
-    // 1: Pedestrian, 2: Bicycle, 3: Car (example)
-    switch (class_id) {
-        case 1: return 10.0f;  // Pedestrian (highest priority)
-        case 2: return 8.0f;   // Bicycle
-        case 3: return 5.0f;   // Car
-        default: return 1.0f;  // Unknown
-    }
-}
-
-float ObjectFinder::getInPathScore(float lateral_offset) {
-    // Check if object is within ego lane
-    float abs_offset = std::abs(lateral_offset);
-    if (abs_offset < ego_lane_width_ / 2.0f) {
-        return 1.0f;  // In ego lane
-    } else if (abs_offset < ego_lane_width_ * 1.5f) {
-        return 0.5f;  // Adjacent lane
-    } else {
-        return 0.0f;  // Far from path
-    }
 }
 
 void ObjectFinder::matchDetectionsToTracks(const std::vector<autospeed::Detection>& detections) {
@@ -311,35 +288,6 @@ std::vector<TrackedObject> ObjectFinder::update(
     return tracked_objects_;
 }
 
-float ObjectFinder::calculateRSSSafeDistance(float v_rear, float v_front) {
-    // Mobileye RSS formula:
-    // d_min = [v_r * ρ + 0.5 * a_max_accel * ρ² + (v_r + ρ * a_max_accel)² / (2 * a_min_brake)]
-    //         - v_f² / (2 * a_max_brake)
-    
-    float rho = rss_params_.response_time;
-    float a_max_accel = rss_params_.max_accel;
-    float a_min_brake = rss_params_.min_brake_ego;
-    float a_max_brake = rss_params_.max_brake_front;
-    
-    // Term 1: Reaction distance
-    float term1 = v_rear * rho;
-    
-    // Term 2: Acceleration during reaction
-    float term2 = 0.5f * a_max_accel * rho * rho;
-    
-    // Term 3: Braking distance of rear vehicle
-    float v_rear_after_reaction = v_rear + rho * a_max_accel;
-    float term3 = (v_rear_after_reaction * v_rear_after_reaction) / (2.0f * a_min_brake);
-    
-    // Term 4: Braking distance of front vehicle (subtract)
-    float term4 = (v_front * v_front) / (2.0f * a_max_brake);
-    
-    float d_min = term1 + term2 + term3 - term4;
-    
-    // Ensure non-negative
-    return std::max(0.0f, d_min);
-}
-
 CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
     CIPOInfo cipo;
     cipo.exists = false;
@@ -348,35 +296,46 @@ CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
         return cipo;
     }
     
-    // Calculate priority score for each object
-    float best_priority = -1.0f;
     int best_idx = -1;
+    int min_class_id = std::numeric_limits<int>::max();
+    float min_ttc_at_min_class = std::numeric_limits<float>::infinity();
     
     for (size_t i = 0; i < tracked_objects_.size(); i++) {
         const auto& obj = tracked_objects_[i];
         
-        // Skip objects not tracked long enough
+        // Skip objects not tracked long enough for stable velocity estimate
         if (obj.frames_tracked < 3) continue;
         
-        // Calculate priority components
-        float distance_priority = 1.0f / (obj.distance_m + 1.0f);  // Closer = higher
-        float class_priority = getClassPriority(obj.class_id);
-        float in_path_score = getInPathScore(obj.world_position.x);
-        
-        // Combined priority (adjust weights as needed)
-        float priority = 10.0f * distance_priority + 2.0f * class_priority + 5.0f * in_path_score;
-        
-        // Must be in front and approaching (or slower than ego)
-        bool in_front = obj.world_position.y > 0;  // Positive Y = forward
-        bool relevant = in_front && (obj.velocity_ms < ego_velocity || obj.distance_m < 50.0f);
-        
-        if (relevant && priority > best_priority) {
-            best_priority = priority;
+        // Consider only objects in front of us (positive Y is forward in world coordinates)
+        bool in_front = obj.world_position.y > 0;
+        if (!in_front) continue;
+
+        // CIPO logic: Prioritize the lowest class ID.
+        // If class IDs are the same, prioritize the one with the lower TTC.
+        if (obj.class_id < min_class_id) {
+            min_class_id = obj.class_id;
             best_idx = i;
+            // Reset TTC for the new best class
+            min_ttc_at_min_class = std::numeric_limits<float>::infinity(); 
+            
+            float relative_velocity = ego_velocity - obj.velocity_ms;
+            if (relative_velocity > 0.1f) {
+                min_ttc_at_min_class = obj.distance_m / relative_velocity;
+            }
+
+        } else if (obj.class_id == min_class_id) {
+            float relative_velocity = ego_velocity - obj.velocity_ms;
+            if (relative_velocity > 0.1f) {
+                float current_ttc = obj.distance_m / relative_velocity;
+                if (current_ttc < min_ttc_at_min_class) {
+                    min_ttc_at_min_class = current_ttc;
+                    best_idx = i;
+                }
+            }
         }
     }
     
-    if (best_idx >= 0) {
+    if (best_idx != -1) {
         const auto& obj = tracked_objects_[best_idx];
         
         cipo.exists = true;
@@ -385,21 +344,14 @@ CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
         cipo.distance_m = obj.distance_m;
         cipo.velocity_ms = obj.velocity_ms;
         cipo.lateral_offset_m = obj.world_position.x;
-        cipo.priority_score = best_priority;
-        
-        // Calculate Time-To-Collision
-        float relative_velocity = ego_velocity - obj.velocity_ms;  // Closing speed
+
+        // Recalculate final TTC for the chosen object
+        float relative_velocity = ego_velocity - obj.velocity_ms;
         if (relative_velocity > 0.1f) {
-            cipo.ttc = cipo.distance_m / relative_velocity;
+            cipo.ttc = obj.distance_m / relative_velocity;
         } else {
             cipo.ttc = std::numeric_limits<float>::infinity();
         }
-        
-        // Calculate RSS safe distance
-        cipo.safe_distance_rss = calculateRSSSafeDistance(ego_velocity, obj.velocity_ms);
-        
-        // Check safety
-        cipo.is_safe = (cipo.distance_m >= cipo.safe_distance_rss);
     }
     
     return cipo;
