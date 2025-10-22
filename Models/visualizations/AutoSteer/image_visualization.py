@@ -14,16 +14,10 @@ def make_visualization_data(
         prediction: np.ndarray
 ):
 
-    # Fetch predictions + calculations
-    left_lane_offset = prediction[0] * 640
-    right_left_offset = prediction[1] * 640
-    ego_path_offset = prediction[2] * 640
-    start_angle = prediction[3]
-    start_delta_x = ego_path_offset + 100 * math.sin(start_angle)
-    start_delta_y = 319 - (100 * math.cos(start_angle))
-    end_angle = prediction[4]
-    end_delta_x = ego_path_offset + 100 * math.sin(end_angle)
-    end_delta_y = 319 - (100 * math.cos(end_angle))
+    # Fetch predictions and groundtruth labels
+    pred_egoleft_lanes = np.where(prediction[0,:,:] > 0)
+    pred_egoright_lanes = np.where(prediction[1,:,:] > 0)
+    pred_other_lanes = np.where(prediction[2,:,:] > 0)
 
     # Start drawing
     draw = ImageDraw.Draw(image)
