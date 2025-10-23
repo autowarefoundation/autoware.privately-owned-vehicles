@@ -396,6 +396,10 @@ def parseAnnotations(
 
             left_ego = lines_sortedBy_anchor[ego_indexes[0]]
             right_ego = lines_sortedBy_anchor[ego_indexes[1]]
+            others = [
+                line for i, line in enumerate(lines_sortedBy_anchor)
+                if i not in ego_indexes
+            ]
 
             # # Determine drivable path from 2 egos, and switch on interp cuz this is CurveLanes
             # drivable_path = getDrivablePath(
@@ -410,11 +414,11 @@ def parseAnnotations(
                 
             # Parse processed data, all coords normalized
             anno_data = {
-                "lanes" : [
+                "others" : [
                     normalizeCoords(line, new_img_width, new_img_height) 
-                    for line in lines_sortedBy_anchor
+                    for line in others
                 ],
-                "ego_indexes" : ego_indexes,
+                # "ego_indexes" : ego_indexes,
                 # "drivable_path" : normalizeCoords(drivable_path, new_img_width, new_img_height),
                 "egoleft_lane" : normalizeCoords(left_ego, new_img_width, new_img_height),
                 "egoright_lane" : normalizeCoords(right_ego, new_img_width, new_img_height),
