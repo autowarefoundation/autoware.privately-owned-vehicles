@@ -517,12 +517,13 @@ if __name__ == "__main__":
     """
     --output_dir
         |----image
+        |----mask
         |----visualization
         |----drivable_path.json
     """
     list_subdirs = [
         "image", 
-        # "segmentation",   # Removed on 2025/06/05 
+        "mask",
         "visualization"
     ]
     if (os.path.exists(output_dir)):
@@ -583,6 +584,7 @@ if __name__ == "__main__":
                         raw_img = raw_img,
                         anno_entry = this_data,
                         raw_dir = os.path.join(output_dir, "image"),
+                        mask_dir = os.path.join(output_dir, "mask"),
                         visualization_dir = os.path.join(output_dir, "visualization"),
                         init_img_height = img_height,
                         init_img_width = img_width,
