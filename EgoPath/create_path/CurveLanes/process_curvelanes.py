@@ -558,18 +558,21 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataset_dir", 
+        "-d",
         type = str, 
         help = "CurveLanes directory (should contain exactly `Curvelanes` if you get it from Kaggle)",
         required = True
     )
     parser.add_argument(
         "--output_dir", 
-        type = str, 
+        "-o",
+        type = str,
         help = "Output directory",
         required = True
     )
     parser.add_argument(
         "--sampling_step",
+        "-s",
         type = int,
         help = "Sampling step for each split/class",
         required = False,
@@ -577,6 +580,7 @@ if __name__ == "__main__":
     # For debugging only
     parser.add_argument(
         "--early_stopping",
+        "-e",
         type = int,
         help = "Num. files each split/class you wanna limit, instead of whole set.",
         required = False
