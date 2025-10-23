@@ -6,6 +6,7 @@ import os
 import shutil
 import warnings
 import numpy as np
+from tqdm import tqdm
 from PIL import Image, ImageDraw
 
 
@@ -646,7 +647,11 @@ if __name__ == "__main__":
         with open(raw_img_book, "r") as f:
             list_raw_files = f.readlines()
 
-            for i in range(0, len(list_raw_files), sampling_step):
+            for i in tqdm(
+                range(0, len(list_raw_files), sampling_step),
+                desc = "Processing images: ",
+                colour = "green"
+            ):
                 img_path = os.path.join(dataset_dir, ROOT_DIR, split, list_raw_files[i]).strip()
                 img_id_counter += 1
 
