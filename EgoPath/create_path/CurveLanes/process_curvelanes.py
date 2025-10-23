@@ -109,19 +109,25 @@ def getLineAnchor(
     return (x0, a, b)
 
 
-def getEgoIndexes(anchors, new_img_width):
+def getEgoIndexes(
+        anchors, 
+        new_img_width,
+        verbose: bool = False
+):
     """
     Identifies 2 ego lanes - left and right - from a sorted list of line anchors.
     """
     for i in range(len(anchors)):
         if (anchors[i][0] >= new_img_width / 2):
             if (i == 0):
-                print("NO LINES on the LEFT side of frame. Registering FIRST 2 lines on the right side as egolines.")
+                if (verbose):
+                    print("NO LINES on the LEFT side of frame. Registering FIRST 2 lines on the right side as egolines.")
                 return (i, i + 1)
             
             return (i - 1, i)
-    
-    print("NO LINES on the RIGHT side of frame. Registering LAST 2 lines on the left side as egolines.")
+
+    if (verbose):
+        print("NO LINES on the RIGHT side of frame. Registering LAST 2 lines on the left side as egolines.")
     return (-2, -1)
 
 
