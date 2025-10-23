@@ -76,7 +76,11 @@ def interpLine(line: list, points_quota: int):
     return list(zip(x_new, y_new))
 
 
-def getLineAnchor(line, new_img_height):
+def getLineAnchor(
+        line, 
+        new_img_height,
+        verbose: bool = False
+):
     """
     Determine "anchor" point of a line.
     """
@@ -93,7 +97,8 @@ def getLineAnchor(line, new_img_height):
             error_lane = "Vertical"
         elif (y1 == y2):
             error_lane = "Horizontal"
-        warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
+        if (verbose):
+            warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
         return (x1, None, None)
     
     a = (y2 - y1) / (x2 - x1)
@@ -369,6 +374,7 @@ def parseAnnotations(
         init_img_height,
         crop = None,
         resize = None,
+        verbose: bool = False
     ):
     """
     Parses line annotations from raw img + anno files, then extracts normalized GT data.
@@ -377,7 +383,8 @@ def parseAnnotations(
     with open(anno_path, "r") as f:
         read_data = json.load(f)["Lines"]
         if (len(read_data) < 2):    # Some files are empty, or having less than 2 lines
-            warnings.warn(f"Parsing {anno_path} : insufficient line amount: {len(read_data)} in raw data. Skipping this frame.")
+            if (verbose):
+                warnings.warn(f"Parsing {anno_path} : insufficient line amount: {len(read_data)} in raw data. Skipping this frame.")
             return None
         else:
             # Parse data from those JSON lines, also sort by y
@@ -426,7 +433,8 @@ def parseAnnotations(
             # Remove empty lanes
             lines = [line for line in lines if (line and len(line) >= 2)]   # Pick lines with >= 2 points
             if (len(lines) < 2):    # Ignore frames with less than 2 lines
-                warnings.warn(f"Parsing {anno_path}: insufficient line amount after cropping: {len(lines)}. Skipping this frame.")
+                if (verbose):
+                    warnings.warn(f"Parsing {anno_path}: insufficient line amount after cropping: {len(lines)}. Skipping this frame.")
                 return None
             
             # Determine 2 ego lines via line anchors
@@ -451,7 +459,7 @@ def parseAnnotations(
             )
 
             if (type(ego_indexes) is str):
-                if (ego_indexes.startswith("NO")):
+                if (ego_indexes.startswith("NO")) and (verbose):
                     warnings.warn(f"Parsing {anno_path}: {ego_indexes}")
                 return None
 
