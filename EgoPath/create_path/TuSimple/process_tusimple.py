@@ -165,6 +165,7 @@ def annotateGT(
     """
     Annotates and saves an image with:
         - Raw image, in "output_dir/image".
+        - Lane seg mask, in "output_dir/mask".
         - Annotated image with all lanes, in "output_dir/visualization".
 
     """

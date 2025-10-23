@@ -262,7 +262,7 @@ def calcLaneSegMask(
 
 def annotateGT(
         raw_img, anno_entry,
-        raw_dir, visualization_dir,
+        raw_dir, mask_dir, visualization_dir,
         init_img_width, init_img_height,
         normalized = True,
         resize = None,
@@ -271,6 +271,7 @@ def annotateGT(
     """
     Annotates and saves an image with:
         - Raw image, in "output_dir/image".
+        - Lane seg mask, in "output_dir/mask".
         - Annotated image with all lanes, in "output_dir/visualization".
     """
 
@@ -310,39 +311,56 @@ def annotateGT(
     # Copy raw img and put it in raw dir.
     raw_img.save(os.path.join(raw_dir, save_name))
 
-    # Draw all lanes & lines
-    draw = ImageDraw.Draw(raw_img)
-    lane_colors = {
-        "outer_red": (255, 0, 0), 
-        "ego_green": (0, 255, 0), 
-        "drive_path_yellow": (255, 255, 0)
-    }
-    lane_w = 5
-    # Draw lanes
-    for idx, line in enumerate(anno_entry["lanes"]):
-        if (normalized):
-            line = [
-                (x * new_img_width, y * new_img_height) 
-                for x, y in line
-            ]
-        if (idx in anno_entry["ego_indexes"]):
-            # Ego lanes, in green
-            draw.line(line, fill = lane_colors["ego_green"], width = lane_w)
-        else:
-            # Outer lanes, in red
-            draw.line(line, fill = lane_colors["outer_red"], width = lane_w)
-    # Drivable path, in yellow
-    if (normalized):
-        drivable_renormed = [
-            (x * new_img_width, y * new_img_height) 
-            for x, y in anno_entry["drivable_path"]
-        ]
-    else:
-        drivable_renormed = anno_entry["drivable_path"]
-    draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
+    # # Draw all lanes & lines
+    # draw = ImageDraw.Draw(raw_img)
+    # lane_colors = {
+    #     "outer_red": (255, 0, 0), 
+    #     "ego_green": (0, 255, 0), 
+    #     "drive_path_yellow": (255, 255, 0)
+    # }
+    # lane_w = 5
+    # # Draw lanes
+    # for idx, line in enumerate(anno_entry["lanes"]):
+    #     if (normalized):
+    #         line = [
+    #             (x * new_img_width, y * new_img_height) 
+    #             for x, y in line
+    #         ]
+    #     if (idx in anno_entry["ego_indexes"]):
+    #         # Ego lanes, in green
+    #         draw.line(line, fill = lane_colors["ego_green"], width = lane_w)
+    #     else:
+    #         # Outer lanes, in red
+    #         draw.line(line, fill = lane_colors["outer_red"], width = lane_w)
+    # # Drivable path, in yellow
+    # if (normalized):
+    #     drivable_renormed = [
+    #         (x * new_img_width, y * new_img_height) 
+    #         for x, y in anno_entry["drivable_path"]
+    #     ]
+    # else:
+    #     drivable_renormed = anno_entry["drivable_path"]
+    # draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
 
-    # Save visualization img, same format with raw, just different dir, and jpg since it's vis 
-    raw_img.save(os.path.join(visualization_dir, save_name.replace("png", "jpg")))
+    # Fetch seg mask as RGB
+    mask_array = np.array(
+        anno_entry["mask"], 
+        dtype = np.uint8
+    )
+    mask_img = Image.fromarray(mask_array).convert("RGB")
+
+    # Save mask
+    mask_img.save(os.path.join(mask_dir, save_name))
+
+    # Overlay mask on raw image, ratio 1:1
+    overlayed_img = Image.blend(
+        raw_img, 
+        mask_img, 
+        alpha = 0.5
+    )
+
+    # Save visualization img, JPG for lighter weight, just different dir
+    overlayed_img.save(os.path.join(visualization_dir, save_name.replace(".png", ".jpg")))
 
 
 def parseAnnotations(
