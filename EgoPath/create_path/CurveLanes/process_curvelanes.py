@@ -422,8 +422,6 @@ def parseAnnotations(
                 # "drivable_path" : normalizeCoords(drivable_path, new_img_width, new_img_height),
                 "egoleft_lane" : normalizeCoords(left_ego, new_img_width, new_img_height),
                 "egoright_lane" : normalizeCoords(right_ego, new_img_width, new_img_height),
-                "img_width" : new_img_width,
-                "img_height" : new_img_height,
             }
 
             return anno_data
@@ -602,8 +600,6 @@ if __name__ == "__main__":
                     # data_master[img_index]["drivable_path"] = round_line_floats(this_data["drivable_path"])
                     data_master[img_index]["egoleft_lane"] = round_line_floats(this_data["egoleft_lane"])
                     data_master[img_index]["egoright_lane"] = round_line_floats(this_data["egoright_lane"])
-                    data_master[img_index]["img_height"] = this_data["img_height"]
-                    data_master[img_index]["img_width"] = this_data["img_width"]
 
                     # Early stopping, it defined
                     if (early_stopping and img_id_counter >= early_stopping - 1):
