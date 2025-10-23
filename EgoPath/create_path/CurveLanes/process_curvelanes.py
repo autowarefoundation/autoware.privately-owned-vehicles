@@ -401,6 +401,30 @@ def parseAnnotations(
                 if i not in ego_indexes
             ]
 
+            # Create segmentation masks:
+            # Channel 1: egoleft lane
+            # Channel 2: egoright lane
+            # Channel 3: other lanes
+            mask = np.zeros(
+                (new_img_height, new_img_width, 3), 
+                dtype = np.uint8
+            )
+            mask[:, :, 0] = calcLaneSegMask(
+                [left_ego], 
+                new_img_width, new_img_height, 
+                normalized = False
+            )
+            mask[:, :, 1] = calcLaneSegMask(
+                [right_ego], 
+                new_img_width, new_img_height, 
+                normalized = False
+            )
+            mask[:, :, 2] = calcLaneSegMask(
+                other_lanes, 
+                new_img_width, new_img_height, 
+                normalized = False
+            )
+
             # # Determine drivable path from 2 egos, and switch on interp cuz this is CurveLanes
             # drivable_path = getDrivablePath(
             #     left_ego, right_ego,
@@ -422,6 +446,7 @@ def parseAnnotations(
                 # "drivable_path" : normalizeCoords(drivable_path, new_img_width, new_img_height),
                 "egoleft_lane" : normalizeCoords(left_ego, new_img_width, new_img_height),
                 "egoright_lane" : normalizeCoords(right_ego, new_img_width, new_img_height),
+                "mask" : mask.tolist()
             }
 
             return anno_data
