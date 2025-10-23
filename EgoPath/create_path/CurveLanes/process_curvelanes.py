@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import shutil
-import math
 import warnings
 import numpy as np
 from PIL import Image, ImageDraw
@@ -304,7 +303,6 @@ def annotateGT(
 
 
 def parseAnnotations(
-        frame_id,
         anno_path, 
         init_img_width,
         init_img_height,
@@ -399,31 +397,32 @@ def parseAnnotations(
             left_ego = lines_sortedBy_anchor[ego_indexes[0]]
             right_ego = lines_sortedBy_anchor[ego_indexes[1]]
 
-            # Determine drivable path from 2 egos, and switch on interp cuz this is CurveLanes
-            drivable_path = getDrivablePath(
-                left_ego, right_ego,
-                new_img_height,
-                y_coords_interp = True
-            )
+            # # Determine drivable path from 2 egos, and switch on interp cuz this is CurveLanes
+            # drivable_path = getDrivablePath(
+            #     left_ego, right_ego,
+            #     new_img_height,
+            #     y_coords_interp = True
+            # )
 
-            if (type(drivable_path) is str):
-                warnings.warn(f"Parsing {anno_path}: {drivable_path}")
-            else:
-                # Parse processed data, all coords normalized
-                anno_data = {
-                    "lanes" : [
-                        normalizeCoords(line, new_img_width, new_img_height) 
-                        for line in lines_sortedBy_anchor
-                    ],
-                    "ego_indexes" : ego_indexes,
-                    "drivable_path" : normalizeCoords(drivable_path, new_img_width, new_img_height),
-                    "egoleft_lane" : normalizeCoords(left_ego, new_img_width, new_img_height),
-                    "egoright_lane" : normalizeCoords(right_ego, new_img_width, new_img_height),
-                    "img_width" : new_img_width,
-                    "img_height" : new_img_height,
-                }
+            # if (type(drivable_path) is str):
+            #     warnings.warn(f"Parsing {anno_path}: {drivable_path}")
+            # else:
+                
+            # Parse processed data, all coords normalized
+            anno_data = {
+                "lanes" : [
+                    normalizeCoords(line, new_img_width, new_img_height) 
+                    for line in lines_sortedBy_anchor
+                ],
+                "ego_indexes" : ego_indexes,
+                # "drivable_path" : normalizeCoords(drivable_path, new_img_width, new_img_height),
+                "egoleft_lane" : normalizeCoords(left_ego, new_img_width, new_img_height),
+                "egoright_lane" : normalizeCoords(right_ego, new_img_width, new_img_height),
+                "img_width" : new_img_width,
+                "img_height" : new_img_height,
+            }
 
-                return anno_data
+            return anno_data
 
 
 if __name__ == "__main__":
@@ -572,7 +571,6 @@ if __name__ == "__main__":
                 anno_path = img_path.replace(".jpg", ".lines.json").replace(IMG_DIR, LABEL_DIR)
 
                 this_data = parseAnnotations(
-                    frame_id = os.path.abspath(img_path),
                     anno_path = anno_path,
                     init_img_width = img_width,
                     init_img_height = img_height,
@@ -595,7 +593,7 @@ if __name__ == "__main__":
                     # Save as 6-digit incremental index
                     img_index = str(str(img_id_counter).zfill(6))
                     data_master[img_index] = {}
-                    data_master[img_index]["drivable_path"] = round_line_floats(this_data["drivable_path"])
+                    # data_master[img_index]["drivable_path"] = round_line_floats(this_data["drivable_path"])
                     data_master[img_index]["egoleft_lane"] = round_line_floats(this_data["egoleft_lane"])
                     data_master[img_index]["egoright_lane"] = round_line_floats(this_data["egoright_lane"])
                     data_master[img_index]["img_height"] = this_data["img_height"]
