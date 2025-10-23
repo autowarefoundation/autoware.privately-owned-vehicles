@@ -108,11 +108,34 @@ ObjectFinder::ObjectFinder(const std::string& homography_yaml, float fps)
 }
 
 cv::Point2f ObjectFinder::imageToWorld(const cv::Point2f& image_point) {
-    // Apply homography: [X_world, Y_world, 1]^T = H * [x_img, y_img, 1]^T
-    std::vector<cv::Point2f> src = {image_point};
-    std::vector<cv::Point2f> dst;
-    cv::perspectiveTransform(src, dst, H_);
-    return dst[0];
+    // Manually apply the homography transformation to ensure correctness.
+    // This is equivalent to: [x', y', w']^T = H * [u, v, 1]^T
+    // and then (X, Y) = (x'/w', y'/w')
+
+    // Ensure the matrix is not empty and is of the correct type
+    if (H_.empty() || H_.type() != CV_32F) {
+        LOG_ERROR("Homography matrix is not valid for transformation.");
+        return cv::Point2f(0.f, 0.f);
+    }
+
+    const float* h = H_.ptr<float>();
+    const float u = image_point.x;
+    const float v = image_point.y;
+
+    // Denominator of the perspective division
+    const float w_prime = h[6] * u + h[7] * v + h[8];
+
+    if (std::abs(w_prime) < 1e-7) {
+        // Avoid division by zero. This case is unlikely with a valid homography.
+        return cv::Point2f(0.f, 0.f);
+    }
+
+    // Transformed coordinates
+    const float x_prime = h[0] * u + h[1] * v + h[2];
+    const float y_prime = h[3] * u + h[4] * v + h[5];
+
+    // Final world coordinates after perspective division
+    return cv::Point2f(x_prime / w_prime, y_prime / w_prime);
 }
 
 float ObjectFinder::calculateDistance(const cv::Point2f& world_point) {
@@ -218,9 +241,11 @@ void ObjectFinder::updateTracks(const std::vector<autospeed::Detection>& detecti
             tracked_objects_[i].frames_tracked++;
             tracked_objects_[i].frames_since_seen = 0;
         } else {
-            // Unmatched: predict only
+            // Unmatched: predict the next state but DO NOT update the distance
+            // with the prediction. The distance remains the last known good value
+            // until a new detection provides a measurement.
             tracked_objects_[i].kalman.predict(dt_);
-            tracked_objects_[i].distance_m = tracked_objects_[i].kalman.getDistance();
+            // tracked_objects_[i].distance_m = tracked_objects_[i].kalman.getDistance(); // This line was causing the error
             tracked_objects_[i].velocity_ms = tracked_objects_[i].kalman.getVelocity();
             tracked_objects_[i].frames_since_seen++;
         }
