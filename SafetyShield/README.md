@@ -45,7 +45,7 @@ The output directory should be used to save/load the plot/matrices/saved images.
 To run the estimation code
 ```
 cd SafetyShield
-python3 main.py scripts/main.py path/to/output/vehicle_to_pixel_la.npy path/to/dataset/test/ path/to/dataset/cipo/cipo/training/ path/to/output/test_output/
+python3 scripts/main.py path/to/output/vehicle_to_pixel_la.npy path/to/dataset/test/ path/to/dataset/cipo/cipo/training/ path/to/output/test_output/
 ```
 
 This will output the timeseries plot of L2 error and for ego and object velocities. By passing the --visualize flag, the code will also save perframe annotated image. Note however that this is slow and could consume up a lot of space if run with a lot of input data.
