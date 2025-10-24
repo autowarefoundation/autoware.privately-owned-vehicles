@@ -11,7 +11,7 @@ LongitudinalControllerNode::LongitudinalControllerNode(const rclcpp::NodeOptions
   RCLCPP_INFO(this->get_logger(), "LongitudinalController Node started");
   forward_velocity_ = 0.0;
   TARGET_VEL = 22;   // 80 km/h in m/s
-  ACC_LAT_MAX = 7.0; // m/s^2
+  ACC_LAT_MAX = 2.25; // 7.0 m/s^2
   TARGET_VEL_CAPPED = TARGET_VEL;
 }
 
