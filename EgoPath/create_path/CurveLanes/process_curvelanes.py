@@ -449,14 +449,17 @@ def parseAnnotations(
             # First get the anchors
             # Here I attach index i before each anchor to support retracking after sort by x-coord)
             line_anchors = sorted(
-                [(i, getLineAnchor(line, new_img_height)) for i, line in enumerate(lines)],
+                [
+                    (i, getLineAnchor(line, new_img_height)) 
+                    for i, line in enumerate(lines)
+                ],
                 key = lambda x : x[1][0],
                 reverse = False
             )
                 
             # Sort the lines by order of their corresponding anchors (which is also sorted)
             lines_sortedBy_anchor = [
-                lines[anchor[0]]
+                [(anchor[1][0], new_img_height)] + lines[anchor[0]]
                 for anchor in line_anchors
             ]
 
