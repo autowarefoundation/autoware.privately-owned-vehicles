@@ -696,6 +696,30 @@ def parseData(
         )
 
         return None
+    
+    # Create segmentation masks:
+    # Channel 1: egoleft lane
+    # Channel 2: egoright lane
+    # Channel 3: other lanes
+    mask = np.zeros(
+        (H, W, 3), 
+        dtype = np.uint8
+    )
+    mask[:, :, 0] = calcLaneSegMask(
+        [egoleft_lane], 
+        W, H,
+        normalized = False
+    )
+    mask[:, :, 1] = calcLaneSegMask(
+        [egoright_lane], 
+        W, H,
+        normalized = False
+    )
+    mask[:, :, 2] = calcLaneSegMask(
+        other_lanes, 
+        W, H,
+        normalized = False
+    )
 
     # Assemble all data
     anno_entry = {
@@ -703,6 +727,7 @@ def parseData(
         "other_lanes"     : other_lanes,
         "egoleft_lane"    : egoleft_lane,
         "egoright_lane"   : egoright_lane,
+        "mask"            : mask.tolist(),
         # "drivable_path"   : drivable_path
     }
 
@@ -910,7 +935,7 @@ if __name__ == "__main__":
 
     """
 
-    list_subdirs = ["visualization"]
+    list_subdirs = ["visualization", "mask"]
 
     if (os.path.exists(output_dir)):
         warnings.warn(f"Output directory {output_dir} already exists. Purged")
