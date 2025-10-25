@@ -411,7 +411,7 @@ def parseData(
                 H - 1
             ))
 
-        # Append to all lanes
+        # Append to all lanes, with top-cropped y-coords
         all_lanes.append(this_lane)
 
         # this_attribute = lane["attribute"]
@@ -697,27 +697,46 @@ def parseData(
 
         return None
     
+    # FROM HERE, TOP CROPPING IS NOW IN EFFECT
+    
+    # Top-crop all lines
+    egoleft_lane = [
+        (x, y - CROP_TOP)
+        for x, y in egoleft_lane
+    ]
+    egoright_lane = [
+        (x, y - CROP_TOP)
+        for x, y in egoright_lane
+    ]
+    other_lanes = [
+        [
+            (x, y - CROP_TOP)
+            for x, y in lane
+        ]
+        for lane in other_lanes
+    ]
+    
     # Create segmentation masks:
     # Channel 1: egoleft lane
     # Channel 2: egoright lane
     # Channel 3: other lanes
     mask = np.zeros(
-        (H, W, 3), 
+        (NEW_H, W, 3), 
         dtype = np.uint8
     )
     mask[:, :, 0] = calcLaneSegMask(
         [egoleft_lane], 
-        W, H,
+        W, NEW_H,
         normalized = False
     )
     mask[:, :, 1] = calcLaneSegMask(
         [egoright_lane], 
-        W, H,
+        W, NEW_H,
         normalized = False
     )
     mask[:, :, 2] = calcLaneSegMask(
         other_lanes, 
-        W, H,
+        W, NEW_H,
         normalized = False
     )
 
@@ -798,6 +817,14 @@ def annotateGT(
             anno_entry["img_path"]
         )
     ).convert("RGB")
+
+    # Crop top
+    raw_img = raw_img.crop((
+        0, 
+        CROP_TOP, 
+        W, 
+        H
+    ))
     
     # draw = ImageDraw.Draw(raw_img)
     
@@ -880,8 +907,11 @@ if __name__ == "__main__":
     }
 
     # All 200k scenes have reso 1920 x 1280. I checked it manually.
+    # Now I will cut the top 320 pixels to make it 1920 x 960, exactly 2:1 ratio.
     W = 1920
     H = 1280
+    CROP_TOP = 320
+    NEW_H = H - CROP_TOP
 
     # ============================== Parsing args ============================== #
 
@@ -1021,20 +1051,20 @@ if __name__ == "__main__":
                             "egoleft_lane"  : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["egoleft_lane"],
-                                    W, H
+                                    W, NEW_H
                                 )
                             ),
                             "egoright_lane" : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["egoright_lane"],
-                                    W, H
+                                    W, NEW_H
                                 )
                             ),
                             "other_lanes"   : [
                                 round_line_floats(
                                     normalizeCoords(
                                         lane,
-                                        W, H
+                                        W, NEW_H
                                     )
                                 )
                                 for lane in this_label_data["other_lanes"]
@@ -1042,7 +1072,7 @@ if __name__ == "__main__":
                             # "drivable_path" : round_line_floats(
                             #     normalizeCoords(
                             #         this_label_data["drivable_path"],
-                            #         W, H
+                            #         W, NEW_H
                             #     )
                             # )
                         }
