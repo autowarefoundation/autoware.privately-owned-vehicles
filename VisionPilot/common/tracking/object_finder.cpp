@@ -83,22 +83,43 @@ ObjectFinder::ObjectFinder(const std::string& homography_yaml, float fps)
     try {
         YAML::Node config = YAML::LoadFile(homography_yaml);
         
-        if (config["homography_matrix"]) {
+        // OpenCV's FileStorage format for matrices is different. Let's support both.
+        if (config["homography_matrix"]) { // Our custom format
             const auto& h_node = config["homography_matrix"];
             int rows = h_node["rows"].as<int>();
             int cols = h_node["cols"].as<int>();
-            std::vector<float> H_data = h_node["data"].as<std::vector<float>>();
+            std::vector<double> H_data = h_node["data"].as<std::vector<double>>();
             
             if (H_data.size() == 9 && rows == 3 && cols == 3) {
-                H_ = cv::Mat(rows, cols, CV_32F, H_data.data()).clone();
+                H_ = cv::Mat(rows, cols, CV_64F, H_data.data()).clone();
+                H_.convertTo(H_, CV_32F); // Convert to float for our calculations
                 LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
             } else {
-                LOG_ERROR("Homography matrix must be 3x3 with 9 elements");
-                throw std::runtime_error("Invalid homography format");
+                throw std::runtime_error("Invalid 'homography_matrix' format");
+            }
+        } else if (config["H"]) { // Standard OpenCV format or a flat list
+            const auto& h_node = config["H"];
+            std::vector<double> H_data;
+
+            if (h_node.IsSequence()) {
+                // Handle flat list format: H: [a, b, c, d, e, f, g, h, i]
+                H_data = h_node.as<std::vector<double>>();
+            } else {
+                // Handle structured format: H: { rows: 3, cols: 3, data: [...] }
+                int rows = h_node["rows"].as<int>();
+                int cols = h_node["cols"].as<int>();
+                H_data = h_node["data"].as<std::vector<double>>();
+            }
+            
+            if (H_data.size() == 9) {
+                H_ = cv::Mat(3, 3, CV_64F, H_data.data()).clone();
+                H_.convertTo(H_, CV_32F); // Convert to float for our calculations
+                LOG_INFO(("Loaded OpenCV-style homography matrix from " + homography_yaml).c_str());
+            } else {
+                throw std::runtime_error("Invalid 'H' matrix format: must have 9 elements");
             }
         } else {
-            LOG_ERROR("No 'homography_matrix' field found in YAML file");
-            throw std::runtime_error("Missing homography in YAML");
+            throw std::runtime_error("No 'homography_matrix' or 'H' field found in YAML");
         }
     } catch (const std::exception& e) {
         LOG_ERROR(("Failed to load homography: " + std::string(e.what())).c_str());
@@ -117,10 +138,12 @@ cv::Point2f ObjectFinder::imageToWorld(const cv::Point2f& image_point) {
         LOG_ERROR("Homography matrix is not valid for transformation.");
         return cv::Point2f(0.f, 0.f);
     }
+    std::cout<< "Homography Matrix:\n" << H_ << "\n";
 
     const float* h = H_.ptr<float>();
     const float u = image_point.x;
     const float v = image_point.y;
+    std::cout << "Image Point: (" << u << ", " << v << ")\n";
 
     // Denominator of the perspective division
     const float w_prime = h[6] * u + h[7] * v + h[8];
@@ -129,10 +152,12 @@ cv::Point2f ObjectFinder::imageToWorld(const cv::Point2f& image_point) {
         // Avoid division by zero. This case is unlikely with a valid homography.
         return cv::Point2f(0.f, 0.f);
     }
+    
 
     // Transformed coordinates
     const float x_prime = h[0] * u + h[1] * v + h[2];
     const float y_prime = h[3] * u + h[4] * v + h[5];
+    std::cout << "Transformed (pre-div): (" << x_prime << ", " << y_prime << ", " << w_prime << ")\n";
 
     // Final world coordinates after perspective division
     return cv::Point2f(x_prime / w_prime, y_prime / w_prime);
@@ -140,7 +165,7 @@ cv::Point2f ObjectFinder::imageToWorld(const cv::Point2f& image_point) {
 
 float ObjectFinder::calculateDistance(const cv::Point2f& world_point) {
     // Ego vehicle is at origin (0, 0)
-    return std::sqrt(world_point.x * world_point.x + world_point.y * world_point.y);
+    return world_point.y;  // Forward distance along Y-axis
 }
 
 float ObjectFinder::calculateIoU(const cv::Rect& a, const cv::Rect& b) {
@@ -277,6 +302,8 @@ void ObjectFinder::createNewTracks(const std::vector<autospeed::Detection>& dete
             
             obj.world_position = imageToWorld(obj.bbox_bottom_center);
             obj.distance_m = calculateDistance(obj.world_position);
+            std::cout << "Creating new track ID " << obj.track_id 
+                      << " at distance " << obj.distance_m << " m\n";
             obj.velocity_ms = 0.0f;  // Unknown initially
             
             // Initialize Kalman filter
