@@ -1,10 +1,9 @@
 #include "pathfinder_node.hpp"
 
-//TODO: track and update curvature over time instead of only at current timestep
+// TODO: track and update curvature over time instead of only at current timestep
 
 PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathfinder_node", "/pathfinder", options)
 {
-  this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   bayesFilter = Estimator();
   bayesFilter.configureFusionGroups({
       // {start_idx,end_idx}
@@ -34,7 +33,17 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
   pub_laneR_ = this->create_publisher<nav_msgs::msg::Path>("egoLaneR", 3);
   pub_path_ = this->create_publisher<nav_msgs::msg::Path>("egoPath", 3);
 
-  timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&PathFinderNode::timer_callback, this));
+  timer_ = rclcpp::create_timer(this->get_node_base_interface(),
+                                this->get_node_timers_interface(),
+                                this->get_clock(),
+                                std::chrono::milliseconds(10),
+                                std::bind(&PathFinderNode::timer_callback, this));
+
+  drivCorr_timer_ = rclcpp::create_timer(this->get_node_base_interface(),
+                                         this->get_node_timers_interface(),
+                                         this->get_clock(),
+                                         std::chrono::milliseconds(50),
+                                         std::bind(&PathFinderNode::cb_drivCorr, this));
 
   left_msg = std::make_shared<nav_msgs::msg::Path>();
   right_msg = std::make_shared<nav_msgs::msg::Path>();
@@ -65,8 +74,8 @@ std::array<double, 3> PathFinderNode::pathMsg2Coeff(const nav_msgs::msg::Path::S
 {
   auto now = this->get_clock()->now();
   auto msg_time = rclcpp::Time(msg->header.stamp);
-  rclcpp::Duration threshold(0, 100000000); // (sec, nanosec)
-  if ((now - msg_time) > threshold)
+  rclcpp::Duration threshold(0, 80000000); // (sec, nanosec), 20fps camera -> 50ms betwween frames
+  if ((now - msg_time) > threshold)        // reject stale messages
   {
     RCLCPP_WARN(this->get_logger(), "Dropping stale message %ld nsec old", (now - msg_time).nanoseconds());
     return {std::numeric_limits<double>::quiet_NaN(),
@@ -81,45 +90,18 @@ std::array<double, 3> PathFinderNode::pathMsg2Coeff(const nav_msgs::msg::Path::S
   return fitQuadPoly(points);
 }
 
-void PathFinderNode::timer_callback()
+void PathFinderNode::cb_drivCorr()
 {
+  // run at fixed 20 hz, create new measurement from fresh path, then call update with measurement
   auto left_coeff = pathMsg2Coeff(left_msg);
   auto right_coeff = pathMsg2Coeff(right_msg);
   auto path_coeff = pathMsg2Coeff(path_msg);
   std::array<Gaussian, STATE_DIM> measurement;
-  std::array<Gaussian, STATE_DIM> process;
-  std::random_device rd;
-  std::default_random_engine generator(rd());
-  std::uniform_real_distribution<double> dist(-epsilon, epsilon);
-  for (size_t i = 0; i < STATE_DIM; ++i)
-  {
-    process[i].mean = dist(generator);
-    // process[i].variance = proc_SD * proc_SD;
-    // measurement[i].variance = meas_SD * meas_SD;
-  }
-  double STD_P_YAW = 0.2;    // rad
-  double STD_P_CURV = 0.1;   // 1/m
-  double STD_P_CTE = 0.5;    // m
-  double STD_P_WIDTH = 0.01; // m
 
-  double STD_M_YAW = 0.01;   // rad
-  double STD_M_CURV = 0.1;   // 1/m
-  double STD_M_CTE = 0.1;    // m
-  double STD_M_WIDTH = 0.01; // m
-
-  process[0].variance = STD_P_CTE * STD_P_CTE;
-  process[1].variance = STD_P_CTE * STD_P_CTE;
-  process[2].variance = STD_P_CTE * STD_P_CTE;
-
-  process[4].variance = STD_P_YAW * STD_P_YAW;
-  process[5].variance = STD_P_YAW * STD_P_YAW;
-  process[6].variance = STD_P_YAW * STD_P_YAW;
-
-  process[8].variance = STD_P_CURV * STD_P_CURV;
-  process[9].variance = STD_P_CURV * STD_P_CURV;
-  process[10].variance = STD_P_CURV * STD_P_CURV;
-
-  process[12].variance = STD_P_WIDTH * STD_P_WIDTH;
+  double STD_M_YAW = 0.01;      // rad
+  double STD_M_CURV = 2 * 0.05; // 1/m
+  double STD_M_CTE = 0.1;       // m
+  double STD_M_WIDTH = 0.01;    // m
 
   measurement[0].variance = STD_M_CTE * STD_M_CTE;
   measurement[1].variance = STD_M_CTE * STD_M_CTE;
@@ -136,6 +118,7 @@ void PathFinderNode::timer_callback()
   measurement[12].variance = STD_M_WIDTH * STD_M_WIDTH;
 
   auto width = bayesFilter.getState()[12].mean;
+
   fittedCurve egoPath(path_coeff);
   fittedCurve egoLaneL(left_coeff);
   fittedCurve egoLaneR(right_coeff);
@@ -166,7 +149,7 @@ void PathFinderNode::timer_callback()
 
   if (std::isnan(egoLaneL.cte) && std::isnan(egoLaneR.cte))
   {
-    // both lane missing, keep width
+    // both lane missing, keep width fixed
     measurement[12].mean = LANE_WIDTH;
   }
   else if (std::isnan(egoLaneL.cte))
@@ -186,8 +169,42 @@ void PathFinderNode::timer_callback()
   }
 
   bayesFilter.update(measurement);
+}
+
+void PathFinderNode::timer_callback()
+{
+  std::array<Gaussian, STATE_DIM> process;
+  std::random_device rd;
+  std::default_random_engine generator(rd());
+  std::uniform_real_distribution<double> dist(-epsilon, epsilon);
+  for (size_t i = 0; i < STATE_DIM; ++i)
+  {
+    process[i].mean = dist(generator);
+    process[i].variance = proc_SD * proc_SD;
+  }
+  // double STD_P_YAW = 0.2;    // rad
+  // double STD_P_CURV = 0.05;  // 1/m
+  // double STD_P_CTE = 0.5;    // m
+  // double STD_P_WIDTH = 0.01; // m
+
+  // process[0].variance = STD_P_CTE * STD_P_CTE;
+  // process[1].variance = STD_P_CTE * STD_P_CTE;
+  // process[2].variance = STD_P_CTE * STD_P_CTE;
+
+  // process[4].variance = STD_P_YAW * STD_P_YAW;
+  // process[5].variance = STD_P_YAW * STD_P_YAW;
+  // process[6].variance = STD_P_YAW * STD_P_YAW;
+
+  // process[8].variance = STD_P_CURV * STD_P_CURV;
+  // process[9].variance = STD_P_CURV * STD_P_CURV;
+  // process[10].variance = STD_P_CURV * STD_P_CURV;
+
+  // process[12].variance = STD_P_WIDTH * STD_P_WIDTH;
+
   const auto &state = bayesFilter.getState();
   bayesFilter.predict(process);
+
+  // ---------------Logging and visualization------------------------------------------
 
   std::string mean_log_msg = "Mean: [";
   std::string var_log_msg = "Var:  [";
@@ -259,7 +276,7 @@ void PathFinderNode::timer_callback()
   // pub_path_->publish(path);
   // pub_laneL_->publish(laneL);
   // pub_laneR_->publish(laneR);
-  
+
   // publishLaneMarker(state[12].mean, state[0].mean, state[4].mean, state[8].mean, {0.0, 1.0, 0.0, 0.8});  // raw egoPath
   // publishLaneMarker(state[12].mean, state[1].mean, state[5].mean, state[9].mean, {1.0, 0.0, 0.0, 0.8});  // raw egoLaneL
   // publishLaneMarker(state[12].mean, state[2].mean, state[6].mean, state[10].mean, {0.0, 0.0, 1.0, 0.8}); // raw egoLaneR

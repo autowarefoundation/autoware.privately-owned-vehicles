@@ -21,6 +21,7 @@ Panels:
         - /Grid1
         - /Odometry1
         - /Odometry1/Topic1
+        - /Globalpath1
         - /Marker1
         - /Marker1/Topic1
         - /Marker1/Namespaces1
@@ -56,13 +57,9 @@ Visualization Manager:
           Value: true
         hero_front:
           Value: true
-        long_range_cam:
-          Value: true
         main_cam:
           Value: true
         odom:
-          Value: true
-        radar:
           Value: true
       Marker Scale: 10
       Name: TF
@@ -74,11 +71,7 @@ Visualization Manager:
           hero:
             hero_front:
               {}
-            long_range_cam:
-              {}
             main_cam:
-              {}
-            radar:
               {}
       Update Interval: 0
       Value: true
@@ -423,7 +416,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Pose Color: 255; 85; 255
-      Pose Style: None
+      Pose Style: Axes
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
@@ -534,5 +527,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 960
-  X: 1554
+  X: 960
   Y: 0

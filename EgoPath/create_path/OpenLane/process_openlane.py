@@ -91,6 +91,53 @@ def annotate_skipped_image(
 # ============================== Helper functions ============================== #
 
 
+def polyfitLine(
+    line: Line, 
+    num_points: int = 10,
+    deg: int = 3
+):
+    """
+    Polynomial fit a line so the algorithm knows the line shape.
+    Should be cubic fit with 10 points by default.
+    Outputted line should be sorted by descending y-coords.
+    """
+    if (len(line) < deg + 1):
+        return line
+
+    x_coords = [point[0] for point in line]
+    y_coords = [point[1] for point in line]
+
+    poly_coeffs = np.polyfit(
+        y_coords, 
+        x_coords, 
+        deg = deg
+    )
+    poly_func = np.poly1d(poly_coeffs)
+
+    y_min = min(y_coords)
+    y_max = max(y_coords)
+    y_new = np.linspace(
+        y_min, 
+        y_max, 
+        num_points
+    )
+    x_new = poly_func(y_new)
+
+    fitted_line = sorted(
+        [
+            (
+                float(x_new[i]), 
+                float(y_new[i])
+            ) 
+            for i in range(len(y_new))
+        ], 
+        key = lambda point: point[1], 
+        reverse = True
+    )
+
+    return fitted_line
+
+
 def normalizeCoords(
     line: Line, 
     width: int, 
@@ -354,6 +401,9 @@ def parseData(
             logs.append(f"{i} : Lane with insufficient unique y-coords detected |")
             continue
 
+        # Polyfit line before adding anchor
+        this_lane = polyfitLine(this_lane)
+        
         # Add anchor to line, if needed
         if (this_lane and (this_lane[0][1] < H - 1)):
             this_lane.insert(0, (
@@ -361,7 +411,7 @@ def parseData(
                 H - 1
             ))
 
-        # Append to all lanes
+        # Append to all lanes, with top-cropped y-coords
         all_lanes.append(this_lane)
 
         # this_attribute = lane["attribute"]
@@ -431,9 +481,17 @@ def parseData(
             if (i == 0):
                 egoleft_lane = all_lanes[0]
                 egoright_lane = all_lanes[1]
+                other_lanes = [
+                    line for j, line in enumerate(all_lanes) 
+                    if j != 0 and j != 1
+                ]
             else:
                 egoleft_lane = all_lanes[i - 1]
                 egoright_lane = all_lanes[i]
+                other_lanes = [
+                    line for j, line in enumerate(all_lanes) 
+                    if j != i - 1 and j != i
+                ]
             break
         else:
             # Traversed all lanes but none is on the right half
@@ -442,6 +500,18 @@ def parseData(
                 egoright_lane = None
 
     if (egoleft_lane and egoright_lane):
+        # Cut off longer ego line to match the shorter one
+        if (egoleft_lane[-1][1] < egoright_lane[-1][1]):    # Left longer
+            egoleft_lane = [
+                point for point in egoleft_lane
+                if point[1] >= egoright_lane[-1][1]
+            ]
+        elif (egoright_lane[-1][1] < egoleft_lane[-1][1]):  # Right longer
+            egoright_lane = [
+                point for point in egoright_lane
+                if point[1] >= egoleft_lane[-1][1]
+            ]
+
         drivable_path = getDrivablePath(
             left_ego = egoleft_lane,
             right_ego = egoright_lane,
@@ -626,6 +696,49 @@ def parseData(
         )
 
         return None
+    
+    # FROM HERE, TOP CROPPING IS NOW IN EFFECT
+    
+    # Top-crop all lines
+    egoleft_lane = [
+        (x, y - CROP_TOP)
+        for x, y in egoleft_lane
+    ]
+    egoright_lane = [
+        (x, y - CROP_TOP)
+        for x, y in egoright_lane
+    ]
+    other_lanes = [
+        [
+            (x, y - CROP_TOP)
+            for x, y in lane
+        ]
+        for lane in other_lanes
+    ]
+    
+    # Create segmentation masks:
+    # Channel 1: egoleft lane
+    # Channel 2: egoright lane
+    # Channel 3: other lanes
+    mask = np.zeros(
+        (NEW_H, W, 3), 
+        dtype = np.uint8
+    )
+    mask[:, :, 0] = calcLaneSegMask(
+        [egoleft_lane], 
+        W, NEW_H,
+        normalized = False
+    )
+    mask[:, :, 1] = calcLaneSegMask(
+        [egoright_lane], 
+        W, NEW_H,
+        normalized = False
+    )
+    mask[:, :, 2] = calcLaneSegMask(
+        other_lanes, 
+        W, NEW_H,
+        normalized = False
+    )
 
     # Assemble all data
     anno_entry = {
@@ -633,15 +746,59 @@ def parseData(
         "other_lanes"     : other_lanes,
         "egoleft_lane"    : egoleft_lane,
         "egoright_lane"   : egoright_lane,
-        "drivable_path"   : drivable_path
+        "mask"            : mask,
+        # "drivable_path"   : drivable_path
     }
 
     return anno_entry
 
 
+def calcLaneSegMask(
+    lanes, 
+    width, height,
+    normalized: bool = True
+):
+    """
+    Calculates binary segmentation mask for some lane lines.
+    """
+
+    # Create blank mask as new Image
+    bin_seg = np.zeros(
+        (height, width), 
+        dtype = np.uint8
+    )
+    bin_seg_img = Image.fromarray(bin_seg)
+
+    # Draw lines on mask
+    draw = ImageDraw.Draw(bin_seg_img)
+    for lane in lanes:
+        if (normalized):
+            lane = [
+                (
+                    x * width, 
+                    y * height
+                ) 
+                for x, y in lane
+            ]
+        draw.line(
+            lane, 
+            fill = 255, 
+            width = 4
+        )
+
+    # Convert back to numpy array
+    bin_seg = np.array(
+        bin_seg_img, 
+        dtype = np.uint8
+    )
+
+    return bin_seg
+
+
 def annotateGT(
     anno_entry: dict,
     img_dir: str,
+    mask_dir: str,
     visualization_dir: str
 ):
     """
@@ -651,7 +808,7 @@ def annotateGT(
 
     # Define save name, now saving everything in JPG
     # to preserve my remaining disk space
-    save_name = str(img_id_counter).zfill(6) + ".jpg"
+    save_name = str(img_id_counter).zfill(6)
 
     # Prepping canvas
     raw_img = Image.open(
@@ -660,46 +817,66 @@ def annotateGT(
             anno_entry["img_path"]
         )
     ).convert("RGB")
-    draw = ImageDraw.Draw(raw_img)
-    
-    lane_colors = {
-        "outer_red": (255, 0, 0), 
-        "ego_green": (0, 255, 0), 
-        "drive_path_yellow": (255, 255, 0)
-    }
-    lane_w = 5
 
-    # Draw other lanes, in red
-    for line in anno_entry["other_lanes"]:
-        draw.line(
-            line, 
-            fill = lane_colors["outer_red"], 
-            width = lane_w
-        )
+    # Crop top
+    raw_img = raw_img.crop((
+        0, 
+        CROP_TOP, 
+        W, 
+        H
+    ))
     
-    # Draw drivable path, in yellow
-    draw.line(
-        anno_entry["drivable_path"],
-        fill = lane_colors["drive_path_yellow"], 
-        width = lane_w
+    # draw = ImageDraw.Draw(raw_img)
+    
+    # lane_colors = {
+    #     "outer_red": (255, 0, 0), 
+    #     "ego_green": (0, 255, 0), 
+    #     "drive_path_yellow": (255, 255, 0)
+    # }
+    # lane_w = 5
+
+    # # Draw other lanes, in red
+    # for line in anno_entry["other_lanes"]:
+    #     draw.line(
+    #         line, 
+    #         fill = lane_colors["outer_red"], 
+    #         width = lane_w
+    #     )
+    
+    # # Draw drivable path, in yellow
+    # draw.line(
+    #     anno_entry["drivable_path"],
+    #     fill = lane_colors["drive_path_yellow"], 
+    #     width = lane_w
+    # )
+
+    # # Draw ego lanes, in green
+    # if (anno_entry["egoleft_lane"]):
+    #     draw.line(
+    #         anno_entry["egoleft_lane"],
+    #         fill = lane_colors["ego_green"],
+    #         width = lane_w
+    #     )
+    # if (anno_entry["egoright_lane"]):
+    #     draw.line(
+    #         anno_entry["egoright_lane"],
+    #         fill = lane_colors["ego_green"],
+    #         width = lane_w
+    #     )
+
+    # Fetch seg mask and save as RGB PNG
+    mask_img = Image.fromarray(anno_entry["mask"]).convert("RGB")
+    mask_img.save(os.path.join(mask_dir, save_name + ".png"))
+
+    # Overlay mask on raw image, ratio 1:1
+    overlayed_img = Image.blend(
+        raw_img, 
+        mask_img, 
+        alpha = 0.5
     )
 
-    # Draw ego lanes, in green
-    if (anno_entry["egoleft_lane"]):
-        draw.line(
-            anno_entry["egoleft_lane"],
-            fill = lane_colors["ego_green"],
-            width = lane_w
-        )
-    if (anno_entry["egoright_lane"]):
-        draw.line(
-            anno_entry["egoright_lane"],
-            fill = lane_colors["ego_green"],
-            width = lane_w
-        )
-
-    # Save visualization img
-    raw_img.save(os.path.join(visualization_dir, save_name))
+    # Save visualization img, JPG for lighter weight, just different dir
+    overlayed_img.save(os.path.join(visualization_dir, save_name + ".jpg"))
 
 
 if __name__ == "__main__":
@@ -724,8 +901,11 @@ if __name__ == "__main__":
     }
 
     # All 200k scenes have reso 1920 x 1280. I checked it manually.
+    # Now I will cut the top 320 pixels to make it 1920 x 960, exactly 2:1 ratio.
     W = 1920
     H = 1280
+    CROP_TOP = 320
+    NEW_H = H - CROP_TOP
 
     # ============================== Parsing args ============================== #
 
@@ -779,7 +959,7 @@ if __name__ == "__main__":
 
     """
 
-    list_subdirs = ["visualization"]
+    list_subdirs = ["visualization", "mask"]
 
     if (os.path.exists(output_dir)):
         warnings.warn(f"Output directory {output_dir} already exists. Purged")
@@ -849,6 +1029,10 @@ if __name__ == "__main__":
                                 dataset_dir,
                                 IMG_DIR
                             ),
+                            mask_dir = os.path.join(
+                                output_dir, 
+                                "mask"
+                            ),
                             visualization_dir = os.path.join(
                                 output_dir, 
                                 "visualization"
@@ -861,21 +1045,30 @@ if __name__ == "__main__":
                             "egoleft_lane"  : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["egoleft_lane"],
-                                    W, H
+                                    W, NEW_H
                                 )
                             ),
                             "egoright_lane" : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["egoright_lane"],
-                                    W, H
+                                    W, NEW_H
                                 )
                             ),
-                            "drivable_path" : round_line_floats(
-                                normalizeCoords(
-                                    this_label_data["drivable_path"],
-                                    W, H
+                            "other_lanes"   : [
+                                round_line_floats(
+                                    normalizeCoords(
+                                        lane,
+                                        W, NEW_H
+                                    )
                                 )
-                            )
+                                for lane in this_label_data["other_lanes"]
+                            ],
+                            # "drivable_path" : round_line_floats(
+                            #     normalizeCoords(
+                            #         this_label_data["drivable_path"],
+                            #         W, NEW_H
+                            #     )
+                            # )
                         }
 
                         img_id_counter += 1
