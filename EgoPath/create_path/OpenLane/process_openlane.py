@@ -481,9 +481,17 @@ def parseData(
             if (i == 0):
                 egoleft_lane = all_lanes[0]
                 egoright_lane = all_lanes[1]
+                all_lanes = [
+                    line for j, line in enumerate(all_lanes) 
+                    if j != 0 and j != 1
+                ]
             else:
                 egoleft_lane = all_lanes[i - 1]
                 egoright_lane = all_lanes[i]
+                all_lanes = [
+                    line for j, line in enumerate(all_lanes) 
+                    if j != i - 1 and j != i
+                ]
             break
         else:
             # Traversed all lanes but none is on the right half
