@@ -7,165 +7,54 @@
 
 namespace autoware_pov::vision {
 
-// ============================================================================
-// ObjectKalmanFilter Implementation
-// ============================================================================
+ObjectFinder::ObjectFinder(const std::string& homography_yaml)
+    : next_track_id_(0), iou_threshold_(0.3f), dt_(0.1f) {
+    
+    // Load homography matrix from YAML - simple and direct, no fallback
+    YAML::Node config = YAML::LoadFile(homography_yaml);
+    
+    if (!config["H"]) {
+        throw std::runtime_error("No 'H' field found in YAML file");
+    }
 
-ObjectKalmanFilter::ObjectKalmanFilter() : initialized_(false) {
-    // State: [distance, velocity]
-    // Measurement: [distance]
-    kf_.init(2, 1, 0);  // 2 state vars, 1 measurement var, 0 control vars
-    
-    // Transition matrix (constant velocity model)
-    // [1  dt]
-    // [0   1]
-    kf_.transitionMatrix = (cv::Mat_<float>(2, 2) << 1, 1, 0, 1);
-    
-    // Measurement matrix (we only measure distance)
-    // [1  0]
-    kf_.measurementMatrix = (cv::Mat_<float>(1, 2) << 1, 0);
-    
-    // Process noise covariance
-    kf_.processNoiseCov = (cv::Mat_<float>(2, 2) << 
-        0.1, 0.0,
-        0.0, 0.5);
-    
-    // Measurement noise covariance
-    kf_.measurementNoiseCov = (cv::Mat_<float>(1, 1) << 1.0);
-    
-    // Initial state covariance
-    cv::setIdentity(kf_.errorCovPost, cv::Scalar::all(1.0));
-}
+    const auto& h_node = config["H"];
+    std::vector<double> H_data;
 
-void ObjectKalmanFilter::initialize(float initial_distance) {
-    kf_.statePost = (cv::Mat_<float>(2, 1) << initial_distance, 0.0f);
-    initialized_ = true;
-}
-
-void ObjectKalmanFilter::predict(float dt) {
-    if (!initialized_) return;
-    
-    // Update transition matrix with current dt
-    kf_.transitionMatrix.at<float>(0, 1) = dt;
-    
-    kf_.predict();
-}
-
-void ObjectKalmanFilter::update(float measured_distance) {
-    if (!initialized_) {
-        initialize(measured_distance);
-        return;
+    if (h_node.IsSequence()) {
+        // Handle flat list format: H: [a, b, c, d, e, f, g, h, i]
+        H_data = h_node.as<std::vector<double>>();
+    } else {
+        // Handle structured format: H: { rows: 3, cols: 3, data: [...] }
+        H_data = h_node["data"].as<std::vector<double>>();
     }
     
-    cv::Mat measurement = (cv::Mat_<float>(1, 1) << measured_distance);
-    kf_.correct(measurement);
-}
-
-float ObjectKalmanFilter::getDistance() const {
-    if (!initialized_) return 0.0f;
-    return kf_.statePost.at<float>(0);
-}
-
-float ObjectKalmanFilter::getVelocity() const {
-    if (!initialized_) return 0.0f;
-    return kf_.statePost.at<float>(1);
-}
-
-// ============================================================================
-// ObjectFinder Implementation
-// ============================================================================
-
-ObjectFinder::ObjectFinder(const std::string& homography_yaml, float fps)
-    : fps_(fps), dt_(1.0f / fps), next_track_id_(0), 
-      max_track_age_(10.0f), iou_threshold_(0.3f) {
-    
-    // Load homography matrix from YAML
-    try {
-        YAML::Node config = YAML::LoadFile(homography_yaml);
-        
-        // OpenCV's FileStorage format for matrices is different. Let's support both.
-        if (config["homography_matrix"]) { // Our custom format
-            const auto& h_node = config["homography_matrix"];
-            int rows = h_node["rows"].as<int>();
-            int cols = h_node["cols"].as<int>();
-            std::vector<double> H_data = h_node["data"].as<std::vector<double>>();
-            
-            if (H_data.size() == 9 && rows == 3 && cols == 3) {
-                H_ = cv::Mat(rows, cols, CV_64F, H_data.data()).clone();
-                H_.convertTo(H_, CV_32F); // Convert to float for our calculations
-                LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
-            } else {
-                throw std::runtime_error("Invalid 'homography_matrix' format");
-            }
-        } else if (config["H"]) { // Standard OpenCV format or a flat list
-            const auto& h_node = config["H"];
-            std::vector<double> H_data;
-
-            if (h_node.IsSequence()) {
-                // Handle flat list format: H: [a, b, c, d, e, f, g, h, i]
-                H_data = h_node.as<std::vector<double>>();
-            } else {
-                // Handle structured format: H: { rows: 3, cols: 3, data: [...] }
-                int rows = h_node["rows"].as<int>();
-                int cols = h_node["cols"].as<int>();
-                H_data = h_node["data"].as<std::vector<double>>();
-            }
-            
-            if (H_data.size() == 9) {
-                H_ = cv::Mat(3, 3, CV_64F, H_data.data()).clone();
-                H_.convertTo(H_, CV_32F); // Convert to float for our calculations
-                LOG_INFO(("Loaded OpenCV-style homography matrix from " + homography_yaml).c_str());
-            } else {
-                throw std::runtime_error("Invalid 'H' matrix format: must have 9 elements");
-            }
-        } else {
-            throw std::runtime_error("No 'homography_matrix' or 'H' field found in YAML");
-        }
-    } catch (const std::exception& e) {
-        LOG_ERROR(("Failed to load homography: " + std::string(e.what())).c_str());
-        // Fallback: identity homography (no transformation)
-        H_ = cv::Mat::eye(3, 3, CV_32F);
+    if (H_data.size() != 9) {
+        throw std::runtime_error("Homography matrix must have exactly 9 elements");
     }
+
+    H_ = cv::Mat(3, 3, CV_64F, H_data.data()).clone();
+    H_.convertTo(H_, CV_32F);
+    LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
 }
 
 cv::Point2f ObjectFinder::imageToWorld(const cv::Point2f& image_point) {
-    // Manually apply the homography transformation to ensure correctness.
-    // This is equivalent to: [x', y', w']^T = H * [u, v, 1]^T
-    // and then (X, Y) = (x'/w', y'/w')
-
-    // Ensure the matrix is not empty and is of the correct type
-    if (H_.empty() || H_.type() != CV_32F) {
-        LOG_ERROR("Homography matrix is not valid for transformation.");
-        return cv::Point2f(0.f, 0.f);
-    }
-    std::cout<< "Homography Matrix:\n" << H_ << "\n";
-
+    // Apply homography transformation: [x', y', w']^T = H * [u, v, 1]^T
+    // Then (X, Y) = (x'/w', y'/w')
+    
     const float* h = H_.ptr<float>();
     const float u = image_point.x;
     const float v = image_point.y;
-    std::cout << "Image Point: (" << u << ", " << v << ")\n";
 
-    // Denominator of the perspective division
     const float w_prime = h[6] * u + h[7] * v + h[8];
-
-    if (std::abs(w_prime) < 1e-7) {
-        // Avoid division by zero. This case is unlikely with a valid homography.
-        return cv::Point2f(0.f, 0.f);
-    }
-    
-
-    // Transformed coordinates
     const float x_prime = h[0] * u + h[1] * v + h[2];
     const float y_prime = h[3] * u + h[4] * v + h[5];
-    std::cout << "Transformed (pre-div): (" << x_prime << ", " << y_prime << ", " << w_prime << ")\n";
 
-    // Final world coordinates after perspective division
     return cv::Point2f(x_prime / w_prime, y_prime / w_prime);
 }
 
 float ObjectFinder::calculateDistance(const cv::Point2f& world_point) {
-    // Ego vehicle is at origin (0, 0)
-    return world_point.y;  // Forward distance along Y-axis
+    // Return forward distance along Y-axis (longitudinal distance)
+    return world_point.y;
 }
 
 float ObjectFinder::calculateIoU(const cv::Rect& a, const cv::Rect& b) {
@@ -180,185 +69,69 @@ float ObjectFinder::calculateIoU(const cv::Rect& a, const cv::Rect& b) {
     return union_area > 0 ? static_cast<float>(intersection) / union_area : 0.0f;
 }
 
-void ObjectFinder::matchDetectionsToTracks(const std::vector<autospeed::Detection>& detections) {
-    // Simple IoU-based matching
-    // For more robust tracking, consider using Hungarian algorithm or SORT
+std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Detection>& detections) {
+    tracked_objects_.clear();
     
-    std::vector<bool> detection_matched(detections.size(), false);
-    std::vector<int> track_matches(tracked_objects_.size(), -1);
-    
-    // Match each track to best detection
-    for (size_t i = 0; i < tracked_objects_.size(); i++) {
-        float best_iou = iou_threshold_;
-        int best_det_idx = -1;
+    // Simple: convert each detection to a tracked object and calculate its distance
+    for (const auto& det : detections) {
+        TrackedObject obj;
+        obj.class_id = det.class_id;
+        obj.confidence = det.confidence;
+        obj.frames_tracked = 1;
         
-        for (size_t j = 0; j < detections.size(); j++) {
-            if (detection_matched[j]) continue;
-            
-            // Convert detection to cv::Rect
-            cv::Rect det_rect(
-                static_cast<int>(detections[j].x1),
-                static_cast<int>(detections[j].y1),
-                static_cast<int>(detections[j].x2 - detections[j].x1),
-                static_cast<int>(detections[j].y2 - detections[j].y1)
-            );
-            
-            float iou = calculateIoU(tracked_objects_[i].bbox, det_rect);
-            if (iou > best_iou) {
-                best_iou = iou;
-                best_det_idx = j;
+        obj.bbox = cv::Rect(
+            static_cast<int>(det.x1),
+            static_cast<int>(det.y1),
+            static_cast<int>(det.x2 - det.x1),
+            static_cast<int>(det.y2 - det.y1)
+        );
+        
+        // Calculate bottom-center of bbox (where object touches ground)
+        cv::Point2f bbox_bottom_center(
+            (det.x1 + det.x2) / 2.0f,
+            det.y2
+        );
+        
+        // Transform to world coordinates using homography
+        cv::Point2f world_position = imageToWorld(bbox_bottom_center);
+        obj.distance_m = calculateDistance(world_position);
+        
+        // Simple velocity: compare with previous frame using IoU matching
+        obj.velocity_ms = 0.0f;
+        obj.track_id = next_track_id_++;
+        
+        for (const auto& prev_obj : previous_objects_) {
+            float iou = calculateIoU(obj.bbox, prev_obj.bbox);
+            if (iou > iou_threshold_) {
+                // This is likely the same object - calculate velocity
+                obj.velocity_ms = (obj.distance_m - prev_obj.distance_m) / dt_;
+                obj.track_id = prev_obj.track_id;
+                obj.frames_tracked = prev_obj.frames_tracked + 1;
+                break;
             }
         }
         
-        if (best_det_idx >= 0) {
-            track_matches[i] = best_det_idx;
-            detection_matched[best_det_idx] = true;
-        }
+        tracked_objects_.push_back(obj);
     }
     
-    // Update matched tracks
-    updateTracks(detections, track_matches);
-    
-    // Create new tracks for unmatched detections
-    createNewTracks(detections, detection_matched);
-}
-
-void ObjectFinder::updateTracks(const std::vector<autospeed::Detection>& detections,
-                                const std::vector<int>& matches) {
-    for (size_t i = 0; i < tracked_objects_.size(); i++) {
-        int det_idx = matches[i];
-        
-        if (det_idx >= 0) {
-            // Matched: update track
-            const auto& det = detections[det_idx];
-            
-            // Update bbox
-            tracked_objects_[i].bbox = cv::Rect(
-                static_cast<int>(det.x1),
-                static_cast<int>(det.y1),
-                static_cast<int>(det.x2 - det.x1),
-                static_cast<int>(det.y2 - det.y1)
-            );
-            
-            // Calculate bbox bottom center (object touches ground here)
-            tracked_objects_[i].bbox_bottom_center = cv::Point2f(
-                (det.x1 + det.x2) / 2.0f,
-                det.y2  // Bottom of bbox
-            );
-            
-            // Transform to world coordinates
-            tracked_objects_[i].world_position = imageToWorld(tracked_objects_[i].bbox_bottom_center);
-            
-            // Calculate distance
-            float measured_distance = calculateDistance(tracked_objects_[i].world_position);
-            
-            // Update Kalman filter
-            tracked_objects_[i].kalman.predict(dt_);
-            tracked_objects_[i].kalman.update(measured_distance);
-            
-            // Get filtered distance and velocity
-            tracked_objects_[i].distance_m = tracked_objects_[i].kalman.getDistance();
-            tracked_objects_[i].velocity_ms = tracked_objects_[i].kalman.getVelocity();
-            
-            // Update metadata
-            tracked_objects_[i].class_id = det.class_id;
-            tracked_objects_[i].confidence = det.confidence;
-            tracked_objects_[i].frames_tracked++;
-            tracked_objects_[i].frames_since_seen = 0;
-        } else {
-            // Unmatched: predict the next state but DO NOT update the distance
-            // with the prediction. The distance remains the last known good value
-            // until a new detection provides a measurement.
-            tracked_objects_[i].kalman.predict(dt_);
-            // tracked_objects_[i].distance_m = tracked_objects_[i].kalman.getDistance(); // This line was causing the error
-            tracked_objects_[i].velocity_ms = tracked_objects_[i].kalman.getVelocity();
-            tracked_objects_[i].frames_since_seen++;
-        }
-    }
-}
-
-void ObjectFinder::createNewTracks(const std::vector<autospeed::Detection>& detections,
-                                  const std::vector<bool>& matched) {
-    for (size_t i = 0; i < detections.size(); i++) {
-        if (!matched[i]) {
-            const auto& det = detections[i];
-            
-            TrackedObject obj;
-            obj.track_id = next_track_id_++;
-            obj.class_id = det.class_id;
-            obj.confidence = det.confidence;
-            
-            obj.bbox = cv::Rect(
-                static_cast<int>(det.x1),
-                static_cast<int>(det.y1),
-                static_cast<int>(det.x2 - det.x1),
-                static_cast<int>(det.y2 - det.y1)
-            );
-            
-            obj.bbox_bottom_center = cv::Point2f(
-                (det.x1 + det.x2) / 2.0f,
-                det.y2
-            );
-            
-            obj.world_position = imageToWorld(obj.bbox_bottom_center);
-            obj.distance_m = calculateDistance(obj.world_position);
-            std::cout << "Creating new track ID " << obj.track_id 
-                      << " at distance " << obj.distance_m << " m\n";
-            obj.velocity_ms = 0.0f;  // Unknown initially
-            
-            // Initialize Kalman filter
-            obj.kalman.initialize(obj.distance_m);
-            
-            obj.frames_tracked = 1;
-            obj.frames_since_seen = 0;
-            
-            tracked_objects_.push_back(obj);
-        }
-    }
-}
-
-void ObjectFinder::pruneOldTracks() {
-    tracked_objects_.erase(
-        std::remove_if(tracked_objects_.begin(), tracked_objects_.end(),
-            [this](const TrackedObject& obj) {
-                return obj.frames_since_seen > max_track_age_;
-            }),
-        tracked_objects_.end()
-    );
-}
-
-std::vector<TrackedObject> ObjectFinder::update(
-    const std::vector<autospeed::Detection>& detections,
-    float ego_velocity) {
-    
-    // Match detections to existing tracks
-    matchDetectionsToTracks(detections);
-    
-    // Remove stale tracks
-    pruneOldTracks();
+    // Save current objects for next frame's velocity calculation
+    previous_objects_ = tracked_objects_;
     
     return tracked_objects_;
 }
 
-CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
+CIPOInfo ObjectFinder::getCIPO() {
     CIPOInfo cipo;
     cipo.exists = false;
     
     float min_distance = std::numeric_limits<float>::infinity();
     int best_idx = -1;
     
-    // The CIPO is now defined as the closest tracked object with class_id == 0.
+    // CIPO = closest object with class_id == 0
     for (size_t i = 0; i < tracked_objects_.size(); i++) {
         const auto& obj = tracked_objects_[i];
         
-        // Skip objects that are not the target class or not tracked long enough
-        if (obj.class_id != 0 || obj.frames_tracked < 3) continue;
-        
-        // Consider only objects in front of us
-        bool in_front = obj.world_position.y > 0;
-        if (!in_front) continue;
-
-        if (obj.distance_m < min_distance) {
+        if (obj.class_id == 0 && obj.distance_m > 0 && obj.distance_m < min_distance) {
             min_distance = obj.distance_m;
             best_idx = i;
         }
@@ -366,7 +139,6 @@ CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
     
     if (best_idx != -1) {
         const auto& obj = tracked_objects_[best_idx];
-        
         cipo.exists = true;
         cipo.track_id = obj.track_id;
         cipo.class_id = obj.class_id;
@@ -378,4 +150,3 @@ CIPOInfo ObjectFinder::getCIPO(float ego_velocity) {
 }
 
 }  // namespace autoware_pov::vision
-
