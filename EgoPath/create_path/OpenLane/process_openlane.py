@@ -1005,6 +1005,10 @@ if __name__ == "__main__":
                                 dataset_dir,
                                 IMG_DIR
                             ),
+                            mask_dir = os.path.join(
+                                output_dir, 
+                                "mask"
+                            ),
                             visualization_dir = os.path.join(
                                 output_dir, 
                                 "visualization"
