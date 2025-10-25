@@ -754,6 +754,7 @@ def calcLaneSegMask(
 def annotateGT(
     anno_entry: dict,
     img_dir: str,
+    mask_dir: str,
     visualization_dir: str
 ):
     """
@@ -772,46 +773,64 @@ def annotateGT(
             anno_entry["img_path"]
         )
     ).convert("RGB")
-    draw = ImageDraw.Draw(raw_img)
     
-    lane_colors = {
-        "outer_red": (255, 0, 0), 
-        "ego_green": (0, 255, 0), 
-        "drive_path_yellow": (255, 255, 0)
-    }
-    lane_w = 5
+    # draw = ImageDraw.Draw(raw_img)
+    
+    # lane_colors = {
+    #     "outer_red": (255, 0, 0), 
+    #     "ego_green": (0, 255, 0), 
+    #     "drive_path_yellow": (255, 255, 0)
+    # }
+    # lane_w = 5
 
-    # Draw other lanes, in red
-    for line in anno_entry["other_lanes"]:
-        draw.line(
-            line, 
-            fill = lane_colors["outer_red"], 
-            width = lane_w
-        )
+    # # Draw other lanes, in red
+    # for line in anno_entry["other_lanes"]:
+    #     draw.line(
+    #         line, 
+    #         fill = lane_colors["outer_red"], 
+    #         width = lane_w
+    #     )
     
-    # Draw drivable path, in yellow
-    draw.line(
-        anno_entry["drivable_path"],
-        fill = lane_colors["drive_path_yellow"], 
-        width = lane_w
+    # # Draw drivable path, in yellow
+    # draw.line(
+    #     anno_entry["drivable_path"],
+    #     fill = lane_colors["drive_path_yellow"], 
+    #     width = lane_w
+    # )
+
+    # # Draw ego lanes, in green
+    # if (anno_entry["egoleft_lane"]):
+    #     draw.line(
+    #         anno_entry["egoleft_lane"],
+    #         fill = lane_colors["ego_green"],
+    #         width = lane_w
+    #     )
+    # if (anno_entry["egoright_lane"]):
+    #     draw.line(
+    #         anno_entry["egoright_lane"],
+    #         fill = lane_colors["ego_green"],
+    #         width = lane_w
+    #     )
+
+    # Fetch seg mask as RGB
+    mask_array = np.array(
+        anno_entry["mask"], 
+        dtype = np.uint8
+    )
+    mask_img = Image.fromarray(mask_array).convert("RGB")
+
+    # Save mask
+    mask_img.save(os.path.join(mask_dir, save_name))
+
+    # Overlay mask on raw image, ratio 1:1
+    overlayed_img = Image.blend(
+        raw_img, 
+        mask_img, 
+        alpha = 0.5
     )
 
-    # Draw ego lanes, in green
-    if (anno_entry["egoleft_lane"]):
-        draw.line(
-            anno_entry["egoleft_lane"],
-            fill = lane_colors["ego_green"],
-            width = lane_w
-        )
-    if (anno_entry["egoright_lane"]):
-        draw.line(
-            anno_entry["egoright_lane"],
-            fill = lane_colors["ego_green"],
-            width = lane_w
-        )
-
-    # Save visualization img
-    raw_img.save(os.path.join(visualization_dir, save_name))
+    # Save visualization img, JPG for lighter weight, just different dir
+    overlayed_img.save(os.path.join(visualization_dir, save_name.replace(".png", ".jpg")))
 
 
 if __name__ == "__main__":
