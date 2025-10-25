@@ -265,7 +265,10 @@ def calcLaneSegMask(
     return bin_seg
 
 
-def parseAnnotations(item: dict):
+def parseAnnotations(
+        item: dict,
+        verbose: bool = False
+):
     """
     Parses lane annotations from a dict structure read from a TuSimple label JSON file.
 
@@ -297,7 +300,8 @@ def parseAnnotations(item: dict):
 
     if (type(ego_indexes) is str):
         if (ego_indexes.startswith("NO")):
-            warnings.warn(f"Parsing {raw_file}: {ego_indexes}")
+            if (verbose):
+                warnings.warn(f"Parsing {raw_file}: {ego_indexes}")
             return None
 
     left_ego = lanes_decoupled[ego_indexes[0]]
