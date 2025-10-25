@@ -288,8 +288,7 @@ def annotateGT(
     """
 
     # Define save name
-    # Also save in PNG (EXTREMELY SLOW compared to jpg, for lossless quality)
-    save_name = str(img_id_counter).zfill(6) + ".png"
+    save_name = str(img_id_counter).zfill(6)
 
     # Load img
     raw_img = raw_img
@@ -320,8 +319,8 @@ def annotateGT(
         new_img_height -= (CROP_TOP + CROP_BOTTOM)
         new_img_width -= (CROP_LEFT + CROP_RIGHT)
 
-    # Copy raw img and put it in raw dir.
-    raw_img.save(os.path.join(raw_dir, save_name))
+    # Save raw image as JPG for lighter weight
+    raw_img.save(os.path.join(raw_dir, save_name + ".jpg"))
 
     # # Draw all lanes & lines
     # draw = ImageDraw.Draw(raw_img)
@@ -354,15 +353,9 @@ def annotateGT(
     #     drivable_renormed = anno_entry["drivable_path"]
     # draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
 
-    # Fetch seg mask as RGB
-    mask_array = np.array(
-        anno_entry["mask"], 
-        dtype = np.uint8
-    )
-    mask_img = Image.fromarray(mask_array).convert("RGB")
-
-    # Save mask
-    mask_img.save(os.path.join(mask_dir, save_name))
+    # Fetch and save seg mask as RGB
+    mask_img = Image.fromarray(anno_entry["mask"]).convert("RGB")
+    mask_img.save(os.path.join(mask_dir, save_name + ".png"))
 
     # Overlay mask on raw image, ratio 1:1
     overlayed_img = Image.blend(
@@ -372,7 +365,7 @@ def annotateGT(
     )
 
     # Save visualization img, JPG for lighter weight, just different dir
-    overlayed_img.save(os.path.join(visualization_dir, save_name.replace(".png", ".jpg")))
+    overlayed_img.save(os.path.join(visualization_dir, save_name + ".jpg"))
 
 
 def parseAnnotations(
@@ -525,7 +518,7 @@ def parseAnnotations(
                 # "drivable_path" : normalizeCoords(drivable_path, new_img_width, new_img_height),
                 "egoleft_lane" : normalizeCoords(left_ego, new_img_width, new_img_height),
                 "egoright_lane" : normalizeCoords(right_ego, new_img_width, new_img_height),
-                "mask" : mask.tolist()
+                "mask" : mask
             }
 
             return anno_data
