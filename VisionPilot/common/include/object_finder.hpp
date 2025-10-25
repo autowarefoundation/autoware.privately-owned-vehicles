@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <optional>
+#include <string>
 #include "../../common/backends/autospeed/tensorrt_engine.hpp"
 
 namespace autoware_pov::vision {
@@ -32,29 +33,23 @@ private:
     bool initialized_;
 };
 
-// Tracked object with temporal information
+// Represents a single object being tracked across frames
 struct TrackedObject {
     int track_id;
     int class_id;
     float confidence;
+    cv::Rect bbox;                  // BBox in image coordinates
+    cv::Point2f bbox_bottom_center; // Bottom center of bbox in image coordinates
+    cv::Point2f world_position;     // Position in world coordinates (meters)
     
-    // Image coordinates (bbox)
-    cv::Rect bbox;
-    cv::Point2f bbox_bottom_center;
-    
-    // World coordinates (meters)
-    cv::Point2f world_position;  // (X_lateral, Y_longitudinal)
-    float distance_m;             // Euclidean distance from ego
-    float velocity_ms;            // Velocity in m/s (negative = approaching)
+    // State
+    float distance_m;
+    float velocity_ms;
     
     // Tracking state
     ObjectKalmanFilter kalman;
-    int frames_tracked;
-    int frames_since_seen;
-    
-    TrackedObject() : track_id(-1), class_id(-1), confidence(0.0f), 
-                      distance_m(0.0f), velocity_ms(0.0f),
-                      frames_tracked(0), frames_since_seen(0) {}
+    int frames_tracked;             // How many frames this object has been seen for
+    int frames_since_seen;          // How many frames since this object was last seen
 };
 
 // CIPO (Closest In-Path Object) information
