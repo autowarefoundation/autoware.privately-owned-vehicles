@@ -703,7 +703,7 @@ def parseData(
         "other_lanes"     : other_lanes,
         "egoleft_lane"    : egoleft_lane,
         "egoright_lane"   : egoright_lane,
-        "drivable_path"   : drivable_path
+        # "drivable_path"   : drivable_path
     }
 
     return anno_entry
@@ -940,12 +940,21 @@ if __name__ == "__main__":
                                     W, H
                                 )
                             ),
-                            "drivable_path" : round_line_floats(
-                                normalizeCoords(
-                                    this_label_data["drivable_path"],
-                                    W, H
+                            "other_lanes"   : [
+                                round_line_floats(
+                                    normalizeCoords(
+                                        lane,
+                                        W, H
+                                    )
                                 )
-                            )
+                                for lane in this_label_data["other_lanes"]
+                            ],
+                            # "drivable_path" : round_line_floats(
+                            #     normalizeCoords(
+                            #         this_label_data["drivable_path"],
+                            #         W, H
+                            #     )
+                            # )
                         }
 
                         img_id_counter += 1
