@@ -59,3 +59,4 @@ class AutoSteerNetworkInfer():
         binary_seg = prediction.squeeze(0).cpu().detach().numpy()
 
         return binary_seg
+
