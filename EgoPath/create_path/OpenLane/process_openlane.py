@@ -709,6 +709,48 @@ def parseData(
     return anno_entry
 
 
+def calcLaneSegMask(
+    lanes, 
+    width, height,
+    normalized: bool = True
+):
+    """
+    Calculates binary segmentation mask for some lane lines.
+    """
+
+    # Create blank mask as new Image
+    bin_seg = np.zeros(
+        (height, width), 
+        dtype = np.uint8
+    )
+    bin_seg_img = Image.fromarray(bin_seg)
+
+    # Draw lines on mask
+    draw = ImageDraw.Draw(bin_seg_img)
+    for lane in lanes:
+        if (normalized):
+            lane = [
+                (
+                    x * width, 
+                    y * height
+                ) 
+                for x, y in lane
+            ]
+        draw.line(
+            lane, 
+            fill = 255, 
+            width = 4
+        )
+
+    # Convert back to numpy array
+    bin_seg = np.array(
+        bin_seg_img, 
+        dtype = np.uint8
+    )
+
+    return bin_seg
+
+
 def annotateGT(
     anno_entry: dict,
     img_dir: str,
