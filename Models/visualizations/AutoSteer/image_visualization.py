@@ -1,127 +1,64 @@
 import os
 import sys
 import cv2
-import math
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 from argparse import ArgumentParser
 sys.path.append('../..')
 from inference.auto_steer_infer import AutoSteerNetworkInfer
 
     
-def make_visualization_data(
-        image: Image,
-        prediction: np.ndarray
-):
-
-    # Fetch predictions + calculations
-    left_lane_offset = prediction[0] * 640
-    right_left_offset = prediction[1] * 640
-    ego_path_offset = prediction[2] * 640
-    start_angle = prediction[3]
-    start_delta_x = ego_path_offset + 100 * math.sin(start_angle)
-    start_delta_y = 319 - (100 * math.cos(start_angle))
-
-    # Start drawing
-    draw = ImageDraw.Draw(image)
-    POINT_R = 3
-    LINE_W = 2
-    DOWN_MARGIN = 310
-    COLOR_OFFSET = (0, 255, 0)      # Lime
-    COLOR_EGOPATH = (255, 255, 0)   # Cyan
-    COLOR_END = (0, 0, 255)         # Red
-
-    # Offsets
-    draw.ellipse(
-        (
-            left_lane_offset - POINT_R, 
-            DOWN_MARGIN - POINT_R, 
-            left_lane_offset + POINT_R, 
-            DOWN_MARGIN + POINT_R
-        ), 
-        fill = COLOR_OFFSET
-    )
-    draw.ellipse(
-        (
-            right_left_offset - POINT_R, 
-            DOWN_MARGIN - POINT_R, 
-            right_left_offset + POINT_R, 
-            DOWN_MARGIN + POINT_R
-        ), 
-        fill = COLOR_OFFSET
-    )
-    draw.line(
-        (
-            left_lane_offset, DOWN_MARGIN, 
-            right_left_offset, DOWN_MARGIN
-        ),
-        fill = COLOR_OFFSET,
-        width = LINE_W
-    )
-
-    # Ego path
-    draw.ellipse(
-        (
-            ego_path_offset - POINT_R, 
-            DOWN_MARGIN - POINT_R, 
-            ego_path_offset + POINT_R, 
-            DOWN_MARGIN + POINT_R
-        ), 
-        fill = COLOR_EGOPATH
-    )
-    draw.line(
-        (
-            ego_path_offset, DOWN_MARGIN, 
-            start_delta_x, start_delta_y
-        ),
-        fill = COLOR_EGOPATH,
-        width = LINE_W
-    )
-
-    # Return visualized image
-    return image
-
-
-def make_visualization_seg(
-        image: Image,
+def make_visualization(
+        image: np.ndarray,
         prediction: np.ndarray
 ):
     
-    # Creating visualization object
-    shape = prediction.shape
-    row = shape[0]
-    col = shape[1]
-    seg_pred_object = np.array(
-        np.zeros(
-            (row, col, 3), 
-            dtype = "uint8"
-        )
-    )
+    # Prepping canvas
+    vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
 
-    # Foreground object labels
-    pred_labels = np.where(prediction > 0)
+    # Fetch predictions and groundtruth labels
+    pred_egoleft_lanes  = np.where(prediction[0,:,:] > 0)
+    pred_egoright_lanes = np.where(prediction[1,:,:] > 0)
+    pred_other_lanes    = np.where(prediction[2,:,:] > 0)
 
-    # Visualization
-    COLOR_SEG = (0, 255, 145)       # Lil lime green
+    # Color codes
+    egoleft_color   = [0, 255, 255] # Kinda blue
+    egoright_color  = [255, 0, 200] # Magenta
+    others_color    = [0, 153, 0]   # Quite green
+
+    # Visualize egoleft
     for i in range(3):
-        seg_pred_object[
-            pred_labels[0],
-            pred_labels[1], 
+        vis_predict_object[
+            pred_egoleft_lanes[0], 
+            pred_egoleft_lanes[1], 
             i
-        ] = COLOR_SEG[i]
-    
-    # Alpha blending
-    alpha = 0.5
-    pred_vis = cv2.addWeighted(
-        seg_pred_object, 
-        alpha, 
-        np.array(image), 
-        1,
+        ] = egoleft_color[i]
+
+    # Visualize egoright
+    for i in range(3):
+        vis_predict_object[
+            pred_egoright_lanes[0],
+            pred_egoright_lanes[1],
+            i
+        ] = egoright_color[i]
+
+    # Visualize other lanes
+    for i in range(3):
+        vis_predict_object[
+            pred_other_lanes[0],
+            pred_other_lanes[1],
+            i
+        ] = others_color[i]
+
+    # Fuse image with mask
+    fused_image = cv2.addWeighted(
+        cv2.cvtColor(vis_predict_object, cv2.COLOR_BGR2RGB), 1,
+        image, 1,
         0
     )
+    fused_image = Image.fromarray(fused_image)
 
-    vis_image = Image.fromarray(pred_vis)
-    return vis_image
+    return fused_image
 
 
 def main(): 
@@ -179,14 +116,15 @@ def main():
             print(f"Reading Image: {input_image_filepath}")
             image = Image.open(input_image_filepath).convert("RGB")
             image = image.resize((640, 320))
+            image = np.array(image)
 
             # Inference
-            binary_segg_pred, path_data_pred = model.inference(image)
+            prediction = model.inference(image)
 
-            # Data visualization
-            vis_image = make_visualization_data(
+            # Visualization
+            vis_image = make_visualization(
                 image.copy(), 
-                path_data_pred
+                prediction
             )
             
             output_image_filepath = os.path.join(
@@ -194,18 +132,6 @@ def main():
                 f"{img_id}_data.png"
             )
             vis_image.save(output_image_filepath)
-
-            # Segmentation visualization
-            vis_seg = make_visualization_seg(
-                image.copy(), 
-                binary_segg_pred
-            )
-
-            output_seg_filepath = os.path.join(
-                output_image_dirpath,
-                f"{img_id}_seg.png"
-            )
-            vis_seg.save(output_seg_filepath)
 
         else:
             print(f"Skipping non-image file: {filename}")

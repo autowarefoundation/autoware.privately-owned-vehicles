@@ -46,7 +46,7 @@ def normalizeCoords(lane, width, height):
     return [(x / width, y / height) for x, y in lane]
 
 
-def getLineAnchor(line):
+def getLineAnchor(line, verbose = False):
     """
     Determine "anchor" point of a lane.
 
@@ -64,7 +64,8 @@ def getLineAnchor(line):
             error_lane = "Vertical"
         elif (y1 == y2):
             error_lane = "Horizontal"
-        warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
+        if (verbose):
+            warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
         return (x1, None, None)
     
     a = (y2 - y1) / (x2 - x1)
@@ -165,6 +166,7 @@ def annotateGT(
     """
     Annotates and saves an image with:
         - Raw image, in "output_dir/image".
+        - Lane seg mask, in "output_dir/mask".
         - Annotated image with all lanes, in "output_dir/visualization".
 
     """
@@ -173,13 +175,14 @@ def annotateGT(
     raw_img = Image.open(anno_raw_file).convert("RGB")
 
     # Define save name
-    # Keep original pathname (back to 5 levels) for traceability, but replace "/" with "-"
-    # Also save in PNG (EXTREMELY SLOW compared to jpg, for lossless quality)
-    save_name = str(img_id_counter).zfill(6) + ".png"
+    save_name = str(img_id_counter).zfill(6)
 
     # Copy raw img and put it in raw dir.
-    raw_img.save(os.path.join(raw_dir, save_name))
-    
+    shutil.copy(
+        anno_raw_file,
+        os.path.join(raw_dir, save_name + ".jpg")
+    )
+
     # # Draw all lanes & lines
     # draw = ImageDraw.Draw(raw_img)
     # lane_colors = {
@@ -205,15 +208,9 @@ def annotateGT(
     #     drivable_renormed = anno_entry["drivable_path"]
     # draw.line(drivable_renormed, fill = lane_colors["drive_path_yellow"], width = lane_w)
 
-    # Fetch seg mask as RGB
-    mask_array = np.array(
-        anno_entry["mask"], 
-        dtype = np.uint8
-    )
-    mask_img = Image.fromarray(mask_array).convert("RGB")
-
-    # Save mask
-    mask_img.save(os.path.join(mask_dir, save_name))
+    # Save mask, lossless PNG for accuracy
+    mask_img = Image.fromarray(anno_entry["mask"]).convert("RGB")
+    mask_img.save(os.path.join(mask_dir, save_name + ".png"))
 
     # Overlay mask on raw image, ratio 1:1
     overlayed_img = Image.blend(
@@ -223,7 +220,7 @@ def annotateGT(
     )
 
     # Save visualization img, JPG for lighter weight, just different dir
-    overlayed_img.save(os.path.join(visualization_dir, save_name.replace(".png", ".jpg")))
+    overlayed_img.save(os.path.join(visualization_dir, save_name + ".jpg"))
 
 
 def calcLaneSegMask(
@@ -269,7 +266,10 @@ def calcLaneSegMask(
     return bin_seg
 
 
-def parseAnnotations(item: dict):
+def parseAnnotations(
+        item: dict,
+        verbose: bool = False
+):
     """
     Parses lane annotations from a dict structure read from a TuSimple label JSON file.
 
@@ -301,7 +301,8 @@ def parseAnnotations(item: dict):
 
     if (type(ego_indexes) is str):
         if (ego_indexes.startswith("NO")):
-            warnings.warn(f"Parsing {raw_file}: {ego_indexes}")
+            if (verbose):
+                warnings.warn(f"Parsing {raw_file}: {ego_indexes}")
             return None
 
     left_ego = lanes_decoupled[ego_indexes[0]]
@@ -370,7 +371,7 @@ def parseAnnotations(item: dict):
                 H
             )
         ),
-        "mask" : mask.tolist(),
+        "mask" : mask,
     }
 
     return anno_data
