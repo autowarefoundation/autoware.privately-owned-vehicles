@@ -147,8 +147,7 @@ void objectFinderThread(ObjectFinder& finder,
                        ThreadSafeQueue<InferenceResult>& input_queue,
                        ThreadSafeQueue<ObjectFinderResult>& output_queue,
                        PerformanceMetrics& metrics,
-                       std::atomic<bool>& running,
-                       float ego_velocity)
+                       std::atomic<bool>& running)
 {
     while (running.load()) {
         InferenceResult result;
@@ -160,10 +159,10 @@ void objectFinderThread(ObjectFinder& finder,
         auto t_start = std::chrono::steady_clock::now();
         
         // Update tracker with detections
-        std::vector<TrackedObject> tracked = finder.update(result.detections, ego_velocity);
+        std::vector<TrackedObject> tracked = finder.update(result.detections);
         
         // Get CIPO
-        CIPOInfo cipo = finder.getCIPO(ego_velocity);
+        CIPOInfo cipo = finder.getCIPO();
         
         auto t_end = std::chrono::steady_clock::now();
         
@@ -224,17 +223,16 @@ void objectFinderThread(ObjectFinder& finder,
 
 int main(int argc, char** argv)
 {
-    if (argc < 6) {
-        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <homography_yaml> <precision> <ego_velocity> [realtime] [measure_latency]\n";
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <homography_yaml> <precision> [realtime] [measure_latency]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
         std::cerr << "  model_path: .pt or .onnx model file\n";
         std::cerr << "  homography_yaml: Path to homography calibration YAML\n";
         std::cerr << "  precision: fp32 or fp16\n";
-        std::cerr << "  ego_velocity: Ego vehicle speed in m/s (e.g., 15.0 for ~54 km/h)\n";
         std::cerr << "  realtime: (optional) 'true' for real-time, 'false' for max speed (default: true)\n";
         std::cerr << "  measure_latency: (optional) 'true' to show latency metrics (default: false)\n";
         std::cerr << "\nExample:\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx calibration.yaml fp16 15.0\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx calibration.yaml fp16\n";
         return 1;
     }
 
@@ -242,29 +240,26 @@ int main(int argc, char** argv)
     std::string model_path = argv[2];
     std::string homography_yaml = argv[3];
     std::string precision = argv[4];
-    float ego_velocity = std::stof(argv[5]);
     
     bool realtime = true;
     bool measure_latency = false;
     
-    if (argc >= 7) {
-        std::string realtime_arg = argv[6];
+    if (argc >= 6) {
+        std::string realtime_arg = argv[5];
         realtime = (realtime_arg != "false" && realtime_arg != "0");
     }
     
-    if (argc >= 8) {
-        std::string measure_arg = argv[7];
+    if (argc >= 7) {
+        std::string measure_arg = argv[6];
         measure_latency = (measure_arg == "true" || measure_arg == "1");
     }
     
     float conf_thresh = 0.6f;
     float iou_thresh = 0.45f;
-    float fps = 30.0f;  // Assume 30 FPS (adjust based on video)
     int gpu_id = 0;
 
     // Initialize GStreamer
     std::cout << "Initializing GStreamer for: " << stream_source << std::endl;
-    std::cout << "Ego velocity: " << ego_velocity << " m/s (~" << (ego_velocity * 3.6) << " km/h)" << std::endl;
     GStreamerEngine gstreamer(stream_source, 0, 0, realtime);
     if (!gstreamer.initialize() || !gstreamer.start()) {
         std::cerr << "Failed to initialize GStreamer" << std::endl;
@@ -277,7 +272,7 @@ int main(int argc, char** argv)
 
     // Initialize ObjectFinder
     std::cout << "Loading homography from: " << homography_yaml << std::endl;
-    ObjectFinder finder(homography_yaml, fps);
+    ObjectFinder finder(homography_yaml);
     
     // Queues
     ThreadSafeQueue<TimestampedFrame> capture_queue;
@@ -299,8 +294,7 @@ int main(int argc, char** argv)
                             std::ref(inference_queue), std::ref(metrics), std::ref(running),
                             conf_thresh, iou_thresh);
     std::thread t_finder(objectFinderThread, std::ref(finder), std::ref(inference_queue),
-                        std::ref(finder_queue), std::ref(metrics), std::ref(running),
-                        ego_velocity);
+                        std::ref(finder_queue), std::ref(metrics), std::ref(running));
 
     // Wait for threads
     t_capture.join();
