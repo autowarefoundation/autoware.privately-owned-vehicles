@@ -7,6 +7,7 @@ import numpy as np
 from builtin_interfaces.msg import Time 
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
+import time
 
 LOCAL_PATH_LEN = 20.0     # meters
 STEP_DISTANCE = 0.5       # distance between waypoints
@@ -67,6 +68,8 @@ class RoadShapePublisher(Node):
             if self.ego:
                 break
             self.get_logger().warn('Ego vehicle not found, waiting ...')
+            time.sleep(1.0)
+        time.sleep(2.0)  # wait for a bit to ensure world is ready
         self.waypoints = self.get_global_waypoints()
         self.timer = self.create_timer(0.1, self.timer_callback)
             

@@ -4,7 +4,6 @@
 
 PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathfinder_node", "/pathfinder", options)
 {
-  this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   bayesFilter = Estimator();
   bayesFilter.configureFusionGroups({
       // {start_idx,end_idx}
@@ -34,7 +33,11 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
   pub_laneR_ = this->create_publisher<nav_msgs::msg::Path>("egoLaneR", 3);
   pub_path_ = this->create_publisher<nav_msgs::msg::Path>("egoPath", 3);
 
-  timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&PathFinderNode::timer_callback, this));
+  timer_ = rclcpp::create_timer(this->get_node_base_interface(),
+                                this->get_node_timers_interface(),
+                                this->get_clock(),
+                                std::chrono::milliseconds(10), 
+                                std::bind(&PathFinderNode::timer_callback, this));
 
   left_msg = std::make_shared<nav_msgs::msg::Path>();
   right_msg = std::make_shared<nav_msgs::msg::Path>();

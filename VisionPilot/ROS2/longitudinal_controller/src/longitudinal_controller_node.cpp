@@ -4,7 +4,6 @@ LongitudinalControllerNode::LongitudinalControllerNode(const rclcpp::NodeOptions
     : Node("steering_controller_node", "", options),
       pi_controller_(1.0, 0.07)
 {
-  this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 10, std::bind(&LongitudinalControllerNode::odomCallback, this, std::placeholders::_1));
   control_pub_ = this->create_publisher<std_msgs::msg::Float32>("/vehicle/throttle_cmd", 1);
   pathfinder_sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 2, std::bind(&LongitudinalControllerNode::stateCallback, this, std::placeholders::_1));

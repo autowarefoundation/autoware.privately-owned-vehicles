@@ -3,7 +3,6 @@
 SteeringControllerNode::SteeringControllerNode(const rclcpp::NodeOptions &options) : Node("steering_controller_node", "", options),
                                                                                     sc(2.85, 3.0, 0.1)
 {
-  this->set_parameter(rclcpp::Parameter("use_sim_time", true));
   sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 10, std::bind(&SteeringControllerNode::stateCallback, this, std::placeholders::_1));
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 10, std::bind(&SteeringControllerNode::odomCallback, this, std::placeholders::_1));
   steering_cmd_pub_ = this->create_publisher<std_msgs::msg::Float32>("/vehicle/steering_cmd", 1);
