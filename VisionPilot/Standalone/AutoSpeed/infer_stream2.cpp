@@ -135,6 +135,7 @@ void inferenceThread(AutoSpeedTensorRTEngine& backend,
         
         InferenceResult result;
         result.detections = detections;
+        std::cout<< "Detections: " << detections.size() << std::endl;
         result.capture_time = tf.timestamp;
         result.inference_time = t_end;
         output_queue.push(result);
