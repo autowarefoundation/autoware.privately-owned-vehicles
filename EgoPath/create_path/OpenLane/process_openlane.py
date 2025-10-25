@@ -746,7 +746,7 @@ def parseData(
         "other_lanes"     : other_lanes,
         "egoleft_lane"    : egoleft_lane,
         "egoright_lane"   : egoright_lane,
-        "mask"            : mask.tolist(),
+        "mask"            : mask,
         # "drivable_path"   : drivable_path
     }
 
@@ -808,7 +808,7 @@ def annotateGT(
 
     # Define save name, now saving everything in JPG
     # to preserve my remaining disk space
-    save_name = str(img_id_counter).zfill(6) + ".jpg"
+    save_name = str(img_id_counter).zfill(6)
 
     # Prepping canvas
     raw_img = Image.open(
@@ -864,15 +864,9 @@ def annotateGT(
     #         width = lane_w
     #     )
 
-    # Fetch seg mask as RGB
-    mask_array = np.array(
-        anno_entry["mask"], 
-        dtype = np.uint8
-    )
-    mask_img = Image.fromarray(mask_array).convert("RGB")
-
-    # Save mask
-    mask_img.save(os.path.join(mask_dir, save_name))
+    # Fetch seg mask and save as RGB PNG
+    mask_img = Image.fromarray(anno_entry["mask"]).convert("RGB")
+    mask_img.save(os.path.join(mask_dir, save_name + ".png"))
 
     # Overlay mask on raw image, ratio 1:1
     overlayed_img = Image.blend(
@@ -882,7 +876,7 @@ def annotateGT(
     )
 
     # Save visualization img, JPG for lighter weight, just different dir
-    overlayed_img.save(os.path.join(visualization_dir, save_name.replace(".png", ".jpg")))
+    overlayed_img.save(os.path.join(visualization_dir, save_name + ".jpg"))
 
 
 if __name__ == "__main__":
