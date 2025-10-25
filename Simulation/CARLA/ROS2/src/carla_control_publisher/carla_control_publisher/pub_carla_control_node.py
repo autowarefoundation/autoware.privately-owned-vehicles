@@ -11,7 +11,7 @@ class CarlaControlPublisher(Node):
         self.steering_sub_ = self.create_subscription(Float32, '/vehicle/steering_cmd', self.steering_callback, 1)
         self.throttle_sub_ = self.create_subscription(Float32, '/vehicle/throttle_cmd', self.throttle_callback, 1)
         self.control_pub_ = self.create_publisher(CarlaEgoVehicleControl, '/carla/hero/vehicle_control_cmd', 1)
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        self.timer = self.create_timer(0.01, self.timer_callback)
         self.steering_angle_cmd = 0.0
         self.throttle_cmd = 0.0
 

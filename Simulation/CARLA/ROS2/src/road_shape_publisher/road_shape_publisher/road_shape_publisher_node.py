@@ -7,12 +7,13 @@ import numpy as np
 from builtin_interfaces.msg import Time 
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
+import time
 
 LOCAL_PATH_LEN = 20.0     # meters
 STEP_DISTANCE = 0.5       # distance between waypoints
 LANE_WIDTH = 4.0          # meters, typical lane width
 FRONT2BASE = 1.425        # meters, distance from front of vehicle to hero base link
-NEAREST_VISIBLE = FRONT2BASE     # meters, nearest visible waypoint in front of ego vehicle
+NEAREST_VISIBLE = 5     # meters, nearest visible waypoint in front of ego vehicle
 
 # TESTS:
 # working: 
@@ -59,7 +60,7 @@ class RoadShapePublisher(Node):
         self.global_path_pub_ = self.create_publisher(Path, '/globalPath', 2)
         
         self.client = carla.Client("localhost", 2000)
-        self.client.set_timeout(5.0)
+        self.client.set_timeout(60.0)
         self.world = self.client.get_world()
         self.map = self.world.get_map()
         while True:
@@ -67,55 +68,95 @@ class RoadShapePublisher(Node):
             if self.ego:
                 break
             self.get_logger().warn('Ego vehicle not found, waiting ...')
+            time.sleep(1.0)
         self.waypoints = self.get_global_waypoints()
         self.timer = self.create_timer(0.1, self.timer_callback)
             
     def get_global_waypoints(self):
-        allowed_road_lane_ids = [(17 , 1),
-                                 (10 , 1),
-                                 (0  , 1),
-                                 (3  , 1),
-                                 (565, 1),
-                                 (2  , 1),
-                                 (676, 1),
-                                 (1  , 1),
-                                 (8  , 1),
-                                 (4  ,-1),
-                                 (515,-1),
-                                 (5  ,-1),
-                                 (736,-1),
-                                 (6  ,-1),
-                                 (89 ,-1),
-                                 (7  ,-1)]
+        all_waypts = self.map.generate_waypoints(STEP_DISTANCE)
+        print(len(all_waypts), "total waypoints generated in the map")
         waypoints = []
-        for road_id, lane_id in allowed_road_lane_ids: 
-            wp = self.map.get_waypoint_xodr(road_id, lane_id, 0.0)
-            if wp is None:
-                self.get_logger.error(f"Could not find waypoint for road {road_id}, lane {lane_id}")
-                continue
-            segment = []
+
+        if "Town06" in self.map.name:
+            allowed_road_lane_ids = [(22  , 0.00 , 6),
+                                     (1129, 9.34 , 5),
+                                     (1129, 0.00 , 7),
+                                     (21  , 0.00 , 7),
+                                     (404 , 28.40 , 7),
+                                     (404 , 0.00 , 5),
+                                     (20  , 0.00 , 6),
+                                     (67  , 0.00 , -6),
+                                     (12  , 0.00 , -6),
+                                     (764 , 0.00 , -4),
+                                     (764 , 7.57 , -5),
+                                     (764 , 19.75 , -6),
+                                     (13  , 0.00 , -6),
+                                     (484 , 0.00 , -1),
+                                     (58  , 0.00 , -3),
+                                     (1   , 0.00 , 6),
+                                     (245 , 0.00 , 1),
+                                     (22  , 0.00 , 6)
+                                    ]
+        
+        else:
+            allowed_road_lane_ids = [(17, 0.0, 1),
+                                    (10 , 0.0, 1),
+                                    (0  , 0.0, 1),
+                                    (3  , 0.0, 1),
+                                    (565, 0.0, 1),
+                                    (2  , 0.0, 1),
+                                    (676, 0.0, 1),
+                                    (1  , 0.0, 1),
+                                    (8  , 0.0, 1),
+                                    (4  , 0.0,-1),
+                                    (515, 0.0,-1),
+                                    (5  , 0.0,-1),
+                                    (736, 0.0,-1),
+                                    (6  , 0.0,-1),
+                                    (89 , 0.0,-1),
+                                    (7  , 0.0,-1)]
             
-            seg = wp.previous_until_lane_start(STEP_DISTANCE)
-            
-            try: 
-                next = wp.next_until_lane_end(STEP_DISTANCE)
-            except RuntimeError as e:
-                self.get_logger().error(f"Error getting next waypoints for road {road_id}, lane {lane_id}: {e}")
-                tmp = wp.next(STEP_DISTANCE)
-                next = []
-                for t in tmp:
-                    if t.lane_id == lane_id and t.road_id == road_id:
-                        next.append(t)
-            if next:
-                seg.extend(next)
+        for road_id, section_id, lane_id in allowed_road_lane_ids:
+            seg = []
+            for wp in all_waypts:
+                if wp.road_id == road_id and wp.section_id == section_id and wp.lane_id == lane_id:
+                    seg.append(wp)
             if lane_id > 0:
                 seg.reverse()
-            for s in seg:
-                if s.lane_id == lane_id and s.road_id == road_id:
-                    print(f"Road {s.road_id}, lane {s.lane_id}, s {s.s}, loc {s.transform.location}")
-                    segment.append(s)
-            waypoints.extend(segment)
+            waypoints.extend(seg)
             
+        for wp in waypoints:
+            print(f"Road {wp.road_id}, lane {wp.lane_id}, s {wp.s}, loc {wp.transform.location}")
+              
+        
+        # for road_id, lane_id in allowed_road_lane_ids: 
+        #     wp = self.map.get_waypoint_xodr(road_id, lane_id, 0.0)
+        #     if wp is None:
+        #         self.get_logger.error(f"Could not find waypoint for road {road_id}, lane {lane_id}")
+        #         continue
+        #     segment = []
+            
+        #     seg = wp.previous_until_lane_start(STEP_DISTANCE)
+            
+        #     try: 
+        #         next = wp.next_until_lane_end(STEP_DISTANCE)
+        #     except RuntimeError as e:
+        #         self.get_logger().error(f"Error getting next waypoints for road {road_id}, lane {lane_id}: {e}")
+        #         tmp = wp.next(STEP_DISTANCE)
+        #         next = []
+        #         for t in tmp:
+        #             if t.lane_id == lane_id and t.road_id == road_id:
+        #                 next.append(t)
+        #     if next:
+        #         seg.extend(next)
+        #     if lane_id > 0:
+        #         seg.reverse()
+        #     for s in seg:
+        #         if s.lane_id == lane_id and s.road_id == road_id:
+        #             print(f"Road {s.road_id}, lane {s.lane_id}, s {s.s}, loc {s.transform.location}")
+        #             segment.append(s)
+        #     waypoints.extend(segment)
+        
         print(f"Collected {len(waypoints)} waypoints across {len(allowed_road_lane_ids)} lanes")
         
         global_path_msg = Path()
@@ -193,7 +234,7 @@ class RoadShapePublisher(Node):
 
         # Extract local horizon waypoints
         horizon = int(LOCAL_PATH_LEN / STEP_DISTANCE)
-        offset = 0#int(NEAREST_VISIBLE / STEP_DISTANCE) # offset to account for visibility in camera FOV 
+        offset = int(NEAREST_VISIBLE / STEP_DISTANCE) # offset to account for visibility in camera FOV 
         local_wps = [waypoints[(nearest_idx + i + offset) % len(waypoints)] for i in range(horizon)]
         print(len(local_wps), "local waypoints extracted")
         

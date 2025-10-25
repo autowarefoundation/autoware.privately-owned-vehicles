@@ -31,11 +31,13 @@ private:
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_laneR_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_;
     rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::TimerBase::SharedPtr drivCorr_timer_;
+    void cb_drivCorr();
     std::array<double, 3UL> pathMsg2Coeff(const nav_msgs::msg::Path::SharedPtr &msg);
     Estimator bayesFilter;
     const double proc_SD = 0.5;
     const double meas_SD = 0.01;
-    const double epsilon = 0.001;
+    const double epsilon = 0.00001;
     nav_msgs::msg::Path::SharedPtr left_msg;
     nav_msgs::msg::Path::SharedPtr right_msg;
     nav_msgs::msg::Path::SharedPtr path_msg;
