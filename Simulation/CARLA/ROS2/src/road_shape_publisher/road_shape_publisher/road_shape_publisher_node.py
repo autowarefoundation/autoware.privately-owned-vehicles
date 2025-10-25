@@ -60,7 +60,7 @@ class RoadShapePublisher(Node):
         self.global_path_pub_ = self.create_publisher(Path, '/globalPath', 2)
         
         self.client = carla.Client("localhost", 2000)
-        self.client.set_timeout(5.0)
+        self.client.set_timeout(60.0)
         self.world = self.client.get_world()
         self.map = self.world.get_map()
         while True:
@@ -69,7 +69,6 @@ class RoadShapePublisher(Node):
                 break
             self.get_logger().warn('Ego vehicle not found, waiting ...')
             time.sleep(1.0)
-        time.sleep(2.0)  # wait for a bit to ensure world is ready
         self.waypoints = self.get_global_waypoints()
         self.timer = self.create_timer(0.1, self.timer_callback)
             

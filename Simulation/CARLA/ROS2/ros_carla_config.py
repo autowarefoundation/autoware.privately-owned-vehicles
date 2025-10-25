@@ -99,7 +99,8 @@ def main(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(60.0)
         print(client.get_available_maps())
-        if args.map:
+                
+        if args.map and 'Town06' not in client.get_world().get_map().name:
             logging.info("Loading Town06 map")
             client.load_world('Town06')
 
