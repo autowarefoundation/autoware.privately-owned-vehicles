@@ -46,7 +46,7 @@ def normalizeCoords(lane, width, height):
     return [(x / width, y / height) for x, y in lane]
 
 
-def getLineAnchor(line):
+def getLineAnchor(line, verbose = False):
     """
     Determine "anchor" point of a lane.
 
@@ -64,7 +64,8 @@ def getLineAnchor(line):
             error_lane = "Vertical"
         elif (y1 == y2):
             error_lane = "Horizontal"
-        warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
+        if (verbose):
+            warnings.warn(f"{error_lane} line detected: {line}, with these 2 anchors: ({x1}, {y1}), ({x2}, {y2}).")
         return (x1, None, None)
     
     a = (y2 - y1) / (x2 - x1)
