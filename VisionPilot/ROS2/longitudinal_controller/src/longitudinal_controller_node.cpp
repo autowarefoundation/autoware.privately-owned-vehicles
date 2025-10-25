@@ -41,3 +41,33 @@ int main(int argc, char *argv[])
   rclcpp::shutdown();
   return 0;
 }
+
+// [WIP] Feedforward
+// throttle -> steady state speed
+// 0.0      -> 0.0 m/s
+// 0.1      -> 1.0 m/s
+// 0.2      -> 3.6 m/s
+// 0.3      -> 5.0 m/s
+// 0.4      -> 8.7 m/s
+// 0.5      -> 13.8 m/s
+// 0.6      -> 19.7 m/s
+// 0.7      -> 26.4 m/s
+// 0.75     -> 29.5 m/s
+// 0.8      -> 33 m/s
+// 0.9      -> xx m/sS
+// 1.0      -> xx m/s
+
+// def throttle_from_exp(v, a, b):
+//     if v < 0:
+//         raise ValueError("speed must be non-negative")
+//     val = v / a + 1.0
+//     if val <= 0:
+//         raise ValueError("invalid value for log; check parameters")
+//     x = math.log(val) / b
+//     # clamp to [0,1]
+//     return max(0.0, min(1.0, x))
+
+// # Example with previously fitted parameters:
+// a = 5.94694605   # example fit result
+// b = 2.37747535
+
