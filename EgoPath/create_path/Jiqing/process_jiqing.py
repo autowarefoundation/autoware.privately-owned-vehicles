@@ -66,3 +66,32 @@ warnings.formatwarning = custom_warning_format
 # ============================== Helper functions ============================== #
 
 
+def getLineAnchor(
+    line: Line,
+    verbose: bool = False
+):
+    """
+    Determine "anchor" point of a line.
+    """
+    (x2, y2) = line[0]
+    (x1, y1) = line[
+        # int(len(line) / 5) 
+        # if (
+        #     len(line) > 5 and
+        #     line[0][1] >= H * 0.8
+        # ) else 1
+        int(len(line) / 2)
+    ]
+    if (verbose):
+        print(f"Anchor points chosen: ({x1}, {y1}), ({x2}, {y2})")
+
+    if (x1 == x2) or (y1 == y2):
+        return (x1, None, None)
+    
+    a = (y2 - y1) / (x2 - x1)
+    b = y1 - a * x1
+    x0 = (H - b) / a
+    if (verbose):
+        print(f"Anchor point computed: (x0 = {x0}, a = {a}, b = {b})")
+
+    return (x0, a, b)
