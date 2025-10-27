@@ -38,6 +38,20 @@ def round_line_floats(
     return line
 
 
+def normalizeCoords(
+    line: Line, 
+    width: int, 
+    height: int
+):
+    """
+    Normalize the coords of line points.
+    """
+    return [
+        (x / width, y / height) 
+        for x, y in line
+    ]
+
+
 # Custom warning format
 def custom_warning_format(
     message, 
@@ -47,3 +61,8 @@ def custom_warning_format(
     return f"WARNING : {message}\n"
 
 warnings.formatwarning = custom_warning_format
+
+
+# ============================== Helper functions ============================== #
+
+
