@@ -138,130 +138,111 @@ def calcLaneSegMask(
 
 
 def parseData(
-    video_path: str,
-    corresponding_gt_dir: str,
+    gt_filepath: str,
+    frame_idx: int,
     verbose: bool = False
 ):
+
+    # Parse GT file
+    with open(gt_filepath, "r") as f:
+        lines = f.readlines()
     
-    # Prepare raw GTs
-    gt_files = sorted(os.listdir(corresponding_gt_dir))
-    
-    # Read video frame-by-frame at 30 FPS
-    video_name = os.path.basename(video_path).split(".")[0]
-    cap = cv2.VideoCapture(video_path)
+    lane_lines = []
+    for line in lines:
 
-    # Go frame-by-frame
-    frame_idx = 0
-    while (
-        (cap.isOpened()) and 
-        (frame_idx < len(gt_files))
-    ):
-        
-        ret, _ = cap.read()
-        if (not ret):
-            if (verbose):
-                print(f"Frame {frame_idx} could not be read, stopping.")
-            break
-
-        # Corresponding GT file
-        gt_file = gt_files[frame_idx]
-        gt_filepath = os.path.join(corresponding_gt_dir, gt_file)
-
-        # Parse GT file
-        with open(gt_filepath, "r") as f:
-            lines = f.readlines()
-        
-        lane_lines = []
-        for line in lines:
-
-            line = line.split(":")[1].strip()   # Get only the coords part
-            line = line.replace(
-                ")(", 
-                ")|("
-            )                                   # My lil trick to separate points properly
-            line = [
-                ast.literal_eval(pt_str)
-                for pt_str in line.split("|")   # Do you see the beauty of it?
-            ]
-
-            # Sanity checks
-            if (len(line) < 2):
-                if (verbose):
-                    print(f"Line with less than 2 points found in frame {frame_idx}, skipping this line.")
-                continue
-
-            lane_lines.append(line)
-
-        # Determining egolines via anchors
-
-        line_anchors = [
-            getLineAnchor(
-                line,
-                verbose = verbose
-            )
-            for line in lane_lines
+        line = line.split(":")[1].strip()   # Get only the coords part
+        line = line.replace(
+            ")(", 
+            ")|("
+        )                                   # My lil trick to separate points properly
+        line = [
+            ast.literal_eval(pt_str)
+            for pt_str in line.split("|")   # Do you see the beauty of it?
         ]
 
-        for i, anchor in enumerate(line_anchors):
-            if (anchor[0] >= W / 2):
-                if (i == 0):
-                    egoleft_lane = lane_lines[0]
-                    egoright_lane = lane_lines[1]
-                    other_lanes = [
-                        line for j, line in enumerate(lane_lines) 
-                        if j != 0 and j != 1
-                    ]
-                else:
-                    egoleft_lane = lane_lines[i - 1]
-                    egoright_lane = lane_lines[i]
-                    other_lanes = [
-                        line for j, line in enumerate(lane_lines) 
-                        if j != i - 1 and j != i
-                    ]
-                break
-            else:
-                # Traversed all lanes but none is on the right half
-                if (i == len(lane_lines) - 1):
-                    egoleft_lane = None
-                    egoright_lane = None
-
-        # Skip frames with no sufficient egolines
-        if not (egoleft_lane and egoright_lane):
+        # Sanity checks
+        if (len(line) < 2):
             if (verbose):
-                print(f"Frame {frame_idx} has no egolines, skipping frame.")
-            frame_idx += 1
+                print(f"Line with less than 2 points found in frame {frame_idx}, skipping this line.")
             continue
 
-        # Create segmentation masks:
-        # Channel 1: egoleft lane
-        # Channel 2: egoright lane
-        # Channel 3: other lanes
+        lane_lines.append(line)
 
-        mask = np.zeros(
-            (H, W, 3), 
-            dtype = np.uint8
-        )
-        mask[:, :, 0] = calcLaneSegMask(
-            [egoleft_lane], 
-            W, H,
-            normalized = False
-        )
-        mask[:, :, 1] = calcLaneSegMask(
-            [egoright_lane], 
-            W, H,
-            normalized = False
-        )
-        mask[:, :, 2] = calcLaneSegMask(
-            other_lanes, 
-            W, H,
-            normalized = False
-        )
+    # Determining egolines via anchors
 
+    line_anchors = [
+        getLineAnchor(
+            line,
+            verbose = verbose
+        )
+        for line in lane_lines
+    ]
+
+    for i, anchor in enumerate(line_anchors):
+        if (anchor[0] >= W / 2):
+            if (i == 0):
+                egoleft_lane = lane_lines[0]
+                egoright_lane = lane_lines[1]
+                other_lanes = [
+                    line for j, line in enumerate(lane_lines) 
+                    if j != 0 and j != 1
+                ]
+            else:
+                egoleft_lane = lane_lines[i - 1]
+                egoright_lane = lane_lines[i]
+                other_lanes = [
+                    line for j, line in enumerate(lane_lines) 
+                    if j != i - 1 and j != i
+                ]
+            break
+        else:
+            # Traversed all lanes but none is on the right half
+            if (i == len(lane_lines) - 1):
+                egoleft_lane = None
+                egoright_lane = None
+
+    # Skip frames with no sufficient egolines
+    if not (egoleft_lane and egoright_lane):
+        if (verbose):
+            print(f"Frame {frame_idx} has no egolines, skipping frame.")
         frame_idx += 1
+        return None
 
-    cap.release()
-    if (verbose):
-        print(f"Finished processing video {video_name}.")
+    # Create segmentation masks:
+    # Channel 1: egoleft lane
+    # Channel 2: egoright lane
+    # Channel 3: other lanes
+
+    mask = np.zeros(
+        (H, W, 3), 
+        dtype = np.uint8
+    )
+    mask[:, :, 0] = calcLaneSegMask(
+        [egoleft_lane], 
+        W, H,
+        normalized = False
+    )
+    mask[:, :, 1] = calcLaneSegMask(
+        [egoright_lane], 
+        W, H,
+        normalized = False
+    )
+    mask[:, :, 2] = calcLaneSegMask(
+        other_lanes, 
+        W, H,
+        normalized = False
+    )
+
+    # Saving processed GTs
+    anno_entry = {
+        "other_lanes"     : other_lanes,
+        "egoleft_lane"    : egoleft_lane,
+        "egoright_lane"   : egoright_lane,
+        "mask"            : mask,
+        # "drivable_path"   : drivable_path
+    }
+
+    frame_idx += 1
 
 
 # ================================= MAIN RUN ================================= #
@@ -327,6 +308,13 @@ if __name__ == "__main__":
         help = "Num. files you wanna limit, instead of whole set.",
         required = False
     )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        type = bool,
+        help = "Verbose output.",
+        required = False
+    )
 
     args = parser.parse_args()
 
@@ -341,6 +329,12 @@ if __name__ == "__main__":
         early_stopping = args.early_stopping
     else:
         early_stopping = None
+
+    # Parse verbose
+    if (args.verbose):
+        verbose = args.verbose
+    else:
+        verbose = False
     
     # Generate output structure
 
@@ -371,6 +365,8 @@ if __name__ == "__main__":
     assert len(list_videos) == len(list_gt_dirs), \
         f"Number of video files ({len(list_videos)}) and GT folders ({len(list_gt_dirs)}) do not match."
     
+    # Main loop
+
     for i in tqdm(
         range(len(list_videos)) 
         if (early_stopping is None) 
@@ -380,17 +376,57 @@ if __name__ == "__main__":
         colour = "green"
     ):
 
-        assert list_gt_dirs[i] in list_videos[i], \
-            f"Video file ({list_videos[i]}) and GT folder ({list_gt_dirs[i]}) do not match."
-        
-        parseData(
-            video_path = os.path.join(
-                video_dir, 
-                list_videos[i]
-            ),
-            corresponding_gt_dir = os.path.join(
+        this_video_name = list_videos[i]
+        this_gt_dir = list_gt_dirs[i]
+
+        assert this_gt_dir in this_video_name, \
+            f"Video file ({this_video_name}) and GT folder ({this_gt_dir}) do not match."
+
+        # Prepare raw GTs
+        gt_files = sorted(os.listdir(
+            os.path.join(
                 gt_dir, 
-                list_gt_dirs[i]
-            ),
-            verbose = False
+                this_gt_dir
+            )
+        ))
+        
+        # Read video frame-by-frame at 30 FPS
+        video_path = os.path.join(
+            video_dir, 
+            this_video_name
         )
+        video_name = os.path.basename(video_path).split(".")[0]
+        cap = cv2.VideoCapture(video_path)
+
+        # Go frame-by-frame
+        frame_idx = 0
+        while (
+            (cap.isOpened()) and 
+            (frame_idx < len(gt_files))
+        ):
+            
+            ret, _ = cap.read()
+            if (not ret):
+                if (verbose):
+                    print(f"Frame {frame_idx} could not be read, stopping.")
+                break
+
+            # Corresponding GT file
+            gt_file = gt_files[frame_idx]
+            gt_filepath = os.path.join(
+                gt_dir,
+                this_gt_dir, 
+                gt_file
+            )
+        
+            parseData(
+                gt_filepath = gt_filepath,
+                frame_idx = frame_idx,
+                verbose = False
+            )
+
+            frame_idx += 1
+
+        cap.release()
+        if (verbose):
+            print(f"Finished processing video {video_name}.")
