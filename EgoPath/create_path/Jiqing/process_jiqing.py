@@ -186,3 +186,15 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    # Parse dirs
+    video_dir = args.video_dir
+    gt_dir = args.gt_dir
+    output_dir = args.output_dir
+
+    # Parse early stopping
+    if (args.early_stopping):
+        print(f"Early stopping set, stopping after {args.early_stopping} files.")
+        early_stopping = args.early_stopping
+    else:
+        early_stopping = None
