@@ -17,10 +17,9 @@ class Augmentations():
     def __init__(self, is_train: bool, data_type: DATA_TYPES_LITERAL):
 
         # Data
-        self.image = 0
-        self.ground_truth = 0
-        self.augmented_data = 0
-        self.augmented_image = 0
+        self.image = None
+        self.ground_truth = None
+        self.augmented_data = None
 
         # Train vs Test/Val mode
         self.is_train = is_train
@@ -61,19 +60,21 @@ class Augmentations():
 
         # ========================== Noise transforms ========================== #
 
-        self.transform_noise_ego_space = A.Compose(
+        self.transform_moderate = A.Compose(
             [
-                A.PixelDropout(dropout_prob=0.25, per_channel=True, p=0.25),
-                A.MultiplicativeNoise(multiplier=(0.5, 1.5), per_channel=False, p=0.25),
+                A.PixelDropout(dropout_prob=0.25, per_channel=True, p=0.05),
+                A.MultiplicativeNoise(multiplier=(0.2, 0.5), per_channel=False, p=0.05),
                 A.Spatter(mean=(0.65, 0.65), std=(0.3, 0.3), gauss_sigma=(2, 2), \
                     cutout_threshold=(0.68, 0.68), intensity=(0.3, 0.3), mode='rain', \
-                    p=0.25),
-                A.ToGray(num_output_channels=3, method='weighted_average', p=0.25),
-                A.RandomRain(p=0.25),
+                    p=0.05),
+                A.ToGray(num_output_channels=3, method='weighted_average', p=0.1),
+                A.RandomRain(p=0.05),
                 A.RandomShadow(shadow_roi=(0.2, 0.2, 0.8, 0.8), num_shadows_limit=(2, 4), shadow_dimension=8, \
-                    shadow_intensity_range=(0.3, 0.7), p=0.25),
-                A.RandomGravel(gravel_roi=(0.2, 0.2, 0.8, 0.8), number_of_patches=5, p=0.25),
-                A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.5, p=0.25),
+                    shadow_intensity_range=(0.3, 0.7), p=0.05),
+                A.RandomGravel(gravel_roi=(0.2, 0.2, 0.8, 0.8), number_of_patches=5, p=0.05),
+                A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.5, p=0.05),
+                A.ISONoise(color_shift=(0.1, 0.3), intensity=(0.5, 0.5), p=0.05),
+                A.GaussNoise(noise_scale_factor=0.2, p=0.05)
             ]
         )
 
@@ -82,11 +83,11 @@ class Augmentations():
                 A.MultiplicativeNoise(multiplier=(0.5, 1.5), per_channel=False, p=0.5),
                 A.PixelDropout(dropout_prob=0.025, per_channel=True, p=0.25),
                 A.ColorJitter(brightness=0.6, contrast=0.6, saturation=0.6, hue=0.2, p=0.5),
-                A.GaussNoise(var_limit=(50.0, 100.0), mean=0, noise_scale_factor=0.2, p=0.5),
-                A.GaussNoise(var_limit=(250.0, 250.0), mean=0, noise_scale_factor=1, p=0.5),
+                A.GaussNoise(noise_scale_factor=0.2, p=0.5),
+                A.GaussNoise(noise_scale_factor=1, p=0.5),
                 A.ISONoise(color_shift=(0.1, 0.5), intensity=(0.5, 0.5), p=0.5),
-                A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, alpha_coef=0.2, p=0.25),
-                A.RandomFog(fog_coef_lower=0.7, fog_coef_upper=1.0, alpha_coef=0.04, p=0.25),
+                A.RandomFog(alpha_coef=0.2, p=0.25),
+                A.RandomFog(alpha_coef=0.04, p=0.25),
                 A.RandomRain(p=0.1),
                 A.Spatter(mean=(0.65, 0.65), std=(0.3, 0.3), gauss_sigma=(2, 2), \
                     cutout_threshold=(0.68, 0.68), intensity=(0.3, 0.3), mode='rain', \
@@ -118,6 +119,7 @@ class Augmentations():
         self.image = image
         self.augmented_image = image
 
+
     # SEMANTIC SEGMENTATION - SceneSeg
     # Apply augmentations transform
     def applyTransformSeg(self, image, ground_truth):
@@ -127,25 +129,41 @@ class Augmentations():
 
         self.setData(image, ground_truth)
 
+        # Split channels
+        masks_list = [
+            self.ground_truth[:,:,i] 
+            for i in range(3)
+        ]
+        
         if(self.is_train):
 
-            # Resize and random horiztonal flip
-            self.adjust_shape = self.transform_shape(image=self.image, \
-                masks = self.ground_truth)
+            # Resize only
+            self.adjust_shape = self.transform_shape_test(
+                image = self.image,
+                masks = masks_list
+            )
 
-            self.augmented_data = self.adjust_shape["masks"]
+            # Recombine channels
+            augmented_masks = self.adjust_shape["masks"]
+
+            self.augmented_data = np.stack(augmented_masks, axis = -1)
             self.augmented_image = self.adjust_shape["image"]
 
             # Random image augmentations
             if (random.random() >= 0.25 and self.is_train):
 
-                self.add_noise = self.transform_noise(image=self.augmented_image)
+                self.add_noise = self.transform_moderate(image=self.augmented_image)
                 self.augmented_image = self.add_noise["image"]
         else:
             # Only resize in test/validation mode
-            self.adjust_shape = self.transform_shape_test(image=self.image, \
-            masks = self.ground_truth)
-            self.augmented_data = self.adjust_shape["masks"]
+            self.adjust_shape = self.transform_shape_test(
+                image = self.image,
+                masks = masks_list
+            )
+
+            augmented_masks = self.adjust_shape["masks"]
+
+            self.augmented_data = np.stack(augmented_masks, axis = -1)
             self.augmented_image = self.adjust_shape["image"]
 
         return self.augmented_image, self.augmented_data
@@ -232,10 +250,9 @@ class Augmentations():
             self.adjust_shape = self.transform_shape_bev(image = self.image)
             self.augmented_image = self.adjust_shape["image"]
 
-            # Apply random image augmentations
-            if (random.random() >= 0.25 and self.is_train):
-
-                self.add_noise = self.transform_noise(image = self.augmented_image)
+            # Add noise
+            if(random.random() >= 0.25):
+                self.add_noise = self.transform_noise_ego_space(image = self.augmented_image)
                 self.augmented_image = self.add_noise["image"]
 
         # For test/val sets
@@ -246,6 +263,7 @@ class Augmentations():
             self.augmented_image = self.adjust_shape["image"]
 
         return self.augmented_image
+
 
     # ADDITIONAL DATA SPECIFIC NOISE
     # Apply roadwork objects noise for DomainSeg

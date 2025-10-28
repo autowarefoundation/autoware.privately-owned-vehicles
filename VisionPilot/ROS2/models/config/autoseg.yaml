@@ -1,6 +1,6 @@
 scene_seg_model:
   ros__parameters:
-    model_path: "data/models/SceneSeg_FP32-infer.onnx"
+    model_path: "../data/models/SceneSeg_FP32.onnx"
     backend: "tensorrt"
     precision: "fp16"
     model_type: "segmentation"
@@ -10,7 +10,7 @@ scene_seg_model:
 
 domain_seg_model:
   ros__parameters:
-    model_path: "data/models/DomainSeg_FP32.onnx"
+    model_path: "../data/models/DomainSeg_FP32.onnx"
     backend: "tensorrt"
     precision: "fp16"
     model_type: "segmentation"

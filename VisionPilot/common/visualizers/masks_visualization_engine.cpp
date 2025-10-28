@@ -1,5 +1,4 @@
 #include "../include/masks_visualization_engine.hpp"
-#include <rclcpp/rclcpp.hpp>
 
 namespace autoware_pov::common {
 

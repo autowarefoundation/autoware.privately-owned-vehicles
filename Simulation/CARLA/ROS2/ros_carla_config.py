@@ -18,9 +18,20 @@ def _setup_vehicle(world, config):
     bp.set_attribute("role_name", config.get("id"))
     bp.set_attribute("ros_name", config.get("id")) 
 
+    print(map_.name)
+    spawn_points = map_.get_spawn_points()
+    for i in range(len(spawn_points)):
+        waypt = map_.get_waypoint(spawn_points[i].location)
+        print ("Spawn Point {}: road {} lane {} section {}".format(i, waypt.road_id, waypt.lane_id, waypt.section_id))
+    
+    if 'Town06' in map_.name:
+        spawn_pt = spawn_points[102]
+    else:
+        spawn_pt = spawn_points[5]
+
     return  world.spawn_actor(
         bp,
-        map_.get_spawn_points()[0],
+        spawn_pt,
         attach_to=None)
 
 
@@ -87,13 +98,18 @@ def main(args):
     try:
         client = carla.Client(args.host, args.port)
         client.set_timeout(60.0)
+        print(client.get_available_maps())
+                
+        if args.map and 'Town06' not in client.get_world().get_map().name:
+            logging.info("Loading Town06 map")
+            client.load_world('Town06')
 
         world = client.get_world()
 
         original_settings = world.get_settings()
         settings = world.get_settings()
         settings.synchronous_mode = True
-        settings.fixed_delta_seconds = 0.05
+        settings.fixed_delta_seconds = 0.01
         world.apply_settings(settings)
 
         traffic_manager = client.get_trafficmanager()
@@ -152,6 +168,7 @@ if __name__ == '__main__':
     argparser.add_argument('-f', '--file', default='', required=True, help='File to be executed')
     argparser.add_argument('-v', '--verbose', action='store_true', dest='debug', help='print debug information')
     argparser.add_argument('-a', '--autopilot', action='store_true', dest='autopilot', help='turn on autopilot for the vehicle')
+    argparser.add_argument('-m', '--map', action='store_true', dest='map', help='load Town06 map')
 
     args = argparser.parse_args()
 
