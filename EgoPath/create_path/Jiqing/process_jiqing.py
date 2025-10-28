@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import cv2
 import shutil
 import warnings
 import numpy as np
@@ -106,4 +107,10 @@ def parseData(
     verbose: bool = False
 ):
     
+    # Read video frame-by-frame at 30 FPS
+    video_name = os.path.basename(video_path).split(".")[0]
+    cap = cv2.VideoCapture(video_path)
+    src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0     # Should really be 30 for all
+    frame_interval = int(round(src_fps / 30.0))
+
     
