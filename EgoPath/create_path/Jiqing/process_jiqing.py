@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import ast
 import cv2
 import shutil
 import warnings
@@ -75,14 +76,7 @@ def getLineAnchor(
     Determine "anchor" point of a line.
     """
     (x2, y2) = line[0]
-    (x1, y1) = line[
-        # int(len(line) / 5) 
-        # if (
-        #     len(line) > 5 and
-        #     line[0][1] >= H * 0.8
-        # ) else 1
-        int(len(line) / 2)
-    ]
+    (x1, y1) = line[1]
     if (verbose):
         print(f"Anchor points chosen: ({x1}, {y1}), ({x2}, {y2})")
 
@@ -113,13 +107,53 @@ def parseData(
     # Read video frame-by-frame at 30 FPS
     video_name = os.path.basename(video_path).split(".")[0]
     cap = cv2.VideoCapture(video_path)
-    src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0     # Should really be 30 for all
-    frame_interval = int(round(src_fps / 30.0))
 
-    # Check total frames
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"Total frames: {total_frames}, len(gt_files): {len(gt_files)}")
-    assert total_frames == len(gt_files)
+    # Go frame-by-frame
+    frame_idx = 0
+    while (
+        (cap.isOpened()) and 
+        (frame_idx < len(gt_files))
+    ):
+        
+        ret, _ = cap.read()
+        if (not ret):
+            if (verbose):
+                print(f"Frame {frame_idx} could not be read, stopping.")
+            break
+
+        # Corresponding GT file
+        gt_file = gt_files[frame_idx]
+        gt_filepath = os.path.join(corresponding_gt_dir, gt_file)
+
+        # Parse GT file
+        with open(gt_filepath, "r") as f:
+            lines = f.readlines()
+        
+        lane_lines = []
+        for line in lines:
+
+            line = line.split(":")[1].strip()   # Get only the coords part
+            line = line.replace(
+                ")(", 
+                ")|("
+            )                                   # My lil trick to separate points properly
+            line = [
+                ast.literal_eval(pt_str)
+                for pt_str in line.split("|")   # Do you see the beauty of it?
+            ]
+
+            # Sanity checks
+            if (len(line) < 2):
+                if (verbose):
+                    print(f"Line with less than 2 points found in frame {frame_idx}, skipping this line.")
+                continue
+
+            lane_lines.append(line)
+
+        frame_idx += 1
+
+    cap.release()
+    print(f"Finished processing video {video_name}.")
 
 
 # ================================= MAIN RUN ================================= #
