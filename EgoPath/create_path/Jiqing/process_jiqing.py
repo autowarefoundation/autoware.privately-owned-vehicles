@@ -168,6 +168,11 @@ def parseData(
 
         lane_lines.append(line)
 
+    if (len(lane_lines) < 2):
+        if (verbose):
+            print(f"Frame {frame_idx} has less than 2 lane lines, skipping frame.")
+        return None
+
     # Determining egolines via anchors
 
     line_anchors = [
@@ -263,10 +268,8 @@ def annotateGT(
     save_name = str(img_id_counter).zfill(6)
 
     # Raw img
-    cv2.imwrite(
-        os.path.join(img_dir, save_name + ".jpg"),
-        raw_img
-    )
+    raw_img = Image.fromarray(raw_img)
+    raw_img.save(os.path.join(img_dir, save_name + ".jpg"))
 
     # Fetch seg mask and save as RGB PNG
     mask_img = Image.fromarray(anno_entry["mask"]).convert("RGB")
@@ -437,10 +440,16 @@ if __name__ == "__main__":
         cap = cv2.VideoCapture(video_path)
 
         # Go frame-by-frame
-        frame_idx = 0
-        while (
-            (cap.isOpened()) and 
-            (frame_idx < len(gt_files))
+        # frame_idx = 0
+        # while (
+        #     (cap.isOpened()) and 
+        #     (frame_idx < len(gt_files))
+        # ):
+        for frame_idx in tqdm(
+            range(len(gt_files)),
+            desc = f"Processing frames: ",
+            unit = "frame",
+            colour = "yellow",
         ):
             
             ret, frame = cap.read()
@@ -465,7 +474,7 @@ if __name__ == "__main__":
             )
 
             # Annotate GT
-            if (anno_entry is None):
+            if (anno_entry is not None):
                 annotateGT(
                     raw_img = frame,
                     anno_entry = anno_entry,
@@ -474,7 +483,7 @@ if __name__ == "__main__":
                     visualization_dir = os.path.join(output_dir, "visualization")
                 )
 
-            frame_idx += 1
+            img_id_counter += 1
 
         cap.release()
         if (verbose):
