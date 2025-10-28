@@ -507,13 +507,64 @@ if __name__ == "__main__":
                 annotateGT(
                     raw_img = frame,
                     anno_entry = anno_entry,
-                    img_dir = os.path.join(output_dir, "image"),
-                    mask_dir = os.path.join(output_dir, "mask"),
-                    visualization_dir = os.path.join(output_dir, "visualization")
+                    img_dir = os.path.join(
+                        output_dir, 
+                        "image"
+                    ),
+                    mask_dir = os.path.join(
+                        output_dir, 
+                        "mask"
+                    ),
+                    visualization_dir = os.path.join(
+                        output_dir, 
+                        "visualization"
+                    )
                 )
+
+            # Log to master data
+            img_index = str(str(img_id_counter).zfill(6))
+            data_master[img_index] = {
+                "img_path"      : os.path.join(
+                    output_dir, 
+                    "image",
+                    img_index + ".jpg"
+                ),
+                "egoleft_lane"  : round_line_floats(
+                    normalizeCoords(
+                        anno_entry["egoleft_lane"],
+                        W, H
+                    )
+                ),
+                "egoright_lane" : round_line_floats(
+                    normalizeCoords(
+                        anno_entry["egoright_lane"],
+                        W, H
+                    )
+                ),
+                "other_lanes"   : [
+                    round_line_floats(
+                        normalizeCoords(
+                            lane,
+                            W, H
+                        )
+                    )
+                    for lane in anno_entry["other_lanes"]
+                ],
+            }
 
             img_id_counter += 1
 
         cap.release()
         if (verbose):
             print(f"Finished processing video {video_name}.")
+
+
+    # Save master annotation file
+    with open(
+        os.path.join(output_dir, "drivable_path.json"), 
+        "w"
+    ) as f:
+        json.dump(
+            data_master, f, 
+            indent = 4
+        )
