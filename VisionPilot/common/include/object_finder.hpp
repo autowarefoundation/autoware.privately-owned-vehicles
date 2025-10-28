@@ -4,7 +4,9 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <string>
+#include <chrono>
 #include "../../common/backends/autospeed/tensorrt_engine.hpp"
+#include "kalman_filter.hpp"
 
 namespace autoware_pov::vision {
 
@@ -17,6 +19,12 @@ struct TrackedObject {
     float distance_m;
     float velocity_ms;
     int frames_tracked;
+    
+    // Kalman filter for smooth tracking
+    KalmanFilter kalman;
+    
+    // Timestamp for calculating dt
+    std::chrono::steady_clock::time_point last_update_time;
 };
 
 // CIPO (Closest In-Path Object) - class 0 with minimum distance
