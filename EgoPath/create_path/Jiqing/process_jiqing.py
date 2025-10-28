@@ -141,7 +141,7 @@ def parseData(
     gt_filepath: str,
     frame_idx: int,
     verbose: bool = False
-):
+) -> dict[str, Any] | None:
 
     # Parse GT file
     with open(gt_filepath, "r") as f:
@@ -239,10 +239,48 @@ def parseData(
         "egoleft_lane"    : egoleft_lane,
         "egoright_lane"   : egoright_lane,
         "mask"            : mask,
-        # "drivable_path"   : drivable_path
     }
 
-    frame_idx += 1
+    return anno_entry
+
+
+def annotateGT(
+    raw_img: np.ndarray,
+    anno_entry: dict,
+    img_dir: str,
+    mask_dir: str,
+    visualization_dir: str
+):
+    """
+    Annotates and saves an image with:
+        - Raw image, in "output_dir/image".
+        - Annotated image with all lanes, in "output_dir/visualization".
+        - Segmentation mask image, in "output_dir/mask".
+    """
+
+    # Define save name, now saving everything in JPG
+    # to preserve my remaining disk space
+    save_name = str(img_id_counter).zfill(6)
+
+    # Raw img
+    cv2.imwrite(
+        os.path.join(img_dir, save_name + ".jpg"),
+        raw_img
+    )
+
+    # Fetch seg mask and save as RGB PNG
+    mask_img = Image.fromarray(anno_entry["mask"]).convert("RGB")
+    mask_img.save(os.path.join(mask_dir, save_name + ".png"))
+
+    # Overlay mask on raw image, ratio 1:1
+    overlayed_img = Image.blend(
+        raw_img, 
+        mask_img, 
+        alpha = 0.5
+    )
+
+    # Save visualization img, JPG for lighter weight, just different dir
+    overlayed_img.save(os.path.join(visualization_dir, save_name + ".jpg"))
 
 
 # ================================= MAIN RUN ================================= #
@@ -405,7 +443,7 @@ if __name__ == "__main__":
             (frame_idx < len(gt_files))
         ):
             
-            ret, _ = cap.read()
+            ret, frame = cap.read()
             if (not ret):
                 if (verbose):
                     print(f"Frame {frame_idx} could not be read, stopping.")
@@ -419,11 +457,22 @@ if __name__ == "__main__":
                 gt_file
             )
         
-            parseData(
+            # Parse raw data
+            anno_entry = parseData(
                 gt_filepath = gt_filepath,
                 frame_idx = frame_idx,
                 verbose = False
             )
+
+            # Annotate GT
+            if (anno_entry is None):
+                annotateGT(
+                    raw_img = frame,
+                    anno_entry = anno_entry,
+                    img_dir = os.path.join(output_dir, "image"),
+                    mask_dir = os.path.join(output_dir, "mask"),
+                    visualization_dir = os.path.join(output_dir, "visualization")
+                )
 
             frame_idx += 1
 
