@@ -116,4 +116,6 @@ def parseData(
     src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0     # Should really be 30 for all
     frame_interval = int(round(src_fps / 30.0))
 
-    
+    # Check total frames
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    assert total_frames == len(gt_files)
