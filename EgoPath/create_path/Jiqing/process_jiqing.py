@@ -150,10 +150,48 @@ def parseData(
 
             lane_lines.append(line)
 
+        # Determining egolines via anchors
+
+        line_anchors = [
+            getLineAnchor(
+                line,
+                verbose = verbose
+            )
+            for line in lane_lines
+        ]
+
+        for i, anchor in enumerate(line_anchors):
+            if (anchor[0] >= W / 2):
+                if (i == 0):
+                    egoleft_lane = lane_lines[0]
+                    egoright_lane = lane_lines[1]
+                    other_lanes = [
+                        line for j, line in enumerate(lane_lines) 
+                        if j != 0 and j != 1
+                    ]
+                else:
+                    egoleft_lane = lane_lines[i - 1]
+                    egoright_lane = lane_lines[i]
+                    other_lanes = [
+                        line for j, line in enumerate(lane_lines) 
+                        if j != i - 1 and j != i
+                    ]
+                break
+            else:
+                # Traversed all lanes but none is on the right half
+                if (i == len(lane_lines) - 1):
+                    egoleft_lane = None
+                    egoright_lane = None
+
+        
+
+
+
         frame_idx += 1
 
     cap.release()
-    print(f"Finished processing video {video_name}.")
+    if (verbose):
+        print(f"Finished processing video {video_name}.")
 
 
 # ================================= MAIN RUN ================================= #
