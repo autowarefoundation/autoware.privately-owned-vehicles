@@ -222,7 +222,7 @@ def parseData(
                 egoright_lane = None
 
     # Skip frames with no sufficient egolines
-    if not (egoleft_lane and egoright_lane):
+    if (not egoleft_lane) or (not egoright_lane):
         if (verbose):
             print(f"Frame {frame_idx} has no egolines, skipping frame.")
         frame_idx += 1
@@ -419,6 +419,7 @@ if __name__ == "__main__":
 
     data_master = {}
     img_id_counter = 0
+    flag_continue = True
 
     list_videos  = sorted(
         os.listdir(video_dir),
@@ -443,6 +444,10 @@ if __name__ == "__main__":
         colour = "green"
     ):
 
+        # Early stopping check on outer loop
+        if (not flag_continue):
+            break
+        
         this_video_name = list_videos[i]
         this_gt_dir = list_gt_dirs[i]
 
@@ -553,6 +558,15 @@ if __name__ == "__main__":
             }
 
             img_id_counter += 1
+
+            # Early stopping check on inner loop
+            if (
+                early_stopping and 
+                (img_id_counter >= early_stopping)
+            ):
+                flag_continue = False
+                print(f"Early stopping reached at {early_stopping} samples.")
+                break
 
         cap.release()
         if (verbose):
