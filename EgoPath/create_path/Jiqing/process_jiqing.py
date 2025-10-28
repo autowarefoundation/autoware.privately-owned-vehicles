@@ -107,6 +107,9 @@ def parseData(
     verbose: bool = False
 ):
     
+    # Prepare raw GTs
+    gt_files = sorted(os.listdir(corresponding_gt_dir))
+    
     # Read video frame-by-frame at 30 FPS
     video_name = os.path.basename(video_path).split(".")[0]
     cap = cv2.VideoCapture(video_path)
