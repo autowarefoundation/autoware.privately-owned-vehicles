@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import ast
 import cv2
 import shutil
@@ -10,7 +11,7 @@ import warnings
 import numpy as np
 from tqdm import tqdm
 from typing import Any
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 
 # ============================= Format functions ============================= #
@@ -63,6 +64,17 @@ def custom_warning_format(
     return f"WARNING : {message}\n"
 
 warnings.formatwarning = custom_warning_format
+
+
+# Sort key to sort by text and num parts separately
+def _natural_keys(text: str):
+    """Split text into list of ints and lowercase text for natural sorting."""
+    return [
+        int(tok) 
+        if tok.isdigit() 
+        else tok.lower() 
+        for tok in re.split(r'(\d+)', text)
+    ]
 
 
 # ============================== Helper functions ============================== #
@@ -146,7 +158,6 @@ def parseData(
     # Parse GT file
     with open(gt_filepath, "r") as f:
         lines = f.readlines()
-        print(f"{gt_filepath} has {len(lines)} lines.")
     
     lane_lines = []
     for line in lines:
@@ -177,8 +188,6 @@ def parseData(
             print(f"Frame {frame_idx} has less than 2 lane lines, skipping frame.")
         return None
     
-    print(len(lane_lines))
-
     # Determining egolines via anchors
 
     line_anchors = [
@@ -406,8 +415,14 @@ if __name__ == "__main__":
     data_master = {}
     img_id_counter = 0
 
-    list_videos  = sorted(os.listdir(video_dir))
-    list_gt_dirs = sorted(os.listdir(gt_dir))
+    list_videos  = sorted(
+        os.listdir(video_dir),
+        key = _natural_keys
+    )
+    list_gt_dirs = sorted(
+        os.listdir(gt_dir),
+        key = _natural_keys
+    )
 
     assert len(list_videos) == len(list_gt_dirs), \
         f"Number of video files ({len(list_videos)}) and GT folders ({len(list_gt_dirs)}) do not match."
@@ -430,12 +445,15 @@ if __name__ == "__main__":
             f"Video file ({this_video_name}) and GT folder ({this_gt_dir}) do not match."
 
         # Prepare raw GTs
-        gt_files = sorted(os.listdir(
-            os.path.join(
-                gt_dir, 
-                this_gt_dir
-            )
-        ))
+        gt_files = sorted(
+            os.listdir(
+                os.path.join(
+                    gt_dir, 
+                    this_gt_dir
+                )
+            ),
+            key = _natural_keys
+        )
         
         # Read video frame-by-frame at 30 FPS
         video_path = os.path.join(
