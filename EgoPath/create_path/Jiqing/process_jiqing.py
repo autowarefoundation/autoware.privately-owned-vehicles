@@ -183,9 +183,14 @@ def parseData(
                     egoleft_lane = None
                     egoright_lane = None
 
+        # Skip frames with no sufficient egolines
+        if not (egoleft_lane and egoright_lane):
+            if (verbose):
+                print(f"Frame {frame_idx} has no egolines, skipping frame.")
+            frame_idx += 1
+            continue
+
         
-
-
 
         frame_idx += 1
 
