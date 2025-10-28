@@ -282,8 +282,13 @@ def annotateGT(
     # to preserve my remaining disk space
     save_name = str(img_id_counter).zfill(6)
 
-    # Raw img
-    raw_img = Image.fromarray(raw_img)
+    # Raw img, fetched from cv2 BGR format, convert to RGB
+    raw_img = Image.fromarray(
+        cv2.cvtColor(
+            raw_img, 
+            cv2.COLOR_BGR2RGB
+        )
+    )
     raw_img.save(os.path.join(img_dir, save_name + ".jpg"))
 
     # Fetch seg mask and save as RGB PNG
