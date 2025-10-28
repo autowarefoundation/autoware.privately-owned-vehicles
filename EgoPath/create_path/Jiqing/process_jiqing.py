@@ -147,4 +147,42 @@ if __name__ == "__main__":
     #     │   └── ...
     #     └── ...
 
-    
+    # All scenes have reso 1920 x 1080 at 30 FPS
+    W = 1920
+    H = 1080
+
+    # ================================ Parsing args ================================ #
+
+    parser = argparse.ArgumentParser(
+        description = "Process Jinan-Qingdao Expressway Dataset - groundtruth generation"
+    )
+    parser.add_argument(
+        "--video_dir", 
+        "-iv",
+        type = str, 
+        help = "Jinan-Qingdao Expressway video directory (should contain .MOV files)",
+        required = True
+    )
+    parser.add_argument(
+        "--gt_dir", 
+        "-igt",
+        type = str, 
+        help = "Jinan-Qingdao Expressway ground truth directory (should contain subfolders with same names as video files)",
+        required = True
+    )
+    parser.add_argument(
+        "--output_dir", 
+        "-o",
+        help = "Output directory",
+        required = True
+    )
+    # For debugging only
+    parser.add_argument(
+        "--early_stopping",
+        "-e",
+        type = int,
+        help = "Num. files you wanna limit, instead of whole set.",
+        required = False
+    )
+
+    args = parser.parse_args()
