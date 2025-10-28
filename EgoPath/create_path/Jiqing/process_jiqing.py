@@ -118,6 +118,7 @@ def parseData(
 
     # Check total frames
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(f"Total frames: {total_frames}, len(gt_files): {len(gt_files)}")
     assert total_frames == len(gt_files)
 
 
@@ -198,7 +199,6 @@ if __name__ == "__main__":
         early_stopping = args.early_stopping
     else:
         early_stopping = None
-
     
     # Generate output structure
 
@@ -217,3 +217,38 @@ if __name__ == "__main__":
         subdir_path = os.path.join(output_dir, subdir)
         if (not os.path.exists(subdir_path)):
             os.makedirs(subdir_path, exist_ok = True)
+
+    # ============================== Parsing annotations ============================== #
+
+    data_master = {}
+    img_id_counter = 0
+
+    list_videos  = sorted(os.listdir(video_dir))
+    list_gt_dirs = sorted(os.listdir(gt_dir))
+
+    assert len(list_videos) == len(list_gt_dirs), \
+        f"Number of video files ({len(list_videos)}) and GT folders ({len(list_gt_dirs)}) do not match."
+    
+    for i in tqdm(
+        range(len(list_videos)) 
+        if (early_stopping is None) 
+        else range(min(early_stopping, len(list_videos))),
+        desc = "Processing videos: ",
+        unit = "video",
+        colour = "green"
+    ):
+
+        assert list_gt_dirs[i] in list_videos[i], \
+            f"Video file ({list_videos[i]}) and GT folder ({list_gt_dirs[i]}) do not match."
+        
+        parseData(
+            video_path = os.path.join(
+                video_dir, 
+                list_videos[i]
+            ),
+            corresponding_gt_dir = os.path.join(
+                gt_dir, 
+                list_gt_dirs[i]
+            ),
+            verbose = False
+        )
