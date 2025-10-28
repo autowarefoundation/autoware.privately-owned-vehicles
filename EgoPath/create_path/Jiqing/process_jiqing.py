@@ -146,19 +146,23 @@ def parseData(
     # Parse GT file
     with open(gt_filepath, "r") as f:
         lines = f.readlines()
+        print(f"{gt_filepath} has {len(lines)} lines.")
     
     lane_lines = []
     for line in lines:
-
         line = line.split(":")[1].strip()   # Get only the coords part
         line = line.replace(
             ")(", 
             ")|("
         )                                   # My lil trick to separate points properly
-        line = [
-            ast.literal_eval(pt_str)
-            for pt_str in line.split("|")   # Do you see the beauty of it?
-        ]
+        line = sorted(
+            [
+                ast.literal_eval(pt_str)
+                for pt_str in line.split("|")   # Do you see the beauty of it?
+            ],
+            key = lambda pt: pt[1],             # Sort by y coords
+            reverse = True
+        )
 
         # Sanity checks
         if (len(line) < 2):
@@ -172,6 +176,8 @@ def parseData(
         if (verbose):
             print(f"Frame {frame_idx} has less than 2 lane lines, skipping frame.")
         return None
+    
+    print(len(lane_lines))
 
     # Determining egolines via anchors
 
