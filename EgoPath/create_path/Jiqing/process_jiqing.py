@@ -198,3 +198,22 @@ if __name__ == "__main__":
         early_stopping = args.early_stopping
     else:
         early_stopping = None
+
+    
+    # Generate output structure
+
+    list_subdirs = [
+        "image",
+        "mask",
+        "visualization",
+    ]
+
+    if (os.path.exists(output_dir)):
+        warnings.warn(f"Output directory {output_dir} already exists. Purged")
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
+    for subdir in list_subdirs:
+        subdir_path = os.path.join(output_dir, subdir)
+        if (not os.path.exists(subdir_path)):
+            os.makedirs(subdir_path, exist_ok = True)
