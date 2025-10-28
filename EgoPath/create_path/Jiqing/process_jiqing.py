@@ -119,3 +119,32 @@ def parseData(
     # Check total frames
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     assert total_frames == len(gt_files)
+
+
+# ================================= MAIN RUN ================================= #
+
+
+if __name__ == "__main__":
+
+    # ============================== Dataset structure ============================== #
+
+    # FYI: https://github.com/vonsj0210/Multi-Lane-Detection-Dataset-with-Ground-Truth
+
+    # The downloaded dataset is structured as follows (if you do it the right way):
+    # Jiqing_Dataset/
+    # ├── Jiqing Expressway Video/
+    # │   ├── IMG_0249.MOV
+    # │   ├── IMG_0250.MOV
+    # │   └── ...
+    # └── Lane_Parameters/
+    #     ├── 0249/
+    #     │   ├── 1.txt
+    #     │   ├── 2.txt
+    #     │   └── ...
+    #     ├── 0250/
+    #     │   ├── 1.txt
+    #     │   ├── 2.txt
+    #     │   └── ...
+    #     └── ...
+
+    
