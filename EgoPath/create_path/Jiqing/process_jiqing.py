@@ -95,3 +95,15 @@ def getLineAnchor(
         print(f"Anchor point computed: (x0 = {x0}, a = {a}, b = {b})")
 
     return (x0, a, b)
+
+
+# ============================== Core functions ============================== #
+
+
+def parseData(
+    video_path: str,
+    corresponding_gt_dir: str,
+    verbose: bool = False
+):
+    
+    
