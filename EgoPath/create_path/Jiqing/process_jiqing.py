@@ -166,10 +166,11 @@ def parseData(
     lane_lines = []
     for line in lines:
 
-        line = line.split(":")[1].strip()   # Get only the coords part
-        
+        line = line.strip()
         if (not line):                      # Deal with empty line case, like 0253/2779.txt
             continue
+
+        line = line.split(":")[1].strip()   # Get only the coords part
 
         line = line.replace(
             ")(", 
