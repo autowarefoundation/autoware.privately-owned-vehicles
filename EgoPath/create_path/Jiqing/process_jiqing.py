@@ -597,3 +597,7 @@ if __name__ == "__main__":
             data_master, f, 
             indent = 4
         )
+    
+    print(f"Completed processing Jiqing dataset.")
+    print(f"Total samples: {img_id_counter}.")
+    print(f"Output saved to {output_dir}.")
