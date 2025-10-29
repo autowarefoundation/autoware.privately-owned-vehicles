@@ -158,6 +158,10 @@ def parseData(
     # Parse GT file
     with open(gt_filepath, "r") as f:
         lines = f.readlines()
+        if (not lines):
+            if (verbose):
+                print(f"GT file {gt_filepath} is empty, skipping frame {frame_idx}.")
+            return None
     
     lane_lines = []
     for line in lines:
