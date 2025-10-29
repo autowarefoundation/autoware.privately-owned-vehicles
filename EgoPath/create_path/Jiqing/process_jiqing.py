@@ -170,7 +170,13 @@ def parseData(
         if (not line):                      # Deal with empty line case, like 0253/2779.txt
             continue
 
-        line = line.split(":")[1].strip()   # Get only the coords part
+        # Get only the coords part, be as bug-free as possible
+        line = line.split(":")
+        if (len(line) < 2):
+            continue
+        line = line[1].strip()
+        if (not line):                      # One more empty line check just to make sure
+            continue
 
         line = line.replace(
             ")(", 
