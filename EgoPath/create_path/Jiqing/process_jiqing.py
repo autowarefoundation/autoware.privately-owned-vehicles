@@ -161,22 +161,32 @@ def parseData(
     
     lane_lines = []
     for line in lines:
+
         line = line.split(":")[1].strip()   # Get only the coords part
+        
+        if (not line):                      # Deal with empty line case, like 0253/2779.txt
+            continue
+
         line = line.replace(
             ")(", 
             ")|("
         )                                   # My lil trick to separate points properly
-        line = sorted(
-            [
-                ast.literal_eval(pt_str)
-                for pt_str in line.split("|")   # Do you see the beauty of it?
-            ],
-            key = lambda pt: pt[1],             # Sort by y coords
-            reverse = True
-        )
+        line = [
+            ast.literal_eval(pt_str)
+            for pt_str in line.split("|")   # Do you see the beauty of it?
+        ]
+        if (line):
+            line = sorted(
+                line,
+                key = lambda pt: pt[1],     # Sort by y coords
+                reverse = True
+            )
 
         # Sanity checks
-        if (len(line) < 2):
+        if (
+            (line and len(line) < 2) or
+            (not line)
+        ):
             if (verbose):
                 print(f"Line with less than 2 points found in frame {frame_idx}, skipping this line.")
             continue
