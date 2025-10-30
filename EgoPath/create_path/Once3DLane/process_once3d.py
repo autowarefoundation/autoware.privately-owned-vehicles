@@ -26,6 +26,7 @@ def normalizeCoords(
     """
     Normalize the coords of line points.
     """
+    
     return [
         (
             x / width, 
@@ -65,3 +66,33 @@ def custom_warning_format(
     return f"WARNING : {message}\n"
 
 warnings.formatwarning = custom_warning_format
+
+
+# ============================== Helper functions ============================== #
+
+
+def getLineAnchor(
+    line: Line,
+    verbose: bool = False
+):
+    """
+    Determine "anchor" point of a line.
+    This function assumes lines are sorted by descending y-coords.
+    So better sort it in advance. These raw GTs are messy as hell.
+    """
+
+    (x2, y2) = line[0]
+    (x1, y1) = line[1]
+    if (verbose):
+        print(f"Anchor points chosen: ({x1}, {y1}), ({x2}, {y2})")
+
+    if (x1 == x2) or (y1 == y2):
+        return (x1, None, None)
+
+    a = (y2 - y1) / (x2 - x1)
+    b = y1 - a * x1
+    x0 = (H - b) / a
+    if (verbose):
+        print(f"Anchor point computed: (x0 = {x0}, a = {a}, b = {b})")
+
+    return (x0, a, b)
