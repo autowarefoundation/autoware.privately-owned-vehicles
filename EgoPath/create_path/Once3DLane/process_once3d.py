@@ -16,3 +16,20 @@ from PIL import Image, ImageDraw
 PointCoords = tuple[float, float]
 ImagePointCoords = tuple[int, int]
 Line = list[PointCoords] | list[ImagePointCoords]
+
+
+def normalizeCoords(
+    line: Line, 
+    width: int, 
+    height: int
+):
+    """
+    Normalize the coords of line points.
+    """
+    return [
+        (
+            x / width, 
+            y / height
+        ) 
+        for x, y in line
+    ]
