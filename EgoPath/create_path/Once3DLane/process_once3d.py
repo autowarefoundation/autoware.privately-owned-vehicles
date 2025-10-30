@@ -54,3 +54,14 @@ def round_line_floats(
     line = tuple(line)
 
     return line
+
+
+# Custom warning format
+def custom_warning_format(
+    message, 
+    category, filename, 
+    lineno, line = None
+):
+    return f"WARNING : {message}\n"
+
+warnings.formatwarning = custom_warning_format
