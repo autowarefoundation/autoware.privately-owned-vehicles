@@ -28,7 +28,8 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
                                                               std::bind(&PathFinderNode::callbackLaneR, this, std::placeholders::_1));
   sub_path_ = this->create_subscription<nav_msgs::msg::Path>("/egoPath", 3,
                                                              std::bind(&PathFinderNode::callbackPath, this, std::placeholders::_1));
-
+  sub_odom_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 3,
+                                                                 std::bind(&PathFinderNode::callbackOdom, this, std::placeholders::_1));
   pub_laneL_ = this->create_publisher<nav_msgs::msg::Path>("egoLaneL", 3);
   pub_laneR_ = this->create_publisher<nav_msgs::msg::Path>("egoLaneR", 3);
   pub_path_ = this->create_publisher<nav_msgs::msg::Path>("egoPath", 3);
@@ -53,6 +54,22 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
   path_msg->header.stamp = this->get_clock()->now();
 
   RCLCPP_INFO(this->get_logger(), "PathFinder Node started");
+}
+
+void PathFinderNode::callbackOdom(const nav_msgs::msg::Odometry::SharedPtr msg)
+{
+  double ODOM_STD = 0.1; // m/s
+  double dt = 0.01;
+  double d_cte = msg->twist.twist.linear.y * dt; // cte +ve in -ve y axis
+  std::array<Gaussian, STATE_DIM> measurement;
+  for (int i = 0; i < STATE_DIM; i++)
+  {
+    measurement[i].mean = std::numeric_limits<double>::quiet_NaN();
+  }
+  auto fused_cte = bayesFilter.getState()[3];
+  measurement[3].mean = fused_cte.mean + (-d_cte);
+  measurement[3].variance = fused_cte.variance + ODOM_STD * ODOM_STD;
+  bayesFilter.update(measurement);
 }
 
 void PathFinderNode::callbackLaneL(const nav_msgs::msg::Path::SharedPtr msg)

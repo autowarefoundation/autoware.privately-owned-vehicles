@@ -10,6 +10,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "visualization_msgs/msg/marker.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
 #define LANE_WIDTH 4.0 // meters, typical lane width
 
@@ -43,4 +44,6 @@ private:
     nav_msgs::msg::Path::SharedPtr path_msg;
     void publishLaneMarker(double lane_width, double cte, double yaw_error, double curvature, std::array<float, 4> rgba);
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr corr_pub_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
+    void callbackOdom(const nav_msgs::msg::Odometry::SharedPtr msg);
 };
