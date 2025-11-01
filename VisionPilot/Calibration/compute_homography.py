@@ -192,7 +192,7 @@ def compute_homography(projected_points_in_roi, points_in_roi):
     return homography_matrix
 
 def save_homography_to_yaml(H, filename="homography.yaml"):
-    """Saves the homography matrix to a YAML file."""
+    """Saves the homography matrix to a YAML file as 'H' (matches ObjectFinder format)."""
     if H is not None:
         print("Successfully calculated reference homography matrix:")
         print(H)
@@ -200,8 +200,11 @@ def save_homography_to_yaml(H, filename="homography.yaml"):
         # Convert the NumPy array to a list for YAML serialization
         data_list = H.flatten().tolist()
         
+        # Save as 'H' to match ObjectFinder expectations
+        # ObjectFinder supports both flat list and structured formats
+        # Using structured format: H: { rows: 3, cols: 3, data: [...] }
         yaml_data = {
-            'homography_matrix': {
+            'H': {
                 'rows': H.shape[0],
                 'cols': H.shape[1],
                 'data': data_list
@@ -211,7 +214,7 @@ def save_homography_to_yaml(H, filename="homography.yaml"):
         with open(filename, 'w') as f:
             yaml.dump(yaml_data, f, default_flow_style=False)
         
-        print(f"Reference homography saved to {filename}")
+        print(f"Reference homography saved to {filename} (as 'H' field)")
     else:
         print("Could not compute reference homography. Exiting.")
 
@@ -278,7 +281,7 @@ def main(args):
             H_ref = compute_homography(projected_points_in_roi, points_in_roi)
 
             if H_ref is not None:
-                save_homography_to_yaml(H_ref)
+                save_homography_to_yaml(H_ref, filename=args.output)
             else:
                 print("Could not compute reference homography. Exiting.")
                 return
@@ -313,5 +316,7 @@ if __name__ == '__main__':
                              'If not provided, a default ROI targeting the main road will be used.')
     parser.add_argument('--manual_roi', action='store_true',
                         help='Enable interactive, manual ROI selection by clicking on the image.')
+    parser.add_argument('--output', type=str, default='homography.yaml',
+                        help='Output path for the homography YAML file (default: homography.yaml)')
     args = parser.parse_args()
     main(args)
