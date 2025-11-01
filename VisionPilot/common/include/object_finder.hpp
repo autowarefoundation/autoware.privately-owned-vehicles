@@ -62,9 +62,16 @@ public:
     /**
      * @brief Construct ObjectFinder with homography calibration
      * @param homography_yaml Path to YAML file containing homography matrix H
-     * @param image_width Image width (for normalization in matching score)
-     * @param image_height Image height (for normalization in matching score)
+     * @param image_width Image width (used to normalize centroid distance in data association)
+     * @param image_height Image height (used to normalize centroid distance in data association)
      * @param debug_mode Enable verbose logging (default: false)
+     * 
+     * Note: Image dimensions are needed for robust tracking. When associating detections
+     * with existing tracks, we calculate a matching score that combines:
+     * - IoU (intersection over union)
+     * - Centroid distance (normalized by image diagonal)
+     * - Size similarity
+     * The image dimensions ensure centroid distance is properly scaled (0-1 range).
      */
     ObjectFinder(const std::string& homography_yaml, 
                  int image_width = 1920, 
