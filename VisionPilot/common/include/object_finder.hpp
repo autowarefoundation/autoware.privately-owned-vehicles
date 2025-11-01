@@ -64,10 +64,12 @@ public:
      * @param homography_yaml Path to YAML file containing homography matrix H
      * @param image_width Image width (for normalization in matching score)
      * @param image_height Image height (for normalization in matching score)
+     * @param debug_mode Enable verbose logging (default: false)
      */
     ObjectFinder(const std::string& homography_yaml, 
                  int image_width = 1920, 
-                 int image_height = 1280);
+                 int image_height = 1280,
+                 bool debug_mode = false);
     
     /**
      * @brief Update with new detections and calculate distances
@@ -107,6 +109,26 @@ public:
      * @return Reference to CIPO history
      */
     const CIPOHistory& getCIPOHistory() const { return cipo_history_; }
+    
+    /**
+     * @brief Check if cut-in was detected on last CIPO update
+     * @return true if last CIPO change was a cut-in (different vehicle)
+     */
+    bool wasCutInDetected() const { return cut_in_detected_; }
+    
+    /**
+     * @brief Check if Kalman was reset on last CIPO update
+     * @return true if Kalman filter was reset
+     */
+    bool wasKalmanReset() const { return kalman_reset_; }
+    
+    /**
+     * @brief Clear cut-in and reset flags (call after displaying warning)
+     */
+    void clearEventFlags() { 
+        cut_in_detected_ = false;
+        kalman_reset_ = false;
+    }
     
 private:
     // ===== Core Functions =====
@@ -163,6 +185,12 @@ private:
     float matching_threshold_;    // Minimum matching score to associate (default: 0.25)
     int max_frames_unmatched_;    // Keep tracks alive for N frames (default: 3)
     float feature_match_threshold_;  // Min confidence for same object (default: 0.3)
+    bool debug_mode_;             // Enable verbose logging
+    
+    // ===== Event Flags =====
+    
+    bool cut_in_detected_;        // True if last CIPO change was a cut-in
+    bool kalman_reset_;           // True if Kalman filter was reset
 };
 
 }  // namespace autoware_pov::vision
