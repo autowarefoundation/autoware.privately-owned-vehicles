@@ -26,7 +26,7 @@ def normalizeCoords(
     """
     Normalize the coords of line points.
     """
-    
+
     return [
         (
             x / width, 
@@ -96,3 +96,17 @@ def getLineAnchor(
         print(f"Anchor point computed: (x0 = {x0}, a = {a}, b = {b})")
 
     return (x0, a, b)
+
+
+# ============================== Core functions ============================== #
+
+
+def parseData():
+
+
+# ================================= MAIN RUN ================================= #
+
+
+if __name__ == "__main__":
+
+    
