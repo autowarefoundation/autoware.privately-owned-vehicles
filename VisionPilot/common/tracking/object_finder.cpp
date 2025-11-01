@@ -7,10 +7,18 @@
 
 namespace autoware_pov::vision {
 
-ObjectFinder::ObjectFinder(const std::string& homography_yaml)
-    : next_track_id_(0), iou_threshold_(0.3f), dt_(0.1f) {
+ObjectFinder::ObjectFinder(const std::string& homography_yaml,
+                           int image_width,
+                           int image_height)
+    : next_track_id_(0),
+      image_width_(image_width),
+      image_height_(image_height),
+      matching_threshold_(0.25f),
+      max_frames_unmatched_(3),
+      feature_match_threshold_(0.3f),
+      cipo_history_(30) {  // Store last 30 frames of CIPO history
     
-    // Load homography matrix from YAML - simple and direct, no fallback
+    // Load homography matrix from YAML
     YAML::Node config = YAML::LoadFile(homography_yaml);
     
     if (!config["H"]) {
@@ -35,6 +43,8 @@ ObjectFinder::ObjectFinder(const std::string& homography_yaml)
     H_ = cv::Mat(3, 3, CV_64F, H_data.data()).clone();
     H_.convertTo(H_, CV_32F);
     LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
+    LOG_INFO(("Image dimensions for tracking: " + std::to_string(image_width_) + 
+              "x" + std::to_string(image_height_)).c_str());
 }
 
 cv::Point2f ObjectFinder::imageToWorld(const cv::Point2f& image_point) {
@@ -46,43 +56,104 @@ cv::Point2f ObjectFinder::imageToWorld(const cv::Point2f& image_point) {
 }
 
 float ObjectFinder::calculateDistance(const cv::Point2f& world_point) {
-    // Return forward distance along Y-axis (longitudinal distance)
-    // Distance should always be positive
-    return std::abs(world_point.x);
+    // Return Euclidean distance (matches Python implementation)
+    return std::sqrt(world_point.x * world_point.x + world_point.y * world_point.y);
 }
 
-float ObjectFinder::calculateIoU(const cv::Rect& a, const cv::Rect& b) {
-    int x1 = std::max(a.x, b.x);
-    int y1 = std::max(a.y, b.y);
-    int x2 = std::min(a.x + a.width, b.x + b.width);
-    int y2 = std::min(a.y + a.height, b.y + b.height);
+std::vector<std::pair<int, int>> ObjectFinder::associateDetections(
+    const std::vector<autospeed::Detection>& detections
+) {
+    // Result: pairs of (detection_idx, track_idx)
+    // -1 means unmatched
+    std::vector<std::pair<int, int>> associations;
     
-    int intersection = std::max(0, x2 - x1) * std::max(0, y2 - y1);
-    int union_area = a.area() + b.area() - intersection;
+    // Track which detections and tracks have been matched
+    std::vector<bool> det_matched(detections.size(), false);
+    std::vector<bool> track_matched(previous_objects_.size(), false);
     
-    return union_area > 0 ? static_cast<float>(intersection) / union_area : 0.0f;
-}
-
-std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Detection>& detections) {
-    auto current_time = std::chrono::steady_clock::now();
-    std::vector<TrackedObject> new_tracked_objects;
-    std::vector<bool> matched(previous_objects_.size(), false);
-    
-    // DEBUG: Print all detected classes first
-    LOG_INFO("=== ALL DETECTIONS ===");
-    for (size_t i = 0; i < detections.size(); i++) {
-        LOG_INFO(("  Detection " + std::to_string(i) + ": class=" + 
-                  std::to_string(detections[i].class_id) + " conf=" + 
-                  std::to_string(detections[i].confidence)).c_str());
-    }
-    
-    // ONLY process class 1 detections (CIPO candidates)
-    for (const auto& det : detections) {
-        if (det.class_id != 1) {
-            continue;  // Skip non-class-1 objects
+    // Greedy matching: find best match for each detection
+    for (size_t det_idx = 0; det_idx < detections.size(); det_idx++) {
+        const auto& det = detections[det_idx];
+        
+        // Only match trackable classes (1 and 2)
+        if (!shouldTrackClass(det.class_id)) {
+            continue;
         }
         
-        // Calculate bbox
+        // Create detection bbox
+        cv::Rect det_bbox(
+            static_cast<int>(det.x1),
+            static_cast<int>(det.y1),
+            static_cast<int>(det.x2 - det.x1),
+            static_cast<int>(det.y2 - det.y1)
+        );
+        
+        // Find best matching track
+        int best_track_idx = -1;
+        float best_score = 0.0f;
+        
+        for (size_t track_idx = 0; track_idx < previous_objects_.size(); track_idx++) {
+            const auto& track = previous_objects_[track_idx];
+            
+            // Skip if already matched or different class
+            if (track_matched[track_idx] || track.class_id != det.class_id) {
+                continue;
+            }
+            
+            // Calculate matching score (combines IoU, centroid distance, size similarity)
+            float score = TrackingUtils::calculateMatchingScore(
+                det_bbox, track.bbox, image_width_, image_height_
+            );
+            
+            if (score > matching_threshold_ && score > best_score) {
+                best_score = score;
+                best_track_idx = track_idx;
+            }
+        }
+        
+        // Record association
+        if (best_track_idx >= 0) {
+            associations.push_back({det_idx, best_track_idx});
+            det_matched[det_idx] = true;
+            track_matched[best_track_idx] = true;
+            
+            LOG_INFO(("  Association: Detection " + std::to_string(det_idx) + 
+                      " <-> Track " + std::to_string(previous_objects_[best_track_idx].track_id) +
+                      " (score=" + std::to_string(best_score) + ")").c_str());
+        } else {
+            // New detection (will create new track)
+            associations.push_back({det_idx, -1});
+        }
+    }
+    
+    return associations;
+}
+
+std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Detection>& detections,
+                                                const cv::Mat& frame) {
+    auto current_time = std::chrono::steady_clock::now();
+    std::vector<TrackedObject> new_tracked_objects;
+    
+    // DEBUG: Print all detected classes
+    LOG_INFO("=== ALL DETECTIONS ===");
+    for (size_t i = 0; i < detections.size(); i++) {
+        if (shouldTrackClass(detections[i].class_id)) {
+            LOG_INFO(("  Detection " + std::to_string(i) + ": class=" + 
+                      std::to_string(detections[i].class_id) + " conf=" + 
+                      std::to_string(detections[i].confidence)).c_str());
+        }
+    }
+    
+    // ===== STEP 1: Associate detections with existing tracks =====
+    LOG_INFO("=== DATA ASSOCIATION ===");
+    auto associations = associateDetections(detections);
+    
+    // ===== STEP 2: Process matched and new detections =====
+    LOG_INFO("=== PROCESSING DETECTIONS ===");
+    for (const auto& [det_idx, track_idx] : associations) {
+        const auto& det = detections[det_idx];
+        
+        // Create bbox and calculate bottom-center point
         cv::Rect bbox(
             static_cast<int>(det.x1),
             static_cast<int>(det.y1),
@@ -90,50 +161,19 @@ std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Det
             static_cast<int>(det.y2 - det.y1)
         );
         
-        // Calculate bottom-center of bbox (where object touches ground)
-        cv::Point2f bbox_bottom_center(
-            det.x1 + (det.x2 - det.x1) / 2.0f,
-            det.y2
-        );
+        cv::Point2f bbox_bottom_center = TrackingUtils::getBottomCenter(bbox);
         
-        // Transform to world coordinates using homography
+        // Transform to world coordinates and calculate distance
         cv::Point2f world_position = imageToWorld(bbox_bottom_center);
         float measured_distance = calculateDistance(world_position);
         
-        // DEBUG: Print bbox and measurement
-        LOG_INFO(("Class 1 Detection - BBox: [" + 
-                  std::to_string(static_cast<int>(det.x1)) + ", " + 
-                  std::to_string(static_cast<int>(det.y1)) + ", " + 
-                  std::to_string(static_cast<int>(det.x2)) + ", " + 
-                  std::to_string(static_cast<int>(det.y2)) + "] " +
-                  "Bottom-Center UV: (" + 
-                  std::to_string(bbox_bottom_center.x) + ", " + 
-                  std::to_string(bbox_bottom_center.y) + ") " +
-                  "Measured distance: " + std::to_string(measured_distance) + " m").c_str());
-        
-        // Try to match with existing tracks using IoU
-        int best_match_idx = -1;
-        float best_iou = 0.0f;
-        
-        for (size_t i = 0; i < previous_objects_.size(); i++) {
-            if (matched[i] || previous_objects_[i].class_id != det.class_id) {
-                continue;
-            }
-            
-            float iou = calculateIoU(bbox, previous_objects_[i].bbox);
-            if (iou > iou_threshold_ && iou > best_iou) {
-                best_iou = iou;
-                best_match_idx = i;
-            }
-        }
-        
         TrackedObject obj;
         
-        if (best_match_idx >= 0) {
+        if (track_idx >= 0) {
             // ===== MATCHED TRACK: Update existing object =====
-            obj = previous_objects_[best_match_idx];
-            matched[best_match_idx] = true;
+            obj = previous_objects_[track_idx];
             obj.frames_tracked++;
+            obj.frames_unmatched = 0;  // Reset unmatched counter
             
             // Calculate dt (time difference from last update)
             float dt = std::chrono::duration<float>(current_time - obj.last_update_time).count();
@@ -147,10 +187,11 @@ std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Det
             obj.velocity_ms = obj.kalman.getVelocity();
             
             LOG_INFO(("  -> MATCHED Track " + std::to_string(obj.track_id) + 
+                      " (class=" + std::to_string(obj.class_id) + ")" +
                       " | dt=" + std::to_string(dt) + "s" +
-                      " | Raw: " + std::to_string(measured_distance) + " m" +
-                      " | Filtered: " + std::to_string(obj.distance_m) + " m" +
-                      " | Velocity: " + std::to_string(obj.velocity_ms) + " m/s").c_str());
+                      " | Raw: " + std::to_string(measured_distance) + "m" +
+                      " | Filtered: " + std::to_string(obj.distance_m) + "m" +
+                      " | Velocity: " + std::to_string(obj.velocity_ms) + "m/s").c_str());
             
         } else {
             // ===== NEW TRACK: Create new object =====
@@ -158,6 +199,7 @@ std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Det
             obj.class_id = det.class_id;
             obj.confidence = det.confidence;
             obj.frames_tracked = 1;
+            obj.frames_unmatched = 0;
             
             // Initialize Kalman filter with first measurement
             obj.kalman.initialize(measured_distance);
@@ -165,7 +207,8 @@ std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Det
             obj.velocity_ms = 0.0f;  // Unknown velocity for new tracks
             
             LOG_INFO(("  -> NEW Track " + std::to_string(obj.track_id) + 
-                      " | Initial distance: " + std::to_string(measured_distance) + " m").c_str());
+                      " (class=" + std::to_string(obj.class_id) + ")" +
+                      " | Initial distance: " + std::to_string(measured_distance) + "m").c_str());
         }
         
         // Update common fields
@@ -176,37 +219,160 @@ std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Det
         new_tracked_objects.push_back(obj);
     }
     
+    // ===== STEP 3: Handle unmatched tracks (keep alive for max_frames_unmatched_) =====
+    LOG_INFO("=== UNMATCHED TRACKS ===");
+    for (size_t track_idx = 0; track_idx < previous_objects_.size(); track_idx++) {
+        auto& track = previous_objects_[track_idx];
+        
+        // Check if this track was matched
+        bool was_matched = false;
+        for (const auto& [det_idx, matched_track_idx] : associations) {
+            if (matched_track_idx == static_cast<int>(track_idx)) {
+                was_matched = true;
+                break;
+            }
+        }
+        
+        if (!was_matched) {
+            track.frames_unmatched++;
+            
+            if (track.frames_unmatched <= max_frames_unmatched_) {
+                // Keep track alive but don't update Kalman (no measurement)
+                LOG_INFO(("  -> UNMATCHED Track " + std::to_string(track.track_id) +
+                          " (class=" + std::to_string(track.class_id) + ")" +
+                          " | Frames unmatched: " + std::to_string(track.frames_unmatched) +
+                          " | Keeping alive").c_str());
+                new_tracked_objects.push_back(track);
+            } else {
+                // Delete track (too many unmatched frames)
+                LOG_INFO(("  -> DELETED Track " + std::to_string(track.track_id) +
+                          " (class=" + std::to_string(track.class_id) + ")" +
+                          " | Exceeded max unmatched frames").c_str());
+            }
+        }
+    }
+    
     // Update tracked objects list
     tracked_objects_ = new_tracked_objects;
     previous_objects_ = tracked_objects_;
     
+    LOG_INFO(("=== TRACKING SUMMARY: " + std::to_string(tracked_objects_.size()) + 
+              " active tracks ===").c_str());
+    
     return tracked_objects_;
 }
 
-CIPOInfo ObjectFinder::getCIPO() {
+CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
     CIPOInfo cipo;
     cipo.exists = false;
     
-    float min_distance = std::numeric_limits<float>::infinity();
-    int best_idx = -1;
+    float min_distance_class1 = std::numeric_limits<float>::infinity();
+    float min_distance_class2 = std::numeric_limits<float>::infinity();
+    int best_idx_class1 = -1;
+    int best_idx_class2 = -1;
     
-    // CIPO = closest object with class_id == 1
+    // Find closest object for each class
     for (size_t i = 0; i < tracked_objects_.size(); i++) {
         const auto& obj = tracked_objects_[i];
         
-        if (obj.class_id == 1 && obj.distance_m > 0 && obj.distance_m < min_distance) {
-            min_distance = obj.distance_m;
-            best_idx = i;
+        if (obj.distance_m <= 0) continue;  // Skip invalid distances
+        
+        if (obj.class_id == 1 && obj.distance_m < min_distance_class1) {
+            min_distance_class1 = obj.distance_m;
+            best_idx_class1 = i;
+        } else if (obj.class_id == 2 && obj.distance_m < min_distance_class2) {
+            min_distance_class2 = obj.distance_m;
+            best_idx_class2 = i;
         }
     }
     
-    if (best_idx != -1) {
-        const auto& obj = tracked_objects_[best_idx];
+    // Select CIPO: whichever class is closer
+    int cipo_idx = -1;
+    if (best_idx_class1 >= 0 && best_idx_class2 >= 0) {
+        // Both classes present, choose closer one
+        cipo_idx = (min_distance_class1 <= min_distance_class2) ? best_idx_class1 : best_idx_class2;
+    } else if (best_idx_class1 >= 0) {
+        // Only class 1 present
+        cipo_idx = best_idx_class1;
+    } else if (best_idx_class2 >= 0) {
+        // Only class 2 present
+        cipo_idx = best_idx_class2;
+    }
+    
+    if (cipo_idx >= 0) {
+        auto& obj = tracked_objects_[cipo_idx];
         cipo.exists = true;
         cipo.track_id = obj.track_id;
         cipo.class_id = obj.class_id;
         cipo.distance_m = obj.distance_m;
         cipo.velocity_ms = obj.velocity_ms;
+        
+        // Extract frame crop for feature matching
+        cv::Mat frame_crop = FeatureMatchingUtils::extractSafeCrop(frame, obj.bbox);
+        
+        // Add to CIPO history
+        CIPOSnapshot snapshot;
+        snapshot.track_id = obj.track_id;
+        snapshot.class_id = obj.class_id;
+        snapshot.bbox = obj.bbox;
+        snapshot.distance_m = obj.distance_m;
+        snapshot.velocity_ms = obj.velocity_ms;
+        snapshot.timestamp = obj.last_update_time;
+        snapshot.frame_crop = frame_crop;
+        cipo_history_.push(snapshot);
+        
+        // Check if CIPO changed
+        if (cipo_history_.didCIPOChange()) {
+            const CIPOSnapshot* prev_cipo = cipo_history_.getPrevious();
+            const CIPOSnapshot* curr_cipo = cipo_history_.getLatest();
+            
+            LOG_INFO(("*** CIPO TARGET CHANGED: Track " + 
+                      std::to_string(prev_cipo->track_id) + 
+                      " -> Track " + std::to_string(curr_cipo->track_id) + " ***").c_str());
+            
+            // ===== FEATURE MATCHING: Verify if same physical vehicle =====
+            if (!prev_cipo->frame_crop.empty() && !curr_cipo->frame_crop.empty()) {
+                bool is_same_vehicle = FeatureMatchingUtils::areSameObject(
+                    prev_cipo->frame_crop, cv::Rect(0, 0, prev_cipo->frame_crop.cols, prev_cipo->frame_crop.rows),
+                    curr_cipo->frame_crop, cv::Rect(0, 0, curr_cipo->frame_crop.cols, curr_cipo->frame_crop.rows),
+                    feature_match_threshold_
+                );
+                
+                if (is_same_vehicle) {
+                    // ===== SAME VEHICLE: Transfer Kalman state =====
+                    LOG_INFO("  -> Feature matching: SAME VEHICLE (continuing tracking)");
+                    LOG_INFO(("     Transferring Kalman state from Track " + 
+                              std::to_string(prev_cipo->track_id) + " to Track " + 
+                              std::to_string(curr_cipo->track_id)).c_str());
+                    
+                    // Find the previous track object to transfer Kalman state
+                    for (auto& prev_obj : previous_objects_) {
+                        if (prev_obj.track_id == prev_cipo->track_id) {
+                            // Transfer Kalman filter state
+                            obj.kalman = prev_obj.kalman;
+                            LOG_INFO(("     Kalman state transferred: dist=" + 
+                                      std::to_string(obj.distance_m) + "m, vel=" + 
+                                      std::to_string(obj.velocity_ms) + "m/s").c_str());
+                            break;
+                        }
+                    }
+                } else {
+                    // ===== DIFFERENT VEHICLE: Reset Kalman filter =====
+                    LOG_INFO("  -> Feature matching: DIFFERENT VEHICLE (cut-in detected!)");
+                    LOG_INFO(("     Resetting Kalman filter for new CIPO Track " + 
+                              std::to_string(curr_cipo->track_id)).c_str());
+                    
+                    // Reset Kalman filter to current measurement
+                    obj.kalman.reset();
+                    obj.kalman.initialize(obj.distance_m);
+                    obj.velocity_ms = 0.0f;  // Unknown velocity for new vehicle
+                    
+                    LOG_INFO("     Kalman filter reset complete");
+                }
+            } else {
+                LOG_INFO("  -> Feature matching skipped (frame crop unavailable)");
+            }
+        }
     }
     
     return cipo;
