@@ -439,7 +439,7 @@ void drawTrackedObjects(cv::Mat& frame,
         label << "ID:" << obj.track_id << " L" << obj.class_id;  // L1=Level 1, L2=Level 2
         
         if (is_cipo) {
-            label << " [CIPO]";
+            label << " [main_CIPO]";  // Emphasize this is THE main CIPO
         }
         
         label << std::fixed << std::setprecision(1);
@@ -484,10 +484,10 @@ void drawTrackedObjects(cv::Mat& frame,
         cv::circle(frame, bottom_center, 4, color, -1);
     }
     
-    // Draw CIPO summary in top-left corner
+    // Draw main_CIPO summary in top-left corner (ALWAYS shown when exists)
     if (cipo.exists) {
         std::stringstream cipo_text;
-        cipo_text << "CIPO: Track " << cipo.track_id 
+        cipo_text << "main_CIPO: Track " << cipo.track_id 
                   << " (Level " << cipo.class_id << ") "
                   << std::fixed << std::setprecision(1)
                   << cipo.distance_m << "m, "
@@ -509,8 +509,8 @@ void drawTrackedObjects(cv::Mat& frame,
                    cv::Scalar(0, 255, 0),  // Green text for CIPO
                    2, cv::LINE_AA);
     } else {
-        // No CIPO message
-        std::string text = "No CIPO detected";
+        // No main_CIPO message
+        std::string text = "No main_CIPO detected";
         cv::putText(frame, text,
                    cv::Point(10, 30),
                    cv::FONT_HERSHEY_SIMPLEX, 0.7,
