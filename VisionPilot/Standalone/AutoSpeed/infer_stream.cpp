@@ -76,6 +76,8 @@ struct InferenceResult {
     std::vector<Detection> detections;
     std::vector<TrackedObject> tracked_objects;          // Tracked objects with IDs
     CIPOInfo cipo;                                        // CIPO information
+    bool cut_in_detected;                                 // Event flag: cut-in detected
+    bool kalman_reset;                                    // Event flag: Kalman filter reset
     std::chrono::steady_clock::time_point capture_time;  // When frame was captured
     std::chrono::steady_clock::time_point inference_time;// When inference completed
 };
@@ -93,7 +95,9 @@ struct PerformanceMetrics {
 // Visualization helper - draws tracked objects with IDs and CIPO indicator
 void drawTrackedObjects(cv::Mat& frame, 
                         const std::vector<TrackedObject>& tracked_objects,
-                        const CIPOInfo& cipo);
+                        const CIPOInfo& cipo,
+                        bool cut_in_detected = false,
+                        bool kalman_reset = false);
 
 // Capture thread - timestamps when frame arrives and measures GStreamer→cv::Mat latency
 void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<TimestampedFrame>& queue, 
@@ -153,15 +157,20 @@ void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
         long inference_us = std::chrono::duration_cast<std::chrono::microseconds>(
             t_inference_end - t_inference_start).count();
         
-        // Package result with timestamps
+        // Package result with timestamps and event flags
         InferenceResult result;
         result.frame = tf.frame;
         result.detections = detections;
         result.tracked_objects = tracked_objects;
         result.cipo = cipo;
+        result.cut_in_detected = finder.wasCutInDetected();
+        result.kalman_reset = finder.wasKalmanReset();
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
         output_queue.push(result);
+        
+        // Clear event flags after packaging
+        finder.clearEventFlags();
         
         // Update metrics
         metrics.total_inference_us.fetch_add(inference_us);
@@ -201,8 +210,9 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 
         auto t_display_start = std::chrono::steady_clock::now();
 
-        // Draw tracked objects with IDs and CIPO indicator (annotates original frame)
-        drawTrackedObjects(result.frame, result.tracked_objects, result.cipo);
+        // Draw tracked objects with IDs, CIPO indicator, and event warnings
+        drawTrackedObjects(result.frame, result.tracked_objects, result.cipo, 
+                          result.cut_in_detected, result.kalman_reset);
         
         // Initialize video writer on first frame if needed
         if (save_video && !video_writer_initialized) {
@@ -354,7 +364,8 @@ int main(int argc, char** argv)
 
     // Initialize ObjectFinder with tracking
     std::cout << "Loading homography from: " << homography_yaml << std::endl;
-    ObjectFinder finder(homography_yaml, 1920, 1280);  // Waymo image dimensions
+    bool debug_mode = false;  // Set to true for verbose logging
+    ObjectFinder finder(homography_yaml, 1920, 1280, debug_mode);  // Waymo image dimensions
 
     // Queues
     ThreadSafeQueue<TimestampedFrame> capture_queue;
@@ -398,7 +409,9 @@ int main(int argc, char** argv)
 // Draw tracked objects with IDs, distances, velocities, and CIPO indicator
 void drawTrackedObjects(cv::Mat& frame, 
                         const std::vector<TrackedObject>& tracked_objects,
-                        const CIPOInfo& cipo)
+                        const CIPOInfo& cipo,
+                        bool cut_in_detected,
+                        bool kalman_reset)
 {
     // Color map based on class (1=red, 2=yellow, 3=cyan)
     auto getColor = [](int class_id) -> cv::Scalar {
@@ -503,5 +516,58 @@ void drawTrackedObjects(cv::Mat& frame,
                    cv::FONT_HERSHEY_SIMPLEX, 0.7,
                    cv::Scalar(0, 0, 255),  // Red text
                    2, cv::LINE_AA);
+    }
+    
+    // ===== EVENT WARNINGS =====
+    // Display prominent warnings for cut-in detection and Kalman reset
+    if (cut_in_detected || kalman_reset) {
+        // Position warnings in center-top of frame
+        int warning_y = 80;
+        
+        if (cut_in_detected) {
+            std::string warning_text = "!!! CUT-IN DETECTED !!!";
+            int baseline = 0;
+            cv::Size text_size = cv::getTextSize(warning_text, cv::FONT_HERSHEY_SIMPLEX, 
+                                                 1.2, 3, &baseline);
+            
+            int warning_x = (frame.cols - text_size.width) / 2;
+            
+            // Draw black background with red border
+            cv::Rect bg_rect(warning_x - 15, warning_y - text_size.height - 10, 
+                           text_size.width + 30, text_size.height + 20);
+            cv::rectangle(frame, bg_rect, cv::Scalar(255, 0, 0), 4);  // Red border
+            cv::rectangle(frame, bg_rect, cv::Scalar(0, 0, 0), cv::FILLED);  // Black bg
+            
+            // Draw warning text
+            cv::putText(frame, warning_text,
+                       cv::Point(warning_x, warning_y),
+                       cv::FONT_HERSHEY_SIMPLEX, 1.2,
+                       cv::Scalar(0, 0, 255),  // Red text
+                       3, cv::LINE_AA);
+            
+            warning_y += text_size.height + 35;
+        }
+        
+        if (kalman_reset) {
+            std::string reset_text = "Kalman Filter Reset";
+            int baseline = 0;
+            cv::Size text_size = cv::getTextSize(reset_text, cv::FONT_HERSHEY_SIMPLEX, 
+                                                 0.9, 2, &baseline);
+            
+            int reset_x = (frame.cols - text_size.width) / 2;
+            
+            // Draw black background with orange border
+            cv::Rect bg_rect(reset_x - 10, warning_y - text_size.height - 8, 
+                           text_size.width + 20, text_size.height + 16);
+            cv::rectangle(frame, bg_rect, cv::Scalar(0, 165, 255), 3);  // Orange border
+            cv::rectangle(frame, bg_rect, cv::Scalar(0, 0, 0), cv::FILLED);  // Black bg
+            
+            // Draw reset text
+            cv::putText(frame, reset_text,
+                       cv::Point(reset_x, warning_y),
+                       cv::FONT_HERSHEY_SIMPLEX, 0.9,
+                       cv::Scalar(0, 165, 255),  // Orange text
+                       2, cv::LINE_AA);
+        }
     }
 }
