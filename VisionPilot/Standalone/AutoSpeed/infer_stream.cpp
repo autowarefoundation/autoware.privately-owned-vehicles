@@ -364,7 +364,7 @@ int main(int argc, char** argv)
 
     // Initialize ObjectFinder with tracking
     std::cout << "Loading homography from: " << homography_yaml << std::endl;
-    bool debug_mode = false;  // Set to true for verbose logging
+    bool debug_mode = true;  // Set to true for verbose logging
     ObjectFinder finder(homography_yaml, 1920, 1280, debug_mode);  // Waymo image dimensions
 
     // Queues
@@ -413,12 +413,12 @@ void drawTrackedObjects(cv::Mat& frame,
                         bool cut_in_detected,
                         bool kalman_reset)
 {
-    // Color map based on class (1=red, 2=yellow, 3=cyan)
+    // Color map based on level (1=red, 2=yellow, 3=cyan)
     auto getColor = [](int class_id) -> cv::Scalar {
         switch(class_id) {
-            case 1: return cv::Scalar(0, 0, 255);      // Red (BGR) - CIPO Level 1
-            case 2: return cv::Scalar(0, 255, 255);    // Yellow (BGR) - CIPO Level 2
-            case 3: return cv::Scalar(255, 255, 0);    // Cyan (BGR) - Other
+            case 1: return cv::Scalar(0, 0, 255);      // Red (BGR) - Level 1 (Main CIPO priority)
+            case 2: return cv::Scalar(0, 255, 255);    // Yellow (BGR) - Level 2 (Secondary priority)
+            case 3: return cv::Scalar(255, 255, 0);    // Cyan (BGR) - Level 3 (Other)
             default: return cv::Scalar(255, 255, 255); // White fallback
         }
     };
@@ -436,7 +436,7 @@ void drawTrackedObjects(cv::Mat& frame,
         
         // Prepare label text
         std::stringstream label;
-        label << "ID:" << obj.track_id << " C" << obj.class_id;
+        label << "ID:" << obj.track_id << " L" << obj.class_id;  // L1=Level 1, L2=Level 2
         
         if (is_cipo) {
             label << " [CIPO]";
@@ -488,7 +488,7 @@ void drawTrackedObjects(cv::Mat& frame,
     if (cipo.exists) {
         std::stringstream cipo_text;
         cipo_text << "CIPO: Track " << cipo.track_id 
-                  << " (Class " << cipo.class_id << ") "
+                  << " (Level " << cipo.class_id << ") "
                   << std::fixed << std::setprecision(1)
                   << cipo.distance_m << "m, "
                   << cipo.velocity_ms << "m/s";
