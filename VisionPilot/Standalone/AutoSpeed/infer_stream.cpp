@@ -1,5 +1,6 @@
 #include "../../common/include/gstreamer_engine.hpp"
 #include "../../common/backends/autospeed/tensorrt_engine.hpp"
+#include "../../common/include/object_finder.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
@@ -69,12 +70,14 @@ struct TimestampedFrame {
     std::chrono::steady_clock::time_point timestamp;
 };
 
-// Frame + detections bundle (Detection type from backend)
+// Frame + detections + tracking bundle
 struct InferenceResult {
     cv::Mat frame;
     std::vector<Detection> detections;
-    std::chrono::steady_clock::time_point capture_time;    // When frame was captured
-    std::chrono::steady_clock::time_point inference_time;  // When inference completed
+    std::vector<TrackedObject> tracked_objects;          // Tracked objects with IDs
+    CIPOInfo cipo;                                        // CIPO information
+    std::chrono::steady_clock::time_point capture_time;  // When frame was captured
+    std::chrono::steady_clock::time_point inference_time;// When inference completed
 };
 
 // Performance metrics
@@ -87,8 +90,10 @@ struct PerformanceMetrics {
     bool measure_latency{true};                // Flag to enable metrics printing
 };
 
-// Visualization helper
-void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections);
+// Visualization helper - draws tracked objects with IDs and CIPO indicator
+void drawTrackedObjects(cv::Mat& frame, 
+                        const std::vector<TrackedObject>& tracked_objects,
+                        const CIPOInfo& cipo);
 
 // Capture thread - timestamps when frame arrives and measures GStreamer→cv::Mat latency
 void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<TimestampedFrame>& queue, 
@@ -118,8 +123,9 @@ void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<TimestampedFrame>
     running.store(false);
 }
 
-// Inference thread (HIGH PRIORITY)
+// Inference + Tracking thread (HIGH PRIORITY)
 void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
+                     ObjectFinder& finder,
                      ThreadSafeQueue<TimestampedFrame>& input_queue,
                      ThreadSafeQueue<InferenceResult>& output_queue,
                      PerformanceMetrics& metrics,
@@ -135,6 +141,12 @@ void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
         // Backend does: preprocess + inference + postprocess all in one call
         std::vector<Detection> detections = backend.inference(tf.frame, conf_thresh, iou_thresh);
         
+        // Update tracker with detections (pass frame for feature matching)
+        std::vector<TrackedObject> tracked_objects = finder.update(detections, tf.frame);
+        
+        // Get CIPO (pass frame for feature matching)
+        CIPOInfo cipo = finder.getCIPO(tf.frame);
+        
         auto t_inference_end = std::chrono::steady_clock::now();
         
         // Calculate inference latency
@@ -145,6 +157,8 @@ void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
         InferenceResult result;
         result.frame = tf.frame;
         result.detections = detections;
+        result.tracked_objects = tracked_objects;
+        result.cipo = cipo;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
         output_queue.push(result);
@@ -157,11 +171,26 @@ void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
 // Display thread (LOW PRIORITY)
 void displayThread(ThreadSafeQueue<InferenceResult>& queue,
                    PerformanceMetrics& metrics,
-                   std::atomic<bool>& running)
+                   std::atomic<bool>& running,
+                   bool save_video,
+                   const std::string& output_video_path)
 {
     // Create named window with fixed size
     cv::namedWindow("AutoSpeed Inference", cv::WINDOW_NORMAL);
     cv::resizeWindow("AutoSpeed Inference", 960, 540);
+    
+    // Initialize video writer if save_video is enabled
+    cv::VideoWriter video_writer;
+    int video_width = 0;
+    int video_height = 0;
+    double video_fps = 30.0;  // Default FPS, will be updated from first frame
+    
+    if (save_video) {
+        std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
+        // VideoWriter will be initialized after we get the first frame dimensions
+    }
+    
+    bool video_writer_initialized = false;
     
     while (running.load()) {
         InferenceResult result;
@@ -172,8 +201,34 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 
         auto t_display_start = std::chrono::steady_clock::now();
 
-        // Draw detections on frame
-        drawDetections(result.frame, result.detections);
+        // Draw tracked objects with IDs and CIPO indicator (annotates original frame)
+        drawTrackedObjects(result.frame, result.tracked_objects, result.cipo);
+        
+        // Initialize video writer on first frame if needed
+        if (save_video && !video_writer_initialized) {
+            video_width = result.frame.cols;
+            video_height = result.frame.rows;
+            
+            // Use MPEG-4 codec (XVID) for compatibility
+            // Alternative: cv::VideoWriter::fourcc('H', '2', '6', '4') for H.264
+            int fourcc = cv::VideoWriter::fourcc('X', 'V', 'I', 'D');
+            
+            video_writer.open(output_video_path, fourcc, video_fps, 
+                            cv::Size(video_width, video_height), true);
+            
+            if (video_writer.isOpened()) {
+                std::cout << "Video writer initialized: " << video_width << "x" << video_height 
+                          << " @ " << video_fps << " fps" << std::endl;
+                video_writer_initialized = true;
+            } else {
+                std::cerr << "Warning: Failed to initialize video writer. Saving disabled." << std::endl;
+            }
+        }
+        
+        // Write full-resolution annotated frame to video
+        if (save_video && video_writer_initialized && video_writer.isOpened()) {
+            video_writer.write(result.frame);
+        }
 
         // Resize for display
         cv::Mat display_frame;
@@ -219,38 +274,65 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
             std::cout << "========================================\n";
         }
     }
+    
+    // Release video writer
+    if (save_video && video_writer_initialized && video_writer.isOpened()) {
+        video_writer.release();
+        std::cout << "\nVideo saved to: " << output_video_path << std::endl;
+    }
+    
     cv::destroyAllWindows();
 }
 
 int main(int argc, char** argv)
 {
-    if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> [realtime] [measure_latency]\n";
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> <homography_yaml> [realtime] [measure_latency] [save_video] [output_video]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
         std::cerr << "  model_path: .pt or .onnx model file\n";
         std::cerr << "  precision: fp32 or fp16\n";
+        std::cerr << "  homography_yaml: Path to homography calibration YAML file\n";
         std::cerr << "  realtime: (optional) 'true' for real-time, 'false' for max speed (default: true)\n";
         std::cerr << "  measure_latency: (optional) 'true' to show latency metrics (default: false)\n";
+        std::cerr << "  save_video: (optional) 'true' to save output video (default: false)\n";
+        std::cerr << "  output_video: (optional) Output video path (required if save_video=true, default: output_tracking.mp4)\n";
         std::cerr << "\nExample:\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 false true  # Benchmark with metrics\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml false true true output.mp4\n";
         return 1;
     }
 
     std::string stream_source = argv[1];
     std::string model_path = argv[2];
     std::string precision = argv[3];
+    std::string homography_yaml = argv[4];
     bool realtime = true;  // Default to real-time playback
     bool measure_latency = false;  // Default to no metrics
+    bool save_video = false;  // Default to no video saving
+    std::string output_video_path = "output_tracking.mp4";  // Default output path
     
-    if (argc >= 5) {
-        std::string realtime_arg = argv[4];
+    if (argc >= 6) {
+        std::string realtime_arg = argv[5];
         realtime = (realtime_arg != "false" && realtime_arg != "0");
     }
     
-    if (argc >= 6) {
-        std::string measure_arg = argv[5];
+    if (argc >= 7) {
+        std::string measure_arg = argv[6];
         measure_latency = (measure_arg == "true" || measure_arg == "1");
+    }
+    
+    if (argc >= 8) {
+        std::string save_video_arg = argv[7];
+        save_video = (save_video_arg == "true" || save_video_arg == "1");
+    }
+    
+    if (argc >= 9) {
+        output_video_path = argv[8];
+    }
+    
+    if (save_video && output_video_path.empty()) {
+        std::cerr << "Error: Output video path required when save_video=true" << std::endl;
+        return 1;
     }
     
     float conf_thresh = 0.6f;
@@ -270,6 +352,10 @@ int main(int argc, char** argv)
     std::cout << "Loading model: " << model_path << " (" << precision << ")" << std::endl;
     autospeed::AutoSpeedTensorRTEngine backend(model_path, precision, gpu_id);
 
+    // Initialize ObjectFinder with tracking
+    std::cout << "Loading homography from: " << homography_yaml << std::endl;
+    ObjectFinder finder(homography_yaml, 1920, 1280);  // Waymo image dimensions
+
     // Queues
     ThreadSafeQueue<TimestampedFrame> capture_queue;
     ThreadSafeQueue<InferenceResult> display_queue;
@@ -280,19 +366,23 @@ int main(int argc, char** argv)
     std::atomic<bool> running{true};
 
     // Launch threads
-    std::cout << "Starting multi-threaded inference pipeline..." << std::endl;
+    std::cout << "Starting multi-threaded inference + tracking pipeline..." << std::endl;
     if (measure_latency) {
         std::cout << "Latency measurement: ENABLED (metrics every 100 frames)" << std::endl;
+    }
+    if (save_video) {
+        std::cout << "Video saving: ENABLED -> " << output_video_path << std::endl;
     }
     std::cout << "Press 'q' in the video window to quit\n" << std::endl;
     
     std::thread t_capture(captureThread, std::ref(gstreamer), std::ref(capture_queue), 
                           std::ref(metrics), std::ref(running));
-    std::thread t_inference(inferenceThread, std::ref(backend), std::ref(capture_queue), 
-                            std::ref(display_queue), std::ref(metrics), std::ref(running),
+    std::thread t_inference(inferenceThread, std::ref(backend), std::ref(finder),
+                            std::ref(capture_queue), std::ref(display_queue), 
+                            std::ref(metrics), std::ref(running),
                             conf_thresh, iou_thresh);
     std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics), 
-                         std::ref(running));
+                         std::ref(running), save_video, output_video_path);
 
     // Wait for threads
     t_capture.join();
@@ -305,28 +395,113 @@ int main(int argc, char** argv)
     return 0;
 }
 
-// Draw detections (matches Python reference color scheme)
-void drawDetections(cv::Mat& frame, const std::vector<Detection>& detections)
+// Draw tracked objects with IDs, distances, velocities, and CIPO indicator
+void drawTrackedObjects(cv::Mat& frame, 
+                        const std::vector<TrackedObject>& tracked_objects,
+                        const CIPOInfo& cipo)
 {
-   
-     // Color map from Python reference (keys are 1, 2, 3, NOT 0, 1, 2!)
-    // color_map = {1: (0,0,255) red, 2: (0,255,255) yellow, 3: (255,255,0) cyan}
+    // Color map based on class (1=red, 2=yellow, 3=cyan)
     auto getColor = [](int class_id) -> cv::Scalar {
         switch(class_id) {
-            case 1: return cv::Scalar(0, 0, 255);    // Red (BGR)
-            case 2: return cv::Scalar(0, 255, 255);  // Yellow (BGR)
-            case 3: return cv::Scalar(255, 255, 0);  // Cyan (BGR)
-            default: return cv::Scalar(255, 255, 255); // White fallback (class 0 or unknown)
+            case 1: return cv::Scalar(0, 0, 255);      // Red (BGR) - CIPO Level 1
+            case 2: return cv::Scalar(0, 255, 255);    // Yellow (BGR) - CIPO Level 2
+            case 3: return cv::Scalar(255, 255, 0);    // Cyan (BGR) - Other
+            default: return cv::Scalar(255, 255, 255); // White fallback
         }
     };
 
-    for (const auto& det : detections) {
-        cv::Scalar color = getColor(det.class_id);
+    // Draw all tracked objects
+    for (const auto& obj : tracked_objects) {
+        cv::Scalar color = getColor(obj.class_id);
+        bool is_cipo = (cipo.exists && cipo.track_id == obj.track_id);
         
-        // Draw bounding box only (no labels)
-        cv::rectangle(frame, 
-                     cv::Point(static_cast<int>(det.x1), static_cast<int>(det.y1)), 
-                     cv::Point(static_cast<int>(det.x2), static_cast<int>(det.y2)), 
-                     color, 2);
+        // Thicker box for CIPO
+        int thickness = is_cipo ? 4 : 2;
+        
+        // Draw bounding box
+        cv::rectangle(frame, obj.bbox, color, thickness);
+        
+        // Prepare label text
+        std::stringstream label;
+        label << "ID:" << obj.track_id << " C" << obj.class_id;
+        
+        if (is_cipo) {
+            label << " [CIPO]";
+        }
+        
+        label << std::fixed << std::setprecision(1);
+        label << " " << obj.distance_m << "m";
+        
+        // Show velocity (negative means approaching)
+        if (std::abs(obj.velocity_ms) > 0.1f) {
+            label << " " << obj.velocity_ms << "m/s";
+        }
+        
+        // Calculate label size and background
+        std::string label_text = label.str();
+        int baseline = 0;
+        cv::Size label_size = cv::getTextSize(label_text, cv::FONT_HERSHEY_SIMPLEX, 
+                                               0.5, 1, &baseline);
+        
+        // Position label above bbox (or below if too close to top)
+        int label_y = obj.bbox.y - 5;
+        if (label_y < label_size.height + 5) {
+            label_y = obj.bbox.y + obj.bbox.height + label_size.height + 5;
+        }
+        
+        // Draw label background
+        cv::Point label_origin(obj.bbox.x, label_y - label_size.height);
+        cv::Rect label_bg(label_origin.x, label_origin.y - 2, 
+                         label_size.width + 4, label_size.height + 4);
+        
+        cv::rectangle(frame, label_bg, color, cv::FILLED);
+        
+        // Draw label text
+        cv::putText(frame, label_text,
+                   cv::Point(obj.bbox.x + 2, label_y),
+                   cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                   cv::Scalar(0, 0, 0),  // Black text
+                   1, cv::LINE_AA);
+        
+        // Draw bottom-center point (where distance is measured)
+        cv::Point2f bottom_center(
+            obj.bbox.x + obj.bbox.width / 2.0f,
+            obj.bbox.y + obj.bbox.height
+        );
+        cv::circle(frame, bottom_center, 4, color, -1);
+    }
+    
+    // Draw CIPO summary in top-left corner
+    if (cipo.exists) {
+        std::stringstream cipo_text;
+        cipo_text << "CIPO: Track " << cipo.track_id 
+                  << " (Class " << cipo.class_id << ") "
+                  << std::fixed << std::setprecision(1)
+                  << cipo.distance_m << "m, "
+                  << cipo.velocity_ms << "m/s";
+        
+        std::string text = cipo_text.str();
+        int baseline = 0;
+        cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 
+                                             0.7, 2, &baseline);
+        
+        // Draw background
+        cv::Rect bg_rect(5, 5, text_size.width + 10, text_size.height + 10);
+        cv::rectangle(frame, bg_rect, cv::Scalar(0, 0, 0), cv::FILLED);
+        
+        // Draw text
+        cv::putText(frame, text,
+                   cv::Point(10, 15 + text_size.height),
+                   cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                   cv::Scalar(0, 255, 0),  // Green text for CIPO
+                   2, cv::LINE_AA);
+    } else {
+        // No CIPO message
+        std::string text = "No CIPO detected";
+        cv::putText(frame, text,
+                   cv::Point(10, 30),
+                   cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                   cv::Scalar(0, 0, 255),  // Red text
+                   2, cv::LINE_AA);
     }
 }
