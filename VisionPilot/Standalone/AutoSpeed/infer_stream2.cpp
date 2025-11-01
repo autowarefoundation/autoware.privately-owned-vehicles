@@ -274,7 +274,8 @@ int main(int argc, char** argv)
 
     // Initialize ObjectFinder
     std::cout << "Loading homography from: " << homography_yaml << std::endl;
-    ObjectFinder finder(homography_yaml);
+    bool debug_mode = false;  // Set to true for verbose logging
+    ObjectFinder finder(homography_yaml, 1920, 1280, debug_mode);
     
     // Queues
     ThreadSafeQueue<TimestampedFrame> capture_queue;
