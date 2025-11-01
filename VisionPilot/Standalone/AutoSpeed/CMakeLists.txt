@@ -78,6 +78,10 @@ target_compile_definitions(fps_timer PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 # ObjectFinder (tracking + distance/velocity estimation)
 add_library(object_finder
     ../../common/tracking/object_finder.cpp
+    ../../common/tracking/kalman_filter.cpp
+    ../../common/tracking/tracking_utils.cpp
+    ../../common/tracking/cipo_history.cpp
+    ../../common/tracking/feature_matching_utils.cpp
 )
 target_compile_definitions(object_finder PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 target_link_libraries(object_finder
@@ -85,7 +89,7 @@ target_link_libraries(object_finder
     yaml-cpp
 )
 
-# Main executable - infer_stream (bbox visualization)
+# Main executable - infer_stream (bbox visualization with tracking)
 add_executable(autospeed_infer_stream
     infer_stream.cpp
 )
@@ -94,6 +98,7 @@ target_link_libraries(autospeed_infer_stream
     autospeed_backend
     gstreamer_engine
     fps_timer
+    object_finder
     ${OpenCV_LIBS}
     pthread
 )
