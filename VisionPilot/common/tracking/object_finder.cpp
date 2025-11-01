@@ -1,4 +1,5 @@
 #include "../include/object_finder.hpp"
+#include "../include/cipo_utils.hpp"
 #include "../include/logging.hpp"
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
@@ -46,7 +47,7 @@ ObjectFinder::ObjectFinder(const std::string& homography_yaml,
 
     H_ = cv::Mat(3, 3, CV_64F, H_data.data()).clone();
     H_.convertTo(H_, CV_32F);
-    LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
+                LOG_INFO(("Loaded homography matrix from " + homography_yaml).c_str());
     LOG_INFO(("Image dimensions for tracking: " + std::to_string(image_width_) + 
               "x" + std::to_string(image_height_)).c_str());
 }
@@ -161,16 +162,16 @@ std::vector<TrackedObject> ObjectFinder::update(const std::vector<autospeed::Det
         LOG_INFO("=== PROCESSING DETECTIONS ===");
     }
     for (const auto& [det_idx, track_idx] : associations) {
-        const auto& det = detections[det_idx];
-        
+            const auto& det = detections[det_idx];
+            
         // Create bbox and calculate bottom-center point
         cv::Rect bbox(
-            static_cast<int>(det.x1),
-            static_cast<int>(det.y1),
-            static_cast<int>(det.x2 - det.x1),
-            static_cast<int>(det.y2 - det.y1)
-        );
-        
+                static_cast<int>(det.x1),
+                static_cast<int>(det.y1),
+                static_cast<int>(det.x2 - det.x1),
+                static_cast<int>(det.y2 - det.y1)
+            );
+            
         cv::Point2f bbox_bottom_center = TrackingUtils::getBottomCenter(bbox);
         
         // Transform to world coordinates and calculate distance
@@ -292,94 +293,96 @@ CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
     cut_in_detected_ = false;
     kalman_reset_ = false;
     
-    // Find THE closest object (regardless of class 1 or 2)
-    float min_distance = std::numeric_limits<float>::infinity();
-    int cipo_idx = -1;
+    // ===== STEP 1: Find main_CIPO (THE most dangerous object) =====
+    int level1_idx = CIPOUtils::findClosestByLevel(tracked_objects_, 1);
+    int level2_idx = CIPOUtils::findClosestByLevel(tracked_objects_, 2);
+    int main_cipo_idx = CIPOUtils::selectMainCIPO(tracked_objects_, level1_idx, level2_idx);
     
-    for (size_t i = 0; i < tracked_objects_.size(); i++) {
-        const auto& obj = tracked_objects_[i];
-        
-        if (obj.distance_m <= 0) continue;  // Skip invalid distances
-        
-        // Pick the absolute closest object
-        if (obj.distance_m < min_distance) {
-            min_distance = obj.distance_m;
-            cipo_idx = i;
-        }
+    // Debug: Show selection logic
+    if (debug_mode_ && level1_idx >= 0 && level2_idx >= 0) {
+        LOG_INFO(("Level 1 @ " + std::to_string(tracked_objects_[level1_idx].distance_m) + "m, " +
+                  "Level 2 @ " + std::to_string(tracked_objects_[level2_idx].distance_m) + "m -> " +
+                  "main_CIPO = " + (main_cipo_idx == level1_idx ? "Level 1" : "Level 2")).c_str());
     }
     
-    if (cipo_idx >= 0) {
-        auto& obj = tracked_objects_[cipo_idx];
-        cipo.exists = true;
-        cipo.track_id = obj.track_id;
-        cipo.class_id = obj.class_id;
-        cipo.distance_m = obj.distance_m;
-        cipo.velocity_ms = obj.velocity_ms;
+    // ===== STEP 2: No main_CIPO found =====
+    if (main_cipo_idx < 0) {
+        return cipo;  // Empty CIPO info
+    }
+    
+    // ===== STEP 3: Package main_CIPO info =====
+    auto& main_cipo = tracked_objects_[main_cipo_idx];
+    cipo.exists = true;
+    cipo.track_id = main_cipo.track_id;
+    cipo.class_id = main_cipo.class_id;
+    cipo.distance_m = main_cipo.distance_m;
+    cipo.velocity_ms = main_cipo.velocity_ms;
+    
+    // ===== STEP 4: Save to history for cut-in detection =====
+    CIPOSnapshot snapshot;
+    snapshot.track_id = main_cipo.track_id;
+    snapshot.class_id = main_cipo.class_id;
+    snapshot.bbox = main_cipo.bbox;
+    snapshot.distance_m = main_cipo.distance_m;
+    snapshot.velocity_ms = main_cipo.velocity_ms;
+    snapshot.timestamp = main_cipo.last_update_time;
+    snapshot.frame_crop = FeatureMatchingUtils::extractSafeCrop(frame, main_cipo.bbox);
+    cipo_history_.push(snapshot);
         
-        // Extract frame crop for feature matching
-        cv::Mat frame_crop = FeatureMatchingUtils::extractSafeCrop(frame, obj.bbox);
+    // ===== STEP 5: Detect main_CIPO change (cut-in detection) =====
+    if (!cipo_history_.didCIPOChange()) {
+        return cipo;  // main_CIPO unchanged, nothing to do
+    }
+    
+    const CIPOSnapshot* prev_main_cipo = cipo_history_.getPrevious();
+    const CIPOSnapshot* curr_main_cipo = cipo_history_.getLatest();
+    
+    LOG_INFO(("main_CIPO CHANGED: Track " + std::to_string(prev_main_cipo->track_id) + 
+              " (Level " + std::to_string(prev_main_cipo->class_id) + ", " + 
+              std::to_string(prev_main_cipo->distance_m) + "m) -> Track " + 
+              std::to_string(curr_main_cipo->track_id) + 
+              " (Level " + std::to_string(curr_main_cipo->class_id) + ", " + 
+              std::to_string(curr_main_cipo->distance_m) + "m)").c_str());
+    
+    // ===== STEP 6: Use ORB to verify if it's the same vehicle =====
+    if (prev_main_cipo->frame_crop.empty() || curr_main_cipo->frame_crop.empty()) {
+        if (debug_mode_) {
+            LOG_INFO("  -> Feature matching skipped (no image data)");
+        }
+        return cipo;
+    }
+    
+    bool is_same_vehicle = FeatureMatchingUtils::areSameObject(
+        prev_main_cipo->frame_crop, 
+        cv::Rect(0, 0, prev_main_cipo->frame_crop.cols, prev_main_cipo->frame_crop.rows),
+        curr_main_cipo->frame_crop, 
+        cv::Rect(0, 0, curr_main_cipo->frame_crop.cols, curr_main_cipo->frame_crop.rows),
+        feature_match_threshold_
+    );
+    
+    if (is_same_vehicle) {
+        // ===== SAME VEHICLE: Model confused Level 1 ↔ Level 2 =====
+        LOG_INFO("  -> Same vehicle (model confusion) - Kalman state preserved");
         
-        // Add to CIPO history
-        CIPOSnapshot snapshot;
-        snapshot.track_id = obj.track_id;
-        snapshot.class_id = obj.class_id;
-        snapshot.bbox = obj.bbox;
-        snapshot.distance_m = obj.distance_m;
-        snapshot.velocity_ms = obj.velocity_ms;
-        snapshot.timestamp = obj.last_update_time;
-        snapshot.frame_crop = frame_crop;
-        cipo_history_.push(snapshot);
-        
-        // Check if CIPO changed
-        if (cipo_history_.didCIPOChange()) {
-            const CIPOSnapshot* prev_cipo = cipo_history_.getPrevious();
-            const CIPOSnapshot* curr_cipo = cipo_history_.getLatest();
-            
-            // Clean, single-line log for CIPO change
-            LOG_INFO(("CIPO CHANGED: Track " + std::to_string(prev_cipo->track_id) + 
-                      " (" + std::to_string(prev_cipo->distance_m) + "m) -> Track " + 
-                      std::to_string(curr_cipo->track_id) + 
-                      " (" + std::to_string(curr_cipo->distance_m) + "m)").c_str());
-            
-            // ===== FEATURE MATCHING: Verify if same physical vehicle =====
-            if (!prev_cipo->frame_crop.empty() && !curr_cipo->frame_crop.empty()) {
-                bool is_same_vehicle = FeatureMatchingUtils::areSameObject(
-                    prev_cipo->frame_crop, cv::Rect(0, 0, prev_cipo->frame_crop.cols, prev_cipo->frame_crop.rows),
-                    curr_cipo->frame_crop, cv::Rect(0, 0, curr_cipo->frame_crop.cols, curr_cipo->frame_crop.rows),
-                    feature_match_threshold_
-                );
-                
-                if (is_same_vehicle) {
-                    // ===== SAME VEHICLE: Transfer Kalman state =====
-                    LOG_INFO("  -> Same vehicle (model confusion) - Kalman state preserved");
-                    
-                    // Find the previous track object to transfer Kalman state
-                    for (auto& prev_obj : previous_objects_) {
-                        if (prev_obj.track_id == prev_cipo->track_id) {
-                            // Transfer Kalman filter state
-                            obj.kalman = prev_obj.kalman;
-                            break;
-                        }
-                    }
-                } else {
-                    // ===== DIFFERENT VEHICLE: Reset Kalman filter =====
-                    LOG_INFO("  -> Different vehicle (CUT-IN DETECTED) - Kalman filter reset");
-                    
-                    // SET EVENT FLAGS FOR VISUALIZATION
-                    cut_in_detected_ = true;
-                    kalman_reset_ = true;
-                    
-                    // Reset Kalman filter to current measurement
-                    obj.kalman.reset();
-                    obj.kalman.initialize(obj.distance_m);
-                    obj.velocity_ms = 0.0f;  // Unknown velocity for new vehicle
-                }
-            } else {
-                if (debug_mode_) {
-                    LOG_INFO("  -> Feature matching skipped (no image data)");
-                }
+        // Transfer Kalman state from previous track to current main_CIPO
+        for (auto& prev_obj : previous_objects_) {
+            if (prev_obj.track_id == prev_main_cipo->track_id) {
+                main_cipo.kalman = prev_obj.kalman;
+                break;
             }
         }
+    } else {
+        // ===== DIFFERENT VEHICLE: Real cut-in! =====
+        LOG_INFO("  -> Different vehicle (CUT-IN DETECTED) - Kalman filter reset");
+        
+        // Set event flags for visualization
+        cut_in_detected_ = true;
+        kalman_reset_ = true;
+        
+        // Reset Kalman filter for the NEW main_CIPO
+        main_cipo.kalman.reset();
+        main_cipo.kalman.initialize(main_cipo.distance_m);
+        main_cipo.velocity_ms = 0.0f;  // Unknown velocity for cut-in vehicle
     }
     
     return cipo;
