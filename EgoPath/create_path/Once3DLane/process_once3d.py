@@ -109,4 +109,51 @@ def parseData():
 
 if __name__ == "__main__":
 
-    
+    # ============================== Dataset structure ============================== #
+
+    # FYI: https://once-3dlanes.github.io/
+
+    # The downloaded dataset is ASSUMED to be organized as follows:
+    #
+    # Once3DLane dataset/
+    # │
+    # ├── images/
+    # │   ├── 000027/
+    # │   │   ├── cam01/
+    # │   │   │   ├── <frame_id>.jpg
+    # │   │   │   ├── <frame_id>.jpg
+    # │   │   │   └── ...
+    # │   │   └── cam03/
+    # │   │       ├── <frame_id>.jpg
+    # │   │       ├── <frame_id>.jpg
+    # │   │       └── ...
+    # │   ├── 000028/
+    # │   │   ├── cam01/
+    # │   │   │   ├── <frame_id>.jpg
+    # │   │   │   ├── <frame_id>.jpg
+    # │   │   │   └── ...
+    # │   │   └── cam03/
+    # │   │       ├── <frame_id>.jpg
+    # │   │       ├── <frame_id>.jpg
+    # │   │       └── ...
+    # │   └── ...
+    # │
+    # └── infos/
+    #       ├── 000027/
+    #       │   └── 000027.json
+    #       ├── 000028/
+    #       │   └── 000028.json
+    #       └── ...
+    # 
+    # └── lanes/
+    #       ├── 000027/
+    #       │   └── cam01/
+    #       │       ├── <frame_id>.json
+    #       │       ├── <frame_id>.json
+    #       │       └── ...
+    #       ├── 000028/
+    #       │   └── cam01/
+    #       │       ├── <frame_id>.json
+    #       │       ├── <frame_id>.json
+    #       │       └── ...
+    #       └── ...
