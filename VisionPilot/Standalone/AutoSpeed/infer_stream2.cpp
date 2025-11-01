@@ -196,12 +196,14 @@ void objectFinderThread(ObjectFinder& finder,
                       << std::endl;
         }
 
-        // Print a simple CIPO summary
+        // Print main_CIPO summary (THE most dangerous object being tracked)
         if (cipo.exists) {
-            std::cout << "\n> CIPO (Closest, Class 0): Track " << cipo.track_id 
-                      << " | Distance: " << std::fixed << std::setprecision(2) << cipo.distance_m << " m\n";
+            std::cout << "\n>>> main_CIPO: Track " << cipo.track_id 
+                      << " (Level " << cipo.class_id << ")"
+                      << " | Distance: " << std::fixed << std::setprecision(2) << cipo.distance_m << "m"
+                      << " | Velocity: " << std::fixed << std::setprecision(2) << cipo.velocity_ms << "m/s\n";
         } else {
-            std::cout << "\n> CIPO (Closest, Class 0): None\n";
+            std::cout << "\n>>> main_CIPO: None detected\n";
         }
         std::cout << "--------------------------------------------------\n";
         
