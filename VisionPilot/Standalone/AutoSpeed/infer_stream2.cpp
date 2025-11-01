@@ -66,6 +66,7 @@ struct TimestampedFrame {
 
 // Inference result
 struct InferenceResult {
+    cv::Mat frame;
     std::vector<Detection> detections;
     std::chrono::steady_clock::time_point capture_time;
     std::chrono::steady_clock::time_point inference_time;
@@ -134,6 +135,7 @@ void inferenceThread(AutoSpeedTensorRTEngine& backend,
         metrics.total_inference_us.fetch_add(inference_us);
         
         InferenceResult result;
+        result.frame = tf.frame;
         result.detections = detections;
         std::cout<< "Detections: " << detections.size() << std::endl;
         result.capture_time = tf.timestamp;
@@ -158,11 +160,11 @@ void objectFinderThread(ObjectFinder& finder,
 
         auto t_start = std::chrono::steady_clock::now();
         
-        // Update tracker with detections
-        std::vector<TrackedObject> tracked = finder.update(result.detections);
+        // Update tracker with detections (pass frame for feature matching)
+        std::vector<TrackedObject> tracked = finder.update(result.detections, result.frame);
         
-        // Get CIPO
-        CIPOInfo cipo = finder.getCIPO();
+        // Get CIPO (pass frame for feature matching)
+        CIPOInfo cipo = finder.getCIPO(result.frame);
         
         auto t_end = std::chrono::steady_clock::now();
         
