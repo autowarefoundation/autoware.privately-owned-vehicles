@@ -298,16 +298,32 @@ CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
     int level2_idx = CIPOUtils::findClosestByLevel(tracked_objects_, 2);
     int main_cipo_idx = CIPOUtils::selectMainCIPO(tracked_objects_, level1_idx, level2_idx);
     
-    // Debug: Show selection logic
-    if (debug_mode_ && level1_idx >= 0 && level2_idx >= 0) {
-        LOG_INFO(("Level 1 @ " + std::to_string(tracked_objects_[level1_idx].distance_m) + "m, " +
-                  "Level 2 @ " + std::to_string(tracked_objects_[level2_idx].distance_m) + "m -> " +
-                  "main_CIPO = " + (main_cipo_idx == level1_idx ? "Level 1" : "Level 2")).c_str());
-    }
-    
     // ===== STEP 2: No main_CIPO found =====
     if (main_cipo_idx < 0) {
+        LOG_INFO("No main_CIPO detected");
         return cipo;  // Empty CIPO info
+    }
+    
+    // ===== ALWAYS log main_CIPO selection (critical info!) =====
+    const auto& selected_cipo = tracked_objects_[main_cipo_idx];
+    if (debug_mode_) {
+        // Verbose: Show both levels
+        if (level1_idx >= 0 && level2_idx >= 0) {
+            LOG_INFO(("Level 1 @ " + std::to_string(tracked_objects_[level1_idx].distance_m) + "m, " +
+                      "Level 2 @ " + std::to_string(tracked_objects_[level2_idx].distance_m) + "m -> " +
+                      "main_CIPO: Track " + std::to_string(selected_cipo.track_id) + 
+                      " (Level " + std::to_string(selected_cipo.class_id) + ")").c_str());
+        } else {
+            LOG_INFO(("main_CIPO: Track " + std::to_string(selected_cipo.track_id) + 
+                      " (Level " + std::to_string(selected_cipo.class_id) + 
+                      ") @ " + std::to_string(selected_cipo.distance_m) + "m").c_str());
+        }
+    } else {
+        // Clean: Just show main_CIPO
+        LOG_INFO(("main_CIPO: Track " + std::to_string(selected_cipo.track_id) + 
+                  " (Level " + std::to_string(selected_cipo.class_id) + 
+                  ") @ " + std::to_string(selected_cipo.distance_m) + "m, " + 
+                  std::to_string(selected_cipo.velocity_ms) + "m/s").c_str());
     }
     
     // ===== STEP 3: Package main_CIPO info =====
