@@ -112,7 +112,7 @@ def parseData(
 
     # Read GT info
     num_lanes       = label_data["lane_num"]
-    lanes_3d        = label_data["lanes"]
+    lines_3d        = label_data["lanes"]
     cam_intrinsics  = label_data["calibration"]
 
     if (num_lanes < 2):
@@ -122,20 +122,20 @@ def parseData(
 
     # Process lanes, project to 2D
     cam_intrinsics_T = np.array(cam_intrinsics).T.tolist()
-    lanes_2d = []
+    lines_2d = []
 
-    for lane_3d in lanes_3d:
+    for line_3d in lines_3d:
 
-        lane_3d = np.array(
-            lane_3d,
+        line_3d = np.array(
+            line_3d,
             dtype = np.float32
         )[:, :3]
 
         pcl_cam_homo = np.hstack(
             [
-                lane_3d,
+                line_3d,
                 np.ones(
-                    lane_3d.shape[0], 
+                    line_3d.shape[0], 
                     dtype = np.float32
                 ).reshape((-1, 1))
             ]
@@ -145,29 +145,58 @@ def parseData(
             cam_intrinsics_T
         )
         pcl_img = pcl_img / pcl_img[:, [2]]
-        lane_2d = pcl_img[:, :2].tolist()
+        line_2d = pcl_img[:, :2].tolist()
 
-        if (len(lane_2d) < 2):
+        if (len(line_2d) < 2):
             continue
 
         # Sort by descending y-coords
-        lane_2d = sorted(
-            lane_2d,
+        line_2d = sorted(
+            line_2d,
             key = lambda x: x[1],
             reverse = True
         )
 
         # Attach anchor to line
-        lane_2d = [getLineAnchor(lane_2d)[0], H - 1] + lane_2d
+        line_2d = [getLineAnchor(line_2d)[0], H - 1] + line_2d
 
-        lanes_2d.append(lane_2d)
+        lines_2d.append(line_2d)
 
-    if (len(lanes_2d) < 2):
+    if (len(lines_2d) < 2):
         if (verbose):
             print(f"Image ID {img_id} after processing has insufficient lines. Skipping.")
         return None
     
-    
+    # Sort all lines by ascending x-coords of anchors
+    lines_2d = sorted(
+        lines_2d,
+        key = lambda x: x[0][0],
+        reverse = False
+    )
+
+    # Determine ego lines
+    for i, line in enumerate(lines_2d):
+        if (line[0][0] >= W / 2):
+            if (i == 0):
+                egoleft_lane = lines_2d[0]
+                egoright_lane = lines_2d[1]
+                other_lanes = [
+                    line for j, line in enumerate(lines_2d) 
+                    if j != 0 and j != 1
+                ]
+            else:
+                egoleft_lane = lines_2d[i - 1]
+                egoright_lane = lines_2d[i]
+                other_lanes = [
+                    line for j, line in enumerate(lines_2d) 
+                    if j != i - 1 and j != i
+                ]
+            break
+        else:
+            # Traversed all lines but none is on the right half
+            if (i == len(lines_2d) - 1):
+                egoleft_lane = None
+                egoright_lane = None
 
     return anno_entry
 
