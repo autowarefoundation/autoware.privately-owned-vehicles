@@ -2,7 +2,7 @@
 
 int main()
 {
-    SteeringController sc(2.85, 3.0, 0.1);
+    SteeringController sc(2.85, 0.8, 1.6, 1.0);
 
     double cte = 0.5;               // cross-track error
     double yaw_error = 0.1;         // yaw error in radians

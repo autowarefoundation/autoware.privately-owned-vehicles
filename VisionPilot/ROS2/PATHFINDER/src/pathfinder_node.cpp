@@ -37,7 +37,7 @@ PathFinderNode::PathFinderNode(const rclcpp::NodeOptions &options) : Node("pathf
   timer_ = rclcpp::create_timer(this->get_node_base_interface(),
                                 this->get_node_timers_interface(),
                                 this->get_clock(),
-                                std::chrono::milliseconds(10),
+                                std::chrono::milliseconds(20),
                                 std::bind(&PathFinderNode::timer_callback, this));
 
   drivCorr_timer_ = rclcpp::create_timer(this->get_node_base_interface(),
@@ -318,15 +318,20 @@ void PathFinderNode::publishLaneMarker(double lane_width, double cte, double yaw
 
   // Generate a circular arc based on curvature
   const double radius = (std::abs(curvature) > 1e-9) ? 1.0 / curvature : 1e9;
-  const double arc_length = 20.0; // visualize 20 m ahead
+  const double arc_length = 50.0; // visualize 20 m ahead
   const int num_points = 50;
 
   for (int i = 0; i < num_points; ++i)
   {
     double s = (arc_length / (num_points - 1)) * i;
+    double theta = s / radius;
+
+    double x = radius * std::sin(theta);
+    double y = -cte + radius * (1 - std::cos(theta)); // simple curvature offset
+
     geometry_msgs::msg::Point p;
-    p.x = s * std::cos(-yaw_error);
-    p.y = -cte + radius * (1 - std::cos(s / radius)); // simple curvature offset
+    p.x = x * std::cos(-yaw_error) - y * std::sin(-yaw_error);
+    p.y = x * std::sin(-yaw_error) + y * std::cos(-yaw_error);
     p.z = 0.0;
     lane_marker.points.push_back(p);
   }
