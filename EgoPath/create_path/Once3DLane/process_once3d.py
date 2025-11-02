@@ -492,12 +492,32 @@ if __name__ == "__main__":
             img_path        = os.path.join(segment_img_dir, img_filename)
             label_path      = os.path.join(segment_label_dir, label_filename)
 
-            # Parsing
-            img = Image.open(img_path).convert("RGB")
+            # Read data
+            img = cv2.imread(img_path)
             with open(label_path, "r") as f:
                 label_data = json.load(f)
 
+            # Parse GTs
             anno_entry = parseData(
                 img_id_counter,
                 label_data
             )
+
+            # Annotate GT
+            if (anno_entry is not None):
+                annotateGT(
+                    raw_img = img,
+                    anno_entry = anno_entry,
+                    img_dir = os.path.join(
+                        output_dir, 
+                        "image"
+                    ),
+                    mask_dir = os.path.join(
+                        output_dir, 
+                        "mask"
+                    ),
+                    visualization_dir = os.path.join(
+                        output_dir, 
+                        "visualization"
+                    )
+                )
