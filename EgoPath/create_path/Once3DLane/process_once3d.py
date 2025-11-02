@@ -101,7 +101,17 @@ def getLineAnchor(
 # ============================== Core functions ============================== #
 
 
-def parseData():
+def parseData(
+    img_id      : int,
+    label_data  : dict
+):
+    """
+    Parse Once3DLane data entry.
+    """
+
+    
+
+    return anno_entry
 
 
 # ================================= MAIN RUN ================================= #
@@ -198,6 +208,9 @@ if __name__ == "__main__":
 
     # Parse dirs
     dataset_dir = args.dataset_dir
+    IMG_DIR = os.path.join(dataset_dir, IMG_DIR)
+    LABEL_DIR = os.path.join(dataset_dir, LABEL_DIR)
+    INFO_DIR = os.path.join(dataset_dir, INFO_DIR)
     output_dir = args.output_dir
 
     # Parse early stopping
@@ -227,3 +240,53 @@ if __name__ == "__main__":
         subdir_path = os.path.join(output_dir, subdir)
         if (not os.path.exists(subdir_path)):
             os.makedirs(subdir_path, exist_ok = True)
+
+    # ============================== Parsing annotations ============================== #
+
+    data_master = {}
+    img_id_counter = -1
+
+    for segment_id in tqdm(
+        sorted(os.listdir(IMG_DIR)), 
+        desc = "Processing segments: ",
+        colour = "yellow"
+    ):
+        
+        segment_img_dir     = os.path.join(IMG_DIR, segment_id, CAM_DIR)
+        segment_label_dir   = os.path.join(LABEL_DIR, segment_id, CAM_DIR)
+        segment_info_path   = os.path.join(
+            INFO_DIR, 
+            segment_id, 
+            f"{segment_id}.json"
+        )
+
+        list_current_segment_imgs   = sorted(os.listdir(segment_img_dir))
+        list_current_segment_labels = sorted(os.listdir(segment_label_dir))
+        assert len(list_current_segment_imgs) == len(list_current_segment_labels), \
+            f"Number of images and labels do not match in segment {segment_id}!"
+
+        # Process frame-by-frame
+        for i in range(len(list_current_segment_imgs)):
+
+            # Early stopping
+            if (
+                (early_stopping) and 
+                (img_id_counter == early_stopping - 1)
+            ):
+                break
+
+            img_id_counter += 1
+            img_filename    = list_current_segment_imgs[i]
+            label_filename  = list_current_segment_labels[i]
+            img_path        = os.path.join(segment_img_dir, img_filename)
+            label_path      = os.path.join(segment_label_dir, label_filename)
+
+            # Parsing
+            img = Image.open(img_path).convert("RGB")
+            with open(label_path, "r") as f:
+                label_data = json.load(f)
+
+            anno_entry = parseData(
+                img_id_counter,
+                label_data
+            )
