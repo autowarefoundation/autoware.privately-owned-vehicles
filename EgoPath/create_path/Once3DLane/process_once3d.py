@@ -103,15 +103,22 @@ def getLineAnchor(
 
 def parseData(
     img_id      : int,
-    label_data  : dict
+    label_data  : dict,
+    verbose     : bool = False
 ):
     """
     Parse Once3DLane data entry.
     """
 
     # Read GT info
+    num_lanes       = label_data["lane_num"]
     lanes_3d        = label_data["lanes"]
     cam_intrinsics  = label_data["calibration"]
+
+    if (num_lanes < 2):
+        if (verbose):
+            print(f"Frame ID {img_id} has less than 2 lines. Skipping.")
+        return None
 
     # Process lanes, project to 2D
     cam_intrinsics_T = np.array(cam_intrinsics).T.tolist()
@@ -138,9 +145,29 @@ def parseData(
             cam_intrinsics_T
         )
         pcl_img = pcl_img / pcl_img[:, [2]]
-        lane_2d = pcl_img[:, :2]
+        lane_2d = pcl_img[:, :2].tolist()
+
+        if (len(lane_2d) < 2):
+            continue
+
+        # Sort by descending y-coords
+        lane_2d = sorted(
+            lane_2d,
+            key = lambda x: x[1],
+            reverse = True
+        )
+
+        # Attach anchor to line
+        lane_2d = [getLineAnchor(lane_2d)[0], H - 1] + lane_2d
 
         lanes_2d.append(lane_2d)
+
+    if (len(lanes_2d) < 2):
+        if (verbose):
+            print(f"Image ID {img_id} after processing has insufficient lines. Skipping.")
+        return None
+    
+    
 
     return anno_entry
 
