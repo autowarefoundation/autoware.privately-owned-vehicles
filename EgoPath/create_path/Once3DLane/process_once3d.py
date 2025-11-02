@@ -249,6 +249,14 @@ def parseData(
             print(f"Image ID {img_id} has insufficient egolines. Skipping.")
         return None
     
+    # Here a sanity check:
+    # Pseudo-drivable-path's anchor should be within 50% center of frame
+    pseudo_egopath_anchor_x = (egoleft_lane[0][0] + egoright_lane[0][0]) / 2
+    if (not (W * 0.25 <= pseudo_egopath_anchor_x <= W * 0.75)):
+        if (verbose):
+            print(f"Image ID {img_id} has pseudo egopath not in 50% center of frame. Skipping.")
+        return None
+    
     # Create segmentation masks:
     # Channel 1: egoleft lane
     # Channel 2: egoright lane
