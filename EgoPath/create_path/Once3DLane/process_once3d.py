@@ -456,12 +456,17 @@ if __name__ == "__main__":
 
     data_master = {}
     img_id_counter = -1
+    flag_continue = True
 
     for segment_id in tqdm(
         sorted(os.listdir(IMG_DIR)), 
         desc = "Processing segments: ",
         colour = "yellow"
     ):
+        
+        # Early stopping check on outer loop
+        if (not flag_continue):
+            break
         
         segment_img_dir     = os.path.join(IMG_DIR, segment_id, CAM_DIR)
         segment_label_dir   = os.path.join(LABEL_DIR, segment_id, CAM_DIR)
@@ -554,3 +559,12 @@ if __name__ == "__main__":
             }
 
             img_id_counter += 1
+
+            # Early stopping check on inner loop
+            if (
+                early_stopping and 
+                (img_id_counter >= early_stopping)
+            ):
+                flag_continue = False
+                print(f"Early stopping reached at {early_stopping} samples.")
+                break
