@@ -521,3 +521,36 @@ if __name__ == "__main__":
                         "visualization"
                     )
                 )
+
+            # Log to master data
+            img_index = str(str(img_id_counter).zfill(6))
+            data_master[img_index] = {
+                "img_path"      : os.path.join(
+                    output_dir, 
+                    "image",
+                    img_index + ".jpg"
+                ),
+                "egoleft_lane"  : round_line_floats(
+                    normalizeCoords(
+                        anno_entry["egoleft_lane"],
+                        W, H
+                    )
+                ),
+                "egoright_lane" : round_line_floats(
+                    normalizeCoords(
+                        anno_entry["egoright_lane"],
+                        W, H
+                    )
+                ),
+                "other_lanes"   : [
+                    round_line_floats(
+                        normalizeCoords(
+                            lane,
+                            W, H
+                        )
+                    )
+                    for lane in anno_entry["other_lanes"]
+                ],
+            }
+
+            img_id_counter += 1
