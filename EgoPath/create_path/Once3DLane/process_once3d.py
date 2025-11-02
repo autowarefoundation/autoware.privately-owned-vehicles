@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import cv2
 import shutil
 import warnings
 import numpy as np
@@ -280,6 +281,48 @@ def parseData(
     }
 
     return anno_entry
+
+
+def annotateGT(
+    raw_img: np.ndarray,
+    anno_entry: dict,
+    img_dir: str,
+    mask_dir: str,
+    visualization_dir: str
+):
+    """
+    Annotates and saves an image with:
+        - Raw image, in "output_dir/image".
+        - Annotated image with all lanes, in "output_dir/visualization".
+        - Segmentation mask image, in "output_dir/mask".
+    """
+
+    # Define save name, now saving everything in JPG
+    # to preserve my remaining disk space
+    save_name = str(img_id_counter).zfill(6)
+
+    # Raw img, fetched from cv2 BGR format, convert to RGB
+    raw_img = Image.fromarray(
+        cv2.cvtColor(
+            raw_img, 
+            cv2.COLOR_BGR2RGB
+        )
+    )
+    raw_img.save(os.path.join(img_dir, save_name + ".jpg"))
+
+    # Fetch seg mask and save as RGB PNG
+    mask_img = Image.fromarray(anno_entry["mask"]).convert("RGB")
+    mask_img.save(os.path.join(mask_dir, save_name + ".png"))
+
+    # Overlay mask on raw image, ratio 1:1
+    overlayed_img = Image.blend(
+        raw_img, 
+        mask_img, 
+        alpha = 0.5
+    )
+
+    # Save visualization img, JPG for lighter weight, just different dir
+    overlayed_img.save(os.path.join(visualization_dir, save_name + ".jpg"))
 
 
 # ================================= MAIN RUN ================================= #
