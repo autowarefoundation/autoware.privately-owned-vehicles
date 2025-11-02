@@ -161,6 +161,48 @@ if __name__ == "__main__":
     IMG_DIR     = "images"
     LABEL_DIR   = "lanes"
     INFO_DIR    = "infos"
-    CAM_DIR     = "cam01"  # Only GT for cam01 is provided.
+    CAM_DIR     = "cam01"  # Only GT for cam01 is provided
 
-    
+    # Size checked from sample images of cam01 (cam03 is similar too)
+    W = 1920
+    H = 1020
+
+    # ============================== Argument parser ============================== #
+
+    parser = argparse.ArgumentParser(
+        description = "Process Once3DLane dataset - LaneSeg GT generation"
+    )
+    parser.add_argument(
+        "--dataset_dir", 
+        "-d",
+        type = str, 
+        help = "Once3DLane directory, containing above structure of images, lanes and infos",
+        required = True
+    )
+    parser.add_argument(
+        "--output_dir", 
+        "-o",
+        type = str,
+        help = "Output directory",
+        required = True
+    )
+    # For debugging only
+    parser.add_argument(
+        "--early_stopping",
+        "-e",
+        type = int,
+        help = "Num. files you wanna limit, instead of whole set.",
+        required = False
+    )
+    args = parser.parse_args()
+
+    # Parse dirs
+    dataset_dir = args.dataset_dir
+    output_dir = args.output_dir
+
+    # Parse early stopping
+    if (args.early_stopping):
+        print(f"Early stopping set, stops after {args.early_stopping} files.")
+        early_stopping = args.early_stopping
+    else:
+        early_stopping = None
