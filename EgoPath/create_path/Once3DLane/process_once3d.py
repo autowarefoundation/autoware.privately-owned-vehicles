@@ -568,3 +568,17 @@ if __name__ == "__main__":
                 flag_continue = False
                 print(f"Early stopping reached at {early_stopping} samples.")
                 break
+
+    # Save master annotation file
+    with open(
+        os.path.join(output_dir, "drivable_path.json"), 
+        "w"
+    ) as f:
+        json.dump(
+            data_master, f, 
+            indent = 4
+        )
+
+    print(f"Completed processing Once3DLane dataset.")
+    print(f"Total samples: {img_id_counter}.")
+    print(f"Output saved to {output_dir}.")
