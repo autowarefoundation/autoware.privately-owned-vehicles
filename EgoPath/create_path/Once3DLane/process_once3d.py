@@ -141,6 +141,34 @@ def calcLaneSegMask(
     return bin_seg
 
 
+def polyfit(
+    line: list,
+    order: int,
+    y_range: tuple[float, float],
+    y_step: int = 10,
+):
+    
+    x = [point[0] for point in line]
+    y = [point[1] for point in line]
+    z = np.polyfit(y, x, order)
+    f = np.poly1d(z)
+    y_new = np.linspace(
+        y_range[0],
+        y_range[1], 
+        y_step
+    )
+    x_new = f(y_new)
+
+    # Sort by decreasing y
+    fitted_line = sorted(
+        tuple(zip(x_new, y_new)),
+        key = lambda x: x[1],
+        reverse = True
+    )
+    
+    return fitted_line
+
+
 # ============================== Core functions ============================== #
 
 
