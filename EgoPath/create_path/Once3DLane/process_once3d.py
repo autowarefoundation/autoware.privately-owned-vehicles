@@ -200,7 +200,7 @@ def parseData(
         )
 
         # Attach anchor to line
-        line_2d = [getLineAnchor(line_2d)[0], H - 1] + line_2d
+        line_2d = [[getLineAnchor(line_2d)[0], H - 1]] + line_2d
 
         lines_2d.append(line_2d)
 
@@ -208,7 +208,7 @@ def parseData(
         if (verbose):
             print(f"Image ID {img_id} after processing has insufficient lines. Skipping.")
         return None
-    
+        
     # Sort all lines by ascending x-coords of anchors
     lines_2d = sorted(
         lines_2d,
@@ -270,6 +270,14 @@ def parseData(
         W, H,
         normalized = False
     )
+
+    # Final anno entry log
+    anno_entry = {
+        "other_lanes"     : other_lanes,
+        "egoleft_lane"    : egoleft_lane,
+        "egoright_lane"   : egoright_lane,
+        "mask"            : mask,
+    }
 
     return anno_entry
 
