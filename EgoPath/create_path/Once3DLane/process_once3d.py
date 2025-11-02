@@ -157,3 +157,10 @@ if __name__ == "__main__":
     #       │       ├── <frame_id>.json
     #       │       └── ...
     #       └── ...
+
+    IMG_DIR     = "images"
+    LABEL_DIR   = "lanes"
+    INFO_DIR    = "infos"
+    CAM_DIR     = "cam01"  # Only GT for cam01 is provided.
+
+    
