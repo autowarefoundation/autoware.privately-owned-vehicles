@@ -218,9 +218,11 @@ def parseData(
         pcl_img = pcl_img / pcl_img[:, [2]]
         line_2d = pcl_img[:, :2].tolist()
 
+        # Sanity check - lines with only 1 point
         if (len(line_2d) < 2):
             continue
 
+        # Polyfit line to remove wiggy waggy annotations
         line_2d = polyfit(
             line_2d,
             y_range = [
@@ -228,6 +230,10 @@ def parseData(
                 line_2d[0][1]
             ]
         )
+
+        # Sanity check - lines that end at higher than 1/3 of height from the bottom
+        if (line_2d[0][1] <= H * 2/3):
+            continue
 
         # Attach anchor to line
         line_2d = [[getLineAnchor(line_2d)[0], H - 1]] + line_2d
