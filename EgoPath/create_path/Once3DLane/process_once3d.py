@@ -143,8 +143,8 @@ def calcLaneSegMask(
 
 def polyfit(
     line: list,
-    order: int,
     y_range: tuple[float, float],
+    order: int = 2,
     y_step: int = 10,
 ):
     
@@ -221,11 +221,12 @@ def parseData(
         if (len(line_2d) < 2):
             continue
 
-        # Sort by descending y-coords
-        line_2d = sorted(
+        line_2d = polyfit(
             line_2d,
-            key = lambda x: x[1],
-            reverse = True
+            y_range = [
+                line_2d[-1][1],
+                line_2d[0][1]
+            ]
         )
 
         # Attach anchor to line
