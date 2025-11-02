@@ -68,6 +68,13 @@ def custom_warning_format(
 
 warnings.formatwarning = custom_warning_format
 
+# Kindly suppress the polyfit warnings
+warnings.filterwarnings(
+    "ignore", 
+    category = np.RankWarning, 
+    message = "Polyfit may be poorly conditioned"
+)
+
 
 # ============================== Helper functions ============================== #
 
