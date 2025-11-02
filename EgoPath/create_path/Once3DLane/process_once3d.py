@@ -482,7 +482,11 @@ if __name__ == "__main__":
             f"Number of images and labels do not match in segment {segment_id}!"
 
         # Process frame-by-frame
-        for i in range(len(list_current_segment_labels)):
+        for i in tqdm(
+            range(len(list_current_segment_labels)),
+            desc = "Processing frames: ",
+            colour = "yellow"
+        ):
 
             # Early stopping
             if (
