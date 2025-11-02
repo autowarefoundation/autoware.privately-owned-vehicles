@@ -109,7 +109,38 @@ def parseData(
     Parse Once3DLane data entry.
     """
 
-    
+    # Read GT info
+    lanes_3d        = label_data["lanes"]
+    cam_intrinsics  = label_data["calibration"]
+
+    # Process lanes, project to 2D
+    cam_intrinsics_T = np.array(cam_intrinsics).T.tolist()
+    lanes_2d = []
+
+    for lane_3d in lanes_3d:
+
+        lane_3d = np.array(
+            lane_3d,
+            dtype = np.float32
+        )[:, :3]
+
+        pcl_cam_homo = np.hstack(
+            [
+                lane_3d,
+                np.ones(
+                    lane_3d.shape[0], 
+                    dtype = np.float32
+                ).reshape((-1, 1))
+            ]
+        )
+        pcl_img = np.dot(
+            pcl_cam_homo,
+            cam_intrinsics_T
+        )
+        pcl_img = pcl_img / pcl_img[:, [2]]
+        lane_2d = pcl_img[:, :2]
+
+        lanes_2d.append(lane_2d)
 
     return anno_entry
 
@@ -262,11 +293,11 @@ if __name__ == "__main__":
 
         list_current_segment_imgs   = sorted(os.listdir(segment_img_dir))
         list_current_segment_labels = sorted(os.listdir(segment_label_dir))
-        assert len(list_current_segment_imgs) == len(list_current_segment_labels), \
+        assert len(list_current_segment_imgs) == len(list_current_segment_labels) * 2, \
             f"Number of images and labels do not match in segment {segment_id}!"
 
         # Process frame-by-frame
-        for i in range(len(list_current_segment_imgs)):
+        for i in range(len(list_current_segment_labels)):
 
             # Early stopping
             if (
@@ -276,7 +307,7 @@ if __name__ == "__main__":
                 break
 
             img_id_counter += 1
-            img_filename    = list_current_segment_imgs[i]
+            img_filename    = list_current_segment_imgs[i * 2]  # Every 2 images share the same label. Tricky ain't it?
             label_filename  = list_current_segment_labels[i]
             img_path        = os.path.join(segment_img_dir, img_filename)
             label_path      = os.path.join(segment_label_dir, label_filename)
