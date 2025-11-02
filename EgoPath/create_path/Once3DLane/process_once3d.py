@@ -198,6 +198,37 @@ def parseData(
                 egoleft_lane = None
                 egoright_lane = None
 
+    # Skip if egolines not found
+    if (not egoleft_lane) or (not egoright_lane):
+        if (verbose):
+            print(f"Image ID {img_id} has insufficient egolines. Skipping.")
+        return None
+    
+    # Create segmentation masks:
+    # Channel 1: egoleft lane
+    # Channel 2: egoright lane
+    # Channel 3: other lanes
+
+    mask = np.zeros(
+        (H, W, 3), 
+        dtype = np.uint8
+    )
+    mask[:, :, 0] = calcLaneSegMask(
+        [egoleft_lane], 
+        W, H,
+        normalized = False
+    )
+    mask[:, :, 1] = calcLaneSegMask(
+        [egoright_lane], 
+        W, H,
+        normalized = False
+    )
+    mask[:, :, 2] = calcLaneSegMask(
+        other_lanes, 
+        W, H,
+        normalized = False
+    )
+
     return anno_entry
 
 
