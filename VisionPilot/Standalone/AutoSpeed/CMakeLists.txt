@@ -81,6 +81,7 @@ add_library(object_finder
     ../../common/tracking/kalman_filter.cpp
     ../../common/tracking/tracking_utils.cpp
     ../../common/tracking/cipo_history.cpp
+    ../../common/tracking/cipo_utils.cpp
     ../../common/tracking/feature_matching_utils.cpp
 )
 target_compile_definitions(object_finder PRIVATE LOG_TYPE=0)  # Use non-ROS logging
