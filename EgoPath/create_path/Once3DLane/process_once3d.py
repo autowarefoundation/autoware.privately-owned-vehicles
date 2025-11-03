@@ -68,13 +68,6 @@ def custom_warning_format(
 
 warnings.formatwarning = custom_warning_format
 
-# Kindly suppress the polyfit warnings
-warnings.filterwarnings(
-    "ignore", 
-    category = np.RankWarning, 
-    message = "Polyfit may be poorly conditioned"
-)
-
 
 # ============================== Helper functions ============================== #
 
@@ -519,8 +512,15 @@ if __name__ == "__main__":
         # Early stopping check on outer loop
         if (not flag_continue):
             break
+
+        # Check if this segment supports CAM_DIR
+        if not (
+            (os.path.exists(os.path.join(IMG_DIR  , segment_id, CAM_DIR))) and
+            (os.path.exists(os.path.join(LABEL_DIR, segment_id, CAM_DIR)))
+        ):
+            continue
         
-        segment_img_dir     = os.path.join(IMG_DIR, segment_id, CAM_DIR)
+        segment_img_dir     = os.path.join(IMG_DIR  , segment_id, CAM_DIR)
         segment_label_dir   = os.path.join(LABEL_DIR, segment_id, CAM_DIR)
         segment_info_path   = os.path.join(
             INFO_DIR, 
@@ -530,19 +530,21 @@ if __name__ == "__main__":
 
         list_current_segment_imgs   = sorted(os.listdir(segment_img_dir))
         list_current_segment_labels = sorted(os.listdir(segment_label_dir))
-        assert len(list_current_segment_imgs) == len(list_current_segment_labels) * 2, \
-            f"Number of images and labels do not match in segment {segment_id}!"
+        assert len(list_current_segment_imgs) <= len(list_current_segment_labels) * 2, \
+            f"Number of images ({len(list_current_segment_imgs)}) and \
+                labels ({len(list_current_segment_labels)}) are kinda weird in segment {segment_id}!"
 
         # Process frame-by-frame
         for i in tqdm(
-            range(len(list_current_segment_labels)),
+            range(len(list_current_segment_imgs)),
             desc = "Processing frames: ",
             colour = "yellow"
         ):
 
             img_id_counter += 1
-            img_filename    = list_current_segment_imgs[i * 2]  # Every 2 images share the same label. Tricky ain't it?
-            label_filename  = list_current_segment_labels[i]
+            # Every 2 images share the same label. Tricky ain't it?
+            img_filename    = list_current_segment_imgs[i]
+            label_filename  = list_current_segment_labels[i // 2]
             img_path        = os.path.join(segment_img_dir, img_filename)
             label_path      = os.path.join(segment_label_dir, label_filename)
 
