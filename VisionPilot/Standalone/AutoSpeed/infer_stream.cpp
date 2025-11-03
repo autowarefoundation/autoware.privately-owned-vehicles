@@ -177,29 +177,30 @@ void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
     }
 }
 
-// Display thread (LOW PRIORITY)
+// Display thread (handles both visualization and headless modes)
 void displayThread(ThreadSafeQueue<InferenceResult>& queue,
                    PerformanceMetrics& metrics,
                    std::atomic<bool>& running,
+                   bool enable_viz,
                    bool save_video,
                    const std::string& output_video_path)
 {
-    // Create named window with fixed size
-    cv::namedWindow("AutoSpeed Inference", cv::WINDOW_NORMAL);
-    cv::resizeWindow("AutoSpeed Inference", 960, 540);
+    // Visualization setup (only if enabled)
+    if (enable_viz) {
+        cv::namedWindow("AutoSpeed Inference", cv::WINDOW_NORMAL);
+        cv::resizeWindow("AutoSpeed Inference", 960, 540);
+    }
     
-    // Initialize video writer if save_video is enabled
+    // Video writer setup
     cv::VideoWriter video_writer;
     int video_width = 0;
     int video_height = 0;
-    double video_fps = 30.0;  // Default FPS, will be updated from first frame
-    
-    if (save_video) {
-        std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
-        // VideoWriter will be initialized after we get the first frame dimensions
-    }
-    
+    double video_fps = 30.0;
     bool video_writer_initialized = false;
+    
+    if (save_video && enable_viz) {
+        std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
+    }
     
     while (running.load()) {
         InferenceResult result;
@@ -209,13 +210,35 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         }
 
         auto t_display_start = std::chrono::steady_clock::now();
-
-        // Draw tracked objects with IDs, CIPO indicator, and event warnings
-        drawTrackedObjects(result.frame, result.tracked_objects, result.cipo, 
-                          result.cut_in_detected, result.kalman_reset);
+        
+        // ===== CORE: Always output main_CIPO info (for pub/sub, logging, etc.) =====
+        int count = metrics.frame_count.fetch_add(1) + 1;
+        
+        // Console output: main_CIPO status
+        if (result.cipo.exists) {
+            std::cout << "[Frame " << count << "] main_CIPO: Track " << result.cipo.track_id 
+                      << " (Level " << result.cipo.class_id << ") @ " 
+                      << std::fixed << std::setprecision(1)
+                      << result.cipo.distance_m << "m, "
+                      << result.cipo.velocity_ms << "m/s";
+            
+            if (result.cut_in_detected) {
+                std::cout << " [CUT-IN DETECTED!]";
+            }
+            std::cout << std::endl;
+        } else {
+            std::cout << "[Frame " << count << "] No main_CIPO detected" << std::endl;
+        }
+        
+        // ===== VISUALIZATION MODULE (optional, detachable) =====
+        if (enable_viz) {
+            // Draw tracked objects with IDs, CIPO indicator, and event warnings
+            drawTrackedObjects(result.frame, result.tracked_objects, result.cipo, 
+                              result.cut_in_detected, result.kalman_reset);
+        }
         
         // Initialize video writer on first frame if needed
-        if (save_video && !video_writer_initialized) {
+        if (save_video && enable_viz && !video_writer_initialized) {
             video_width = result.frame.cols;
             video_height = result.frame.rows;
             
@@ -236,19 +259,20 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         }
         
         // Write full-resolution annotated frame to video
-        if (save_video && video_writer_initialized && video_writer.isOpened()) {
+        if (save_video && enable_viz && video_writer_initialized && video_writer.isOpened()) {
             video_writer.write(result.frame);
         }
 
-        // Resize for display
-        cv::Mat display_frame;
-        cv::resize(result.frame, display_frame, cv::Size(960, 540));
-
-        // Display
-        cv::imshow("AutoSpeed Inference", display_frame);
-        if (cv::waitKey(1) == 'q') {
-            running.store(false);
-            break;
+        // Display (only if visualization enabled)
+        if (enable_viz) {
+            cv::Mat display_frame;
+            cv::resize(result.frame, display_frame, cv::Size(960, 540));
+            cv::imshow("AutoSpeed Inference", display_frame);
+            
+            if (cv::waitKey(1) == 'q') {
+                running.store(false);
+                break;
+            }
         }
         
         auto t_display_end = std::chrono::steady_clock::now();
@@ -262,7 +286,6 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         // Update metrics
         metrics.total_display_us.fetch_add(display_us);
         metrics.total_end_to_end_us.fetch_add(end_to_end_us);
-        int count = metrics.frame_count.fetch_add(1) + 1;
         
         // Print metrics every 100 frames (only if measure_latency is enabled)
         if (metrics.measure_latency && count % 100 == 0) {
@@ -285,30 +308,34 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         }
     }
     
-    // Release video writer
-    if (save_video && video_writer_initialized && video_writer.isOpened()) {
+    // Cleanup
+    if (save_video && enable_viz && video_writer_initialized && video_writer.isOpened()) {
         video_writer.release();
         std::cout << "\nVideo saved to: " << output_video_path << std::endl;
     }
     
-    cv::destroyAllWindows();
+    if (enable_viz) {
+        cv::destroyAllWindows();
+    }
 }
 
 int main(int argc, char** argv)
 {
     if (argc < 5) {
-        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> <homography_yaml> [realtime] [measure_latency] [save_video] [output_video]\n";
+        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> <homography_yaml> [realtime] [measure_latency] [enable_viz] [save_video] [output_video]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
         std::cerr << "  model_path: .pt or .onnx model file\n";
         std::cerr << "  precision: fp32 or fp16\n";
         std::cerr << "  homography_yaml: Path to homography calibration YAML file\n";
         std::cerr << "  realtime: (optional) 'true' for real-time, 'false' for max speed (default: true)\n";
         std::cerr << "  measure_latency: (optional) 'true' to show latency metrics (default: false)\n";
-        std::cerr << "  save_video: (optional) 'true' to save output video (default: false)\n";
+        std::cerr << "  enable_viz: (optional) 'true' to show visualization, 'false' for headless (default: true)\n";
+        std::cerr << "  save_video: (optional) 'true' to save output video (default: false, requires enable_viz=true)\n";
         std::cerr << "  output_video: (optional) Output video path (required if save_video=true, default: output_tracking.mp4)\n";
         std::cerr << "\nExample:\n";
         std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml false true true output.mp4\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml false true false  # Headless mode\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml true true true true output.mp4  # Full viz + save\n";
         return 1;
     }
 
@@ -318,6 +345,7 @@ int main(int argc, char** argv)
     std::string homography_yaml = argv[4];
     bool realtime = true;  // Default to real-time playback
     bool measure_latency = false;  // Default to no metrics
+    bool enable_viz = true;  // Default to visualization enabled
     bool save_video = false;  // Default to no video saving
     std::string output_video_path = "output_tracking.mp4";  // Default output path
     
@@ -332,12 +360,22 @@ int main(int argc, char** argv)
     }
     
     if (argc >= 8) {
-        std::string save_video_arg = argv[7];
-        save_video = (save_video_arg == "true" || save_video_arg == "1");
+        std::string viz_arg = argv[7];
+        enable_viz = (viz_arg != "false" && viz_arg != "0");
     }
     
     if (argc >= 9) {
-        output_video_path = argv[8];
+        std::string save_video_arg = argv[8];
+        save_video = (save_video_arg == "true" || save_video_arg == "1");
+    }
+    
+    if (argc >= 10) {
+        output_video_path = argv[9];
+    }
+    
+    if (save_video && !enable_viz) {
+        std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
+        enable_viz = true;
     }
     
     if (save_video && output_video_path.empty()) {
@@ -377,14 +415,23 @@ int main(int argc, char** argv)
     std::atomic<bool> running{true};
 
     // Launch threads
-    std::cout << "Starting multi-threaded inference + tracking pipeline..." << std::endl;
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Starting multi-threaded inference + tracking pipeline" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "Mode: " << (enable_viz ? "Visualization" : "Headless") << std::endl;
     if (measure_latency) {
         std::cout << "Latency measurement: ENABLED (metrics every 100 frames)" << std::endl;
     }
-    if (save_video) {
+    if (save_video && enable_viz) {
         std::cout << "Video saving: ENABLED -> " << output_video_path << std::endl;
     }
-    std::cout << "Press 'q' in the video window to quit\n" << std::endl;
+    if (enable_viz) {
+        std::cout << "Press 'q' in the video window to quit" << std::endl;
+    } else {
+        std::cout << "Running in headless mode (main_CIPO output to console)" << std::endl;
+        std::cout << "Press Ctrl+C to quit" << std::endl;
+    }
+    std::cout << "========================================\n" << std::endl;
     
     std::thread t_capture(captureThread, std::ref(gstreamer), std::ref(capture_queue), 
                           std::ref(metrics), std::ref(running));
@@ -393,7 +440,7 @@ int main(int argc, char** argv)
                             std::ref(metrics), std::ref(running),
                             conf_thresh, iou_thresh);
     std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics), 
-                         std::ref(running), save_video, output_video_path);
+                         std::ref(running), enable_viz, save_video, output_video_path);
 
     // Wait for threads
     t_capture.join();
@@ -428,7 +475,7 @@ void drawTrackedObjects(cv::Mat& frame,
         cv::Scalar color = getColor(obj.class_id);
         bool is_cipo = (cipo.exists && cipo.track_id == obj.track_id);
         
-        // Thicker box for CIPO
+        // Thicker box for main_CIPO
         int thickness = is_cipo ? 4 : 2;
         
         // Draw bounding box
