@@ -1,0 +1,29 @@
+name: Build VisionPilot Container
+
+on:
+  pull_request:
+    paths:
+      - 'VisionPilot/**'
+      - 'SDV/OpenADKit/docker/**'
+      - 'Models/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build VisionPilot container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./SDV/OpenADKit/docker/Dockerfile
+          tags: visionpilot:pr-${{ github.event.pull_request.number }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
