@@ -288,7 +288,7 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         metrics.total_end_to_end_us.fetch_add(end_to_end_us);
         
         // Print metrics every 100 frames (only if measure_latency is enabled)
-        if (metrics.measure_latency && count % 100 == 0) {
+        if (metrics.measure_latency && count % 30 == 0) {
             long avg_capture = metrics.total_capture_us.load() / count;
             long avg_inference = metrics.total_inference_us.load() / count;
             long avg_display = metrics.total_display_us.load() / count;
@@ -470,24 +470,21 @@ void drawTrackedObjects(cv::Mat& frame,
         }
     };
 
-    // Draw all tracked objects
+    // Draw ONLY the main_CIPO bounding box
     for (const auto& obj : tracked_objects) {
+        // Skip if this object is NOT the main_CIPO
+        if (!cipo.exists || cipo.track_id != obj.track_id) {
+            continue;
+        }
+        
         cv::Scalar color = getColor(obj.class_id);
-        bool is_cipo = (cipo.exists && cipo.track_id == obj.track_id);
         
-        // Thicker box for main_CIPO
-        int thickness = is_cipo ? 4 : 2;
-        
-        // Draw bounding box
-        cv::rectangle(frame, obj.bbox, color, thickness);
+        // Draw bounding box (thicker for main_CIPO)
+        cv::rectangle(frame, obj.bbox, color, 4);
         
         // Prepare label text
         std::stringstream label;
-        label << "ID:" << obj.track_id << " L" << obj.class_id;  // L1=Level 1, L2=Level 2
-        
-        if (is_cipo) {
-            label << " [main_CIPO]";  // Emphasize this is THE main CIPO
-        }
+        label << "ID:" << obj.track_id << " L" << obj.class_id << " [main_CIPO]";
         
         label << std::fixed << std::setprecision(1);
         label << " " << obj.distance_m << "m";
@@ -495,7 +492,7 @@ void drawTrackedObjects(cv::Mat& frame,
         // Show velocity (negative means approaching)
         if (std::abs(obj.velocity_ms) > 0.1f) {
             label << " " << obj.velocity_ms << "m/s";
-        }
+        }   
         
         // Calculate label size and background
         std::string label_text = label.str();
