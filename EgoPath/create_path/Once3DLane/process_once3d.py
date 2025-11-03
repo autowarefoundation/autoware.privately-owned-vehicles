@@ -244,6 +244,20 @@ def parseData(
         if (verbose):
             print(f"Image ID {img_id} after processing has insufficient lines. Skipping.")
         return None
+    
+    # Alright this sanity check is a bit heuristic.
+    # If a frame has too many lanes, I call that bullshit.
+    # This is a work-around to several frames being way too many annotations.
+    # Here I set threshold as 6. A logically normal frame should have:
+    # - Egoleft
+    # - Egoright
+    # - At most 2 lines to the left
+    # - At most 2 lines to the right
+    # Prove me wrong.
+    if (len(lines_2d) > 6):
+        if (verbose):
+            print(f"Image ID {img_id} after processing has TOO MANY lines. Skipping.")
+        return None
         
     # Sort all lines by ascending x-coords of anchors
     lines_2d = sorted(
