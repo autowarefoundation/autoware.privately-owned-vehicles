@@ -14,7 +14,6 @@
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
-  <depend>carla_msgs</depend>
   <depend>nav_msgs</depend>
 
 

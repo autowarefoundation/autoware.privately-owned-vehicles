@@ -4,6 +4,7 @@ from rclpy.node import Node
 import carla
 import math
 import numpy as np
+import time
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose, Point, Quaternion, Twist, Vector3, TransformStamped
@@ -16,15 +17,15 @@ class CarlaOdomPublisher(Node):
         super().__init__('odom_publisher')
 
         self.client = carla.Client("localhost", 2000)
-        self.client.set_timeout(5.0)
+        self.client.set_timeout(60.0)
         self.world = self.client.get_world()
         self.map = self.world.get_map()
-        self.ego = self._find_ego_vehicle()
-        if self.ego is None:
-            self.get_logger().error('Ego vehicle not found, exiting.')
-            rclpy.shutdown()
-            return
-
+        while True:
+            self.ego = self._find_ego_vehicle()
+            if self.ego:
+                break
+            self.get_logger().warn('Ego vehicle not found, waiting ...')
+            time.sleep(1.0)
         self.odom_pub_ = self.create_publisher(Odometry, '/hero/odom', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
 

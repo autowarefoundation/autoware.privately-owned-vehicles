@@ -2,7 +2,7 @@
 
 int main()
 {
-    SteeringController sc(2.85, 2.0, 2.8, 1.0, 4.0);
+    SteeringController sc(2.85, 3.0, 0.1);
 
     double cte = 0.5;               // cross-track error
     double yaw_error = 0.1;         // yaw error in radians
@@ -12,8 +12,6 @@ int main()
     while (i--)
     {
         std::cout << sc.computeSteering(cte, yaw_error, forward_velocity, curvature) << std::endl;
-        double steering_angle_ = 2.0 * yaw_error + std::atan(2.8 * cte / (forward_velocity + 1)) - 4.0 * std::atan(curvature * 2.85);
-        std::cout << "Steering Angle: " << steering_angle_ << std::endl;
     }
 
     return 0;

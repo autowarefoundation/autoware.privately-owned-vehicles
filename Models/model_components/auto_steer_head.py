@@ -14,17 +14,17 @@ class AutoSteerHead(nn.Module):
         # Extraction Layers
         self.path_layer_0 = nn.Conv2d(1456, 512, 3, 1, 1)
         self.path_layer_1 = nn.Conv2d(512, 128, 3, 1, 1)
-        self.path_layer_2 = nn.Conv2d(128, 5, 3, 1, 1)
+        self.path_layer_2 = nn.Conv2d(128, 15, 3, 1, 1)
 
         # Driving Corridor  Decode layers
-        self.driving_corridor_layer_0 = nn.Linear(1000, 1000)
-        self.driving_corridor_layer_1 = nn.Linear(1000, 1000)
+        self.driving_corridor_layer_0 = nn.Linear(3000, 1600)
+        self.driving_corridor_layer_1 = nn.Linear(1600, 1600)
 
-        self.ego_left_x_offset = nn.Linear(1000, 1)
-        self.ego_right_x_offset = nn.Linear(1000, 1)
-        self.ego_path_x_offset = nn.Linear(1000, 1)
-        self.angle_start = nn.Linear(1000, 1)
-        self.angle_end = nn.Linear(1000, 1)
+        self.ego_left_x_offset = nn.Linear(1600, 1)
+        self.ego_right_x_offset = nn.Linear(1600, 1)
+        self.ego_path_x_offset = nn.Linear(1600, 1)
+        self.angle_start = nn.Linear(1600, 1)
+        self.angle_end = nn.Linear(1600, 1)
  
 
     def forward(self, features):

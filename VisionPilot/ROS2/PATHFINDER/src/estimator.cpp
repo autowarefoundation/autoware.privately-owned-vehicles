@@ -27,6 +27,7 @@ void Estimator::update(const std::array<Gaussian, STATE_DIM> &measurement)
         {
             m1 = state[i].mean;
             v1 = state[i].variance * 1.25;
+            continue;
         }
         else
         {

@@ -2,6 +2,9 @@ from .backbone import Backbone
 from .backbone_feature_fusion import BackboneFeatureFusion
 from .auto_steer_context import AutoSteerContext
 from .auto_steer_head import AutoSteerHead
+from .ego_path_neck import EgoPathNeck
+from .ego_path_head import EgoPathHead
+from .ego_lanes_head import EgoLanesHead
 
 
 import torch.nn as nn
@@ -19,14 +22,18 @@ class AutoSteerNetwork(nn.Module):
         # BEV Path Context
         self.AutoSteerContext = AutoSteerContext()
 
-        # AutoSteer Prediction Head
-        self.AutoSteerHead = AutoSteerHead()
+        # EgoPath Neck
+        self.EgopathNeck = EgoPathNeck()
+
+        # EgoPath Head
+        self.EgoLanesHead = EgoLanesHead()
     
 
     def forward(self, image):
         features = self.BEVBackbone(image)
         fused_features = self.BackboneFeatureFusion(features)
         context = self.AutoSteerContext(fused_features)
-        path_prediction = self.AutoSteerHead(context)
-        
-        return path_prediction
+        neck = self.EgopathNeck(context, features)
+        ego_lanes = self.EgoLanesHead(neck, features)
+
+        return ego_lanes

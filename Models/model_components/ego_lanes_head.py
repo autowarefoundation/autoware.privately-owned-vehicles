@@ -5,59 +5,45 @@ import torch.nn as nn
 class EgoLanesHead(nn.Module):
     def __init__(self):
         super(EgoLanesHead, self).__init__()
+
         # Standard
         self.GeLU = nn.GELU()
-        self.dropout = nn.Dropout(p=0.25)
-        self.dropout_aggressize = nn.Dropout(p=0.4)
 
-        # Ego Left Decode layers
-        self.ego_left_lane_layer_0 = nn.Linear(1456, 1280)
-        self.ego_left_lane_layer_1 = nn.Linear(1280, 1024)
-        self.ego_left_lane_layer_2 = nn.Linear(1024, 800)
-        self.ego_left_lane_layer_3 = nn.Linear(800, 11)
-
-        # Ego Right Decode layers
-        self.ego_right_lane_layer_0 = nn.Linear(1456, 1280)
-        self.ego_right_lane_layer_1 = nn.Linear(1280, 1024)
-        self.ego_right_lane_layer_2 = nn.Linear(1024, 800)
-        self.ego_right_lane_layer_3 = nn.Linear(800, 11)
+        # Segmentation Head - Output Layers
+        self.upsample_layer_3 = nn.ConvTranspose2d(256, 256, 2, 2)
+        self.skip_link_layer_3 = nn.Conv2d(32, 256, 1)
+        self.decode_layer_6 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.decode_layer_7 = nn.Conv2d(256, 128, 3, 1, 1)
+        self.upsample_layer_4 = nn.ConvTranspose2d(128, 128, 2, 2)
+        self.decode_layer_8 = nn.Conv2d(128, 128, 3, 1, 1)
+        self.decode_layer_9 = nn.Conv2d(128, 64, 3, 1, 1)
+        self.decode_layer_10 = nn.Conv2d(64, 3, 3, 1, 1)
 
  
 
-    def forward(self, feature_vector):
+    def forward(self, neck, features):
 
-        # Features
-        feature_vector = self.dropout(feature_vector)
+        # Decoder upsample block 4
+        # Upsample
+        d7 = self.upsample_layer_3(neck)
+         # Expand and add layer from Encoder
+        d7 = d7 + self.skip_link_layer_3(features[0])
+        # Double convolution
+        d7 = self.decode_layer_6(d7)
+        d7 = self.GeLU(d7)
+        d8 = self.decode_layer_7(d7)
+        d8 = self.GeLU(d8)
 
-        # Ego Left Lane MLP
-        ego_left_lane = self.ego_left_lane_layer_0(feature_vector)
-        ego_left_lane = self.dropout_aggressize(ego_left_lane)
-        ego_left_lane = self.GeLU(ego_left_lane)
-
-        ego_left_lane = self.ego_left_lane_layer_1(ego_left_lane)
-        ego_left_lane = self.dropout_aggressize(ego_left_lane)
-        ego_left_lane = self.GeLU(ego_left_lane)
-
-        ego_left_lane = self.ego_left_lane_layer_2(ego_left_lane)
-        ego_left_lane = self.dropout_aggressize(ego_left_lane)
-        ego_left_lane = self.GeLU(ego_left_lane)        
+        # Decoder upsample block 5
+        # Upsample
+        d8 = self.upsample_layer_4(d8)
+        # Double convolution
+        d8 = self.decode_layer_8(d8)
+        d8 = self.GeLU(d8)
+        d9 = self.decode_layer_9(d8)
+        d10 = self.GeLU(d9)
         
-        # Ego Right Lane MLP
-        ego_right_lane = self.ego_right_lane_layer_0(feature_vector)
-        ego_right_lane = self.dropout_aggressize(ego_right_lane)
-        ego_right_lane = self.GeLU(ego_right_lane)
+        # Prediction
+        output = self.decode_layer_10(d10)
 
-        ego_right_lane = self.ego_right_lane_layer_1(ego_right_lane)
-        ego_right_lane = self.dropout_aggressize(ego_right_lane)
-        ego_right_lane = self.GeLU(ego_right_lane)
-
-        ego_right_lane = self.ego_right_lane_layer_2(ego_right_lane)
-        ego_right_lane = self.dropout_aggressize(ego_right_lane)
-        ego_right_lane = self.GeLU(ego_right_lane)
-
-        # Final Lane Predictions
-        ego_left_lane = self.ego_left_lane_layer_3(ego_left_lane) + 0.4
-        ego_right_lane = self.ego_right_lane_layer_3(ego_right_lane) + 0.6
-
-        # Final result
-        return ego_left_lane, ego_right_lane
+        return output
