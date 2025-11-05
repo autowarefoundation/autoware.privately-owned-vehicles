@@ -5,318 +5,359 @@ import argparse
 import matplotlib.pyplot as plt
 import cv2
 import yaml
-
-# Enable eager execution for TensorFlow
-tf.enable_eager_execution()
-
 from waymo_open_dataset.utils import frame_utils
 from waymo_open_dataset import dataset_pb2 as open_dataset
 import itertools
 
+# Enable eager execution for TensorFlow
+tf.enable_eager_execution()
+
+
+# ============================================================================
+# ROI Selection
+# ============================================================================
 
 def get_manual_roi(projected_points, camera_image):
-    """Displays an image and allows the user to manually select an ROI with two clicks."""
+    """
+    Interactive ROI selection via matplotlib clicks.
+    User clicks top-left, then bottom-right corners.
+    """
+    print("\n=== Manual ROI Selection ===")
+    print("1. Click TOP-LEFT corner of desired region")
+    print("2. Click BOTTOM-RIGHT corner of desired region")
     
-    print("\n--- Manual ROI Selection ---")
-    print("Please click on the image to select the ROI.")
-    print("1. Click the TOP-LEFT corner of your desired region.")
-    print("2. Click the BOTTOM-RIGHT corner of your desired region.")
-    
-    # Create a plot to display the image for selection
     fig, ax = plt.subplots(figsize=(20, 12))
     img = tf.image.decode_jpeg(camera_image.image)
     ax.imshow(img)
     
-    # Plot all the points to give context for the selection
-    xs = projected_points[:, 0]
-    ys = projected_points[:, 1]
-    ranges = projected_points[:, 2]
+    # Show LiDAR projection for context
+    xs, ys, ranges = projected_points[:, 0], projected_points[:, 1], projected_points[:, 2]
     cmap = plt.get_cmap('jet')
     colors = cmap((ranges % 20.0) / 20.0)
     ax.scatter(xs, ys, c=colors, s=5.0, edgecolors="none", alpha=0.5)
     
     ax.set_title("Click TOP-LEFT, then BOTTOM-RIGHT to define ROI", fontsize=16)
     plt.grid(False)
-    plt.axis('on')
     
-    # Wait for the user to make two clicks
+    # Wait for two clicks
     points = plt.ginput(2, timeout=0)
     plt.close(fig)
 
     if len(points) < 2:
-        print("ROI selection cancelled or timed out. Exiting.")
+        print("ROI selection cancelled. Exiting.")
         return None
 
     (x1, y1), (x2, y2) = points
+    roi = [int(min(x1, x2)), int(min(y1, y2)), 
+           int(max(x1, x2)), int(max(y1, y2))]
     
-    # Ensure the coordinates are ordered correctly as min and max
-    roi_x_min = min(x1, x2)
-    roi_y_min = min(y1, y2)
-    roi_x_max = max(x1, x2)
-    roi_y_max = max(y1, y2)
+    print(f"Selected ROI: {roi}")
+    return roi
 
-    ROI = [int(roi_x_min), int(roi_y_min), int(roi_x_max), int(roi_y_max)]
-    print(f"Manual ROI selected: {ROI}")
+
+def get_default_roi(image):
+    """
+    Returns a smart default ROI covering the center of the road.
+    Avoids car hood (bottom) and horizon (top).
+    """
+    img_shape = tf.image.decode_jpeg(image.image).shape
+    h, w = img_shape[0], img_shape[1]
     
-    return ROI
+    roi = [w // 4, h // 3, w * 3 // 4, h * 2 // 3]
+    print(f"Using default ROI for {w}x{h} image: {roi}")
+    return roi
 
 
-def test_homography_consistency(H, projected_points_in_roi, points_in_roi):
+def filter_points_in_roi(projected_points, three_d_points, roi):
     """
-    Tests the consistency of a given homography matrix on a new set of points.
-
-    Args:
-        H: The homography matrix to test.
-        projected_points_in_roi: The 2D image points from the current frame.
-        points_in_roi: The corresponding 3D ground truth points from the current frame.
-
-    Returns:
-        The average reprojection error in meters.
+    Filters projected 2D points and corresponding 3D points to those within ROI.
     """
-    # Source points are the 2D pixel coordinates (u, v)
-    src_points = projected_points_in_roi[:, :2]
-    # Destination points are the ground truth 3D world coordinates (x, y)
-    dst_points_gt = points_in_roi[:, :2]
+    roi_mask = (
+        (projected_points[:, 0] >= roi[0]) &
+        (projected_points[:, 0] < roi[2]) &
+        (projected_points[:, 1] >= roi[1]) &
+        (projected_points[:, 1] < roi[3])
+    )
+    
+    projected_roi = projected_points[roi_mask]
+    points_roi = three_d_points.numpy()[roi_mask]
+    
+    print(f"Points in ROI: {projected_roi.shape[0]}")
+    return projected_roi, points_roi
 
-    # Reshape the source points to the format cv2.perspectiveTransform expects
-    src_points_reshaped = np.float32(src_points).reshape(-1, 1, 2)
 
-    # Use the homography matrix to PREDICT the world coordinates from the image points
-    dst_points_predicted_reshaped = cv2.perspectiveTransform(src_points_reshaped, H)
+# ============================================================================
+# Homography Computation
+# ============================================================================
 
-    # Reshape the predicted points back to a simple [N, 2] array
-    dst_points_predicted = dst_points_predicted_reshaped.reshape(-1, 2)
+def compute_homography(projected_points_2d, world_points_3d):
+    """
+    Computes homography from 2D image points to 3D world points (ground plane).
+    Uses RANSAC for robustness.
+    """
+    src_points = projected_points_2d[:, :2]  # (u, v) in image
+    dst_points = world_points_3d[:, :2]      # (x, y) in world (z ignored)
+    
+    print(f"Computing homography from {len(src_points)} point correspondences...")
+    H, mask = cv2.findHomography(src_points, dst_points, cv2.RANSAC, 5.0)
+    
+    if H is not None:
+        print("Homography matrix computed successfully:")
+        print(H)
+    else:
+        print("Failed to compute homography!")
+    
+    return H
 
-    # Calculate the L2 norm (Euclidean distance) between predicted and ground truth points
-    # This gives us the error in meters for each point.
-    errors = np.linalg.norm(dst_points_predicted - dst_points_gt, axis=1)
 
-    # Return the average error
+def test_homography_consistency(H, projected_points_2d, ground_truth_3d):
+    """
+    Tests homography accuracy by transforming 2D points to world coords
+    and comparing against ground truth LiDAR 3D points.
+    Returns average error in meters.
+    """
+    src_points = np.float32(projected_points_2d[:, :2]).reshape(-1, 1, 2)
+    predicted_world = cv2.perspectiveTransform(src_points, H).reshape(-1, 2)
+    gt_world = ground_truth_3d[:, :2]
+    
+    errors = np.linalg.norm(predicted_world - gt_world, axis=1)
     return np.mean(errors)
 
 
-def plot_points_on_image(projected_points, camera_image, point_size=5.0, filename="projection_output.png"):
-  """Plots points on a camera image.
+# ============================================================================
+# Visualization
+# ============================================================================
 
-  Args:
-    projected_points: [N, 3] numpy array. The inner dims are
-      [camera_x, camera_y, range].
-    camera_image: jpeg encoded camera image.
-    point_size: the point size.
-    filename: The name of the file to save the plot to.
-  """
-  # Decode the JPEG image
-  img = tf.image.decode_jpeg(camera_image.image)
-  
-  # Create a plot
-  plt.figure(figsize=(20, 12))
-  plt.imshow(img)
-  plt.title(open_dataset.CameraName.Name.Name(camera_image.name))
-  plt.grid(False)
-  plt.axis('off')
-
-  # CRITICAL FIX: Ensure we are using the 'projected_points' argument passed to this function,
-  # and not a variable from the parent scope.
-  xs = projected_points[:, 0]
-  ys = projected_points[:, 1]
-  ranges = projected_points[:, 2]
-
-  # Generate colors based on range
-  cmap = plt.get_cmap('jet')
-  colors = cmap((ranges % 20.0) / 20.0)
-  
-  plt.scatter(xs, ys, c=colors, s=point_size, edgecolors="none", alpha=0.5)
-  
-  # Save the figure to a file
-  plt.savefig(filename)
-  print(f"Saved projection image to {filename}")
-  plt.close() # Close the plot to free up memory
-
-def define_and_filter_roi(projected_points, three_d_points, image, roi_coords):
-    """Defines the ROI and filters points to be within it."""
+def plot_points_on_image(projected_points, camera_image, filename="projection_output.png"):
+    """
+    Plots LiDAR points projected onto camera image.
+    Color-coded by range.
+    """
+    img = tf.image.decode_jpeg(camera_image.image)
     
-    # Get the dynamic dimensions of the front camera image
-    image_shape = tf.image.decode_jpeg(image.image).shape
-    image_height = image_shape[0]
-    image_width = image_shape[1]
+    plt.figure(figsize=(20, 12))
+    plt.imshow(img)
+    plt.title(f"LiDAR Projection - {open_dataset.CameraName.Name.Name(camera_image.name)}")
+    plt.grid(False)
+    plt.axis('off')
 
-    # If no specific ROI is provided via command line, use a smart default.
-    # This default targets the center of the road, avoiding the hood and the horizon.
-    if roi_coords is None:
-        roi_x_min = image_width // 4
-        roi_y_min = image_height // 3
-        roi_x_max = image_width * 3 // 4
-        roi_y_max = image_height * 2 // 3
-        ROI = [roi_x_min, roi_y_min, roi_x_max, roi_y_max]
-    else:
-        ROI = roi_coords
-
-    print(f"Using ROI for an image of size ({image_width}x{image_height}): {ROI}")
-
-    # Create a boolean mask to select points that are INSIDE the ROI.
-    roi_mask = (projected_points[:, 0] >= ROI[0]) & \
-               (projected_points[:, 0] < ROI[2]) & \
-               (projected_points[:, 1] >= ROI[1]) & \
-               (projected_points[:, 1] < ROI[3])
-
-    # Apply the mask to get ONLY the points inside the ROI
-    projected_points_in_roi = projected_points[roi_mask]
+    xs, ys, ranges = projected_points[:, 0], projected_points[:, 1], projected_points[:, 2]
+    cmap = plt.get_cmap('jet')
+    colors = cmap((ranges % 20.0) / 20.0)
+    plt.scatter(xs, ys, c=colors, s=5.0, edgecolors="none", alpha=0.5)
     
-    # We must also filter the corresponding 3D points so they stay in sync.
-    points_in_roi = three_d_points.numpy()[roi_mask]
-    
-    print(f"Found {projected_points_in_roi.shape[0]} points within the ROI.")
-    
-    return projected_points_in_roi, points_in_roi
+    plt.savefig(filename)
+    print(f"Saved visualization: {filename}")
+    plt.close()
 
-def compute_homography(projected_points_in_roi, points_in_roi):
-    """Computes the homography matrix from corresponding 2D and 3D points."""
 
-    # These are the corresponding points we will use to calculate the homography.
-    # Source points are the 2D pixel coordinates (u, v) from the camera image.
-    src_points = projected_points_in_roi[:, :2]
-
-    # Destination points are the 3D world coordinates (x, y) on the ground plane.
-    # We ignore the z-coordinate as per the homography definition for a planar surface.
-    dst_points = points_in_roi[:, :2]
-
-    print(f"Extracted {len(src_points)} corresponding points for homography calculation.")
-
-    # ---- Step 5: Compute the Homography Matrix ----
-    print("Calculating homography matrix...")
-
-    # Use cv2.findHomography to compute the matrix.
-    # RANSAC is a robust method that can handle outliers in the data.
-    homography_matrix, mask = cv2.findHomography(src_points, dst_points, cv2.RANSAC, 5.0)
-
-    return homography_matrix
+# ============================================================================
+# I/O
+# ============================================================================
 
 def save_homography_to_yaml(H, filename="homography.yaml"):
-    """Saves the homography matrix to a YAML file as 'H' (matches ObjectFinder format)."""
-    if H is not None:
-        print("Successfully calculated reference homography matrix:")
-        print(H)
-        
-        # Convert the NumPy array to a list for YAML serialization
-        data_list = H.flatten().tolist()
-        
-        # Save as 'H' to match ObjectFinder expectations
-        # ObjectFinder supports both flat list and structured formats
-        # Using structured format: H: { rows: 3, cols: 3, data: [...] }
-        yaml_data = {
-            'H': {
-                'rows': H.shape[0],
-                'cols': H.shape[1],
-                'data': data_list
-            }
+    """
+    Saves homography matrix to YAML in ObjectFinder-compatible format.
+    Uses 'H' key with rows, cols, data structure.
+    """
+    if H is None:
+        print("Cannot save: homography is None")
+        return
+    
+    yaml_data = {
+        'H': {
+            'rows': H.shape[0],
+            'cols': H.shape[1],
+            'data': H.flatten().tolist()
         }
+    }
+    
+    with open(filename, 'w') as f:
+        yaml.dump(yaml_data, f, default_flow_style=False)
+    
+    print(f"Homography saved to: {filename} (as 'H' field)")
 
-        with open(filename, 'w') as f:
-            yaml.dump(yaml_data, f, default_flow_style=False)
-        
-        print(f"Reference homography saved to {filename} (as 'H' field)")
-    else:
-        print("Could not compute reference homography. Exiting.")
 
+# ============================================================================
+# Frame Processing
+# ============================================================================
+
+def extract_front_camera_data(frame):
+    """
+    Extracts LiDAR points projected onto front camera from a Waymo frame.
+    Returns: (projected_points_2d, world_points_3d, front_camera_image)
+    """
+    # Parse LiDAR and camera data
+    (range_images, camera_projections, _, range_image_top_pose) = \
+        frame_utils.parse_range_image_and_camera_projection(frame)
+    
+    points, cp_points = frame_utils.convert_range_image_to_point_cloud(
+        frame=frame,
+        range_images=range_images,
+        camera_projections=camera_projections,
+        range_image_top_pose=range_image_top_pose
+    )
+    
+    points_all = np.concatenate(points, axis=0)
+    cp_points_all = np.concatenate(cp_points, axis=0)
+    
+    # Get front camera image
+    images = sorted(frame.images, key=lambda i: i.name)
+    front_camera_image = images[0]
+    
+    # Filter points for front camera only
+    cp_points_tensor = tf.constant(cp_points_all)
+    mask = tf.equal(cp_points_tensor[..., 0], front_camera_image.name)
+    
+    cp_points_front = tf.boolean_mask(cp_points_tensor, mask)
+    points_front = tf.boolean_mask(points_all, mask)
+    
+    # Cast to float32 and compute range
+    cp_points_front = tf.cast(cp_points_front, dtype=tf.float32)
+    points_range = tf.norm(points_front, axis=-1)
+    
+    # Format as [u, v, range]
+    projected_points = tf.concat(
+        [cp_points_front[..., 1:3], tf.expand_dims(points_range, axis=-1)],
+        axis=-1
+    ).numpy()
+    
+    return projected_points, points_front, front_camera_image
+
+
+# ============================================================================
+# Main Pipeline
+# ============================================================================
 
 def main(args):
-    # TODO: Replace with the actual path to your TFRecord file
-    FILENAME = args.filename
-    
-    # Create a dataset from the TFRecord file
-    dataset = tf.data.TFRecordDataset(FILENAME, compression_type='')
+    """
+    Main homography calibration pipeline:
+    1. Load Waymo TFRecord
+    2. Extract LiDAR projected onto front camera
+    3. Define ROI (manual or default)
+    4. Compute homography from 2D→3D correspondences
+    5. Save to YAML
+    6. Test consistency on additional frames
+    """
+    print(f"Loading TFRecord: {args.filename}")
+    dataset = tf.data.TFRecordDataset(args.filename, compression_type='')
     
     reference_roi = None
     H_ref = None
     
-    # We will process a few frames to test consistency
-    for frame_index, data in enumerate(itertools.islice(dataset, args.num_frames)):
-        print(f"\n--- Processing Frame {frame_index + 1}/{args.num_frames} ---")
+    for frame_idx, data in enumerate(itertools.islice(dataset, args.num_frames)):
+        print(f"\n{'='*60}")
+        print(f"Frame {frame_idx + 1}/{args.num_frames}")
+        print('='*60)
         
-        # Parse the frame data
+        # Parse frame
         frame = open_dataset.Frame()
         frame.ParseFromString(bytearray(data.numpy()))
+        
         if len(frame.pose.transform) != 16:
-            print(f"Skipping frame {frame_index + 1} due to missing pose information.")
+            print(f"Skipping frame {frame_idx + 1}: missing pose information")
             continue
         
-        # --- Basic Data Extraction (Same for all frames) ---
-        (range_images, camera_projections, _, range_image_top_pose) = frame_utils.parse_range_image_and_camera_projection(frame)
-        points, cp_points = frame_utils.convert_range_image_to_point_cloud(
-            frame=frame, range_images=range_images, camera_projections=camera_projections, range_image_top_pose=range_image_top_pose
-        )
-        points_all = np.concatenate(points, axis=0)
-        cp_points_all = np.concatenate(cp_points, axis=0)
-        images = sorted(frame.images, key=lambda i: i.name)
-        front_camera_image = images[0]
+        # Extract front camera data
+        projected_points, points_3d, front_camera = extract_front_camera_data(frame)
         
-        # Filter points for front camera
-        cp_points_all_tensor = tf.constant(cp_points_all)
-        mask = tf.equal(cp_points_all_tensor[..., 0], front_camera_image.name)
-        cp_points_front_camera = tf.boolean_mask(cp_points_all_tensor, mask)
-        points_front_camera = tf.boolean_mask(points_all, mask)
-        cp_points_front_camera = tf.cast(cp_points_front_camera, dtype=tf.float32)
-        points_range = tf.norm(points_front_camera, axis=-1)
-        projected_points_front_camera = tf.concat([cp_points_front_camera[..., 1:3], tf.expand_dims(points_range, axis=-1)], axis=-1).numpy()
-
-
-        if frame_index == 0:
-            # --- First Frame: Establish Reference ---
-            print("This is the reference frame. Please define the ROI.")
+        if frame_idx == 0:
+            # === REFERENCE FRAME: Compute homography ===
+            print("\n>>> REFERENCE FRAME: Computing homography <<<")
             
+            # Select ROI
             if args.manual_roi:
-                reference_roi = get_manual_roi(projected_points_front_camera, front_camera_image)
-                if reference_roi is None: return
-            else:
+                reference_roi = get_manual_roi(projected_points, front_camera)
+                if reference_roi is None:
+                    return
+            elif args.roi:
                 reference_roi = args.roi
-            
-            projected_points_in_roi, points_in_roi = define_and_filter_roi(
-                projected_points_front_camera, points_front_camera, front_camera_image, reference_roi
-            )
-            
-            print("Visualizing points in reference ROI...")
-            plot_points_on_image(projected_points_in_roi, front_camera_image, filename="roi_ref_frame.png")
-
-            print("Calculating reference homography matrix...")
-            H_ref = compute_homography(projected_points_in_roi, points_in_roi)
-
-            if H_ref is not None:
-                save_homography_to_yaml(H_ref, filename=args.output)
+                print(f"Using CLI-provided ROI: {reference_roi}")
             else:
-                print("Could not compute reference homography. Exiting.")
-                return
-        else:
-            # --- Subsequent Frames: Test Consistency ---
-            if H_ref is None:
-                print("No reference homography available. Skipping test.")
-                continue
-
-            print(f"Applying reference ROI to Frame {frame_index + 1}...")
-            projected_points_in_roi, points_in_roi = define_and_filter_roi(
-                projected_points_front_camera, points_front_camera, front_camera_image, reference_roi
+                reference_roi = get_default_roi(front_camera)
+            
+            # Filter points in ROI
+            proj_roi, points_roi = filter_points_in_roi(
+                projected_points, points_3d, reference_roi
             )
             
-            if len(projected_points_in_roi) < 4:
-                print("Not enough points in ROI to test consistency. Skipping frame.")
+            if len(proj_roi) < 4:
+                print("ERROR: Not enough points in ROI for homography computation")
+                return
+            
+            # Visualize ROI points
+            plot_points_on_image(proj_roi, front_camera, filename="roi_ref_frame.png")
+            
+            # Compute homography
+            H_ref = compute_homography(proj_roi, points_roi)
+            
+            if H_ref is None:
+                print("ERROR: Failed to compute homography. Exiting.")
+                return
+            
+            # Save to YAML
+            save_homography_to_yaml(H_ref, filename=args.output)
+        
+        else:
+            # === VALIDATION FRAMES: Test consistency ===
+            print(f"\n>>> VALIDATION FRAME {frame_idx + 1}: Testing consistency <<<")
+            
+            if H_ref is None:
+                print("No reference homography available. Skipping.")
                 continue
-
-            average_error = test_homography_consistency(H_ref, projected_points_in_roi, points_in_roi)
-            print(f"-> Consistency Test on Frame {frame_index + 1}: Average Error = {average_error:.4f} meters")
+            
+            # Use same ROI as reference
+            proj_roi, points_roi = filter_points_in_roi(
+                projected_points, points_3d, reference_roi
+            )
+            
+            if len(proj_roi) < 4:
+                print("Not enough points in ROI for validation. Skipping.")
+                continue
+            
+            # Test homography accuracy
+            avg_error = test_homography_consistency(H_ref, proj_roi, points_roi)
+            print(f"Average reprojection error: {avg_error:.4f} meters")
+    
+    print("\n" + "="*60)
+    print("Homography calibration complete!")
+    print("="*60)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Compute and test a homography matrix from Waymo Open Dataset data.")
-    parser.add_argument('--filename', type=str, 
-                        default='/home/pranavdoma/Downloads/waymo/segment-1005081002024129653_5313_150_5333_150_with_camera_labels.tfrecord',
-                        help='Path to the Waymo TFRecord file.')
-    parser.add_argument('--num_frames', type=int, default=3,
-                        help='Number of frames to process for the consistency test.')
-    parser.add_argument('--roi', type=int, nargs=4, 
-                        help='Specify the ROI as a rectangle with four integer values: x_min y_min x_max y_max. '
-                             'If not provided, a default ROI targeting the main road will be used.')
-    parser.add_argument('--manual_roi', action='store_true',
-                        help='Enable interactive, manual ROI selection by clicking on the image.')
-    parser.add_argument('--output', type=str, default='homography.yaml',
-                        help='Output path for the homography YAML file (default: homography.yaml)')
+    parser = argparse.ArgumentParser(
+        description="Compute homography calibration from Waymo LiDAR→Camera projection"
+    )
+    parser.add_argument(
+        '--filename', 
+        type=str,
+        default='/home/pranavdoma/Downloads/waymo/segment-10153695247769592104_787_000_807_000_with_camera_labels.tfrecord',
+        help='Path to Waymo TFRecord file'
+    )
+    parser.add_argument(
+        '--num_frames', 
+        type=int, 
+        default=3,
+        help='Number of frames to process (1st = calibration, rest = validation)'
+    )
+    parser.add_argument(
+        '--roi', 
+        type=int, 
+        nargs=4,
+        metavar=('X_MIN', 'Y_MIN', 'X_MAX', 'Y_MAX'),
+        help='ROI as [x_min y_min x_max y_max]. If not set, uses default center region.'
+    )
+    parser.add_argument(
+        '--manual_roi', 
+        action='store_true',
+        help='Enable interactive ROI selection (click on image)'
+    )
+    parser.add_argument(
+        '--output', 
+        type=str, 
+        default='homography.yaml',
+        help='Output YAML path (default: homography.yaml)'
+    )
+    
     args = parser.parse_args()
     main(args)
