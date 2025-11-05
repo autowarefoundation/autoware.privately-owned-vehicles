@@ -104,21 +104,8 @@ target_link_libraries(autospeed_infer_stream
     pthread
 )
 
-# ObjectFinder executable - infer_stream2 (CIPO tracking + RSS)
-add_executable(autospeed_object_finder
-    infer_stream2.cpp
-)
-target_compile_definitions(autospeed_object_finder PRIVATE LOG_TYPE=0)  # Use non-ROS logging
-target_link_libraries(autospeed_object_finder
-    autospeed_backend
-    gstreamer_engine
-    object_finder
-    ${OpenCV_LIBS}
-    pthread
-)
-
 # Installation
-install(TARGETS autospeed_infer_stream autospeed_object_finder
+install(TARGETS autospeed_infer_stream
     RUNTIME DESTINATION bin
 )
 
