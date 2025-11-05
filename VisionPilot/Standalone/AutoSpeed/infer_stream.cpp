@@ -479,53 +479,50 @@ void drawTrackedObjects(cv::Mat& frame,
         
         cv::Scalar color = getColor(obj.class_id);
         
-        // Draw bounding box (thicker for main_CIPO)
-        cv::rectangle(frame, obj.bbox, color, 4);
+        // Draw semi-transparent filled bounding box
+        cv::Mat overlay = frame.clone();
+        cv::rectangle(overlay, obj.bbox, color, cv::FILLED);
+        cv::addWeighted(overlay, 0.3, frame, 0.7, 0, frame);  // 30% overlay, 70% original
         
-        // Prepare label text
+        // Draw solid border on top
+        cv::rectangle(frame, obj.bbox, color, 3);
+        
+        // Prepare distance and speed text (ABOVE the bbox)
         std::stringstream label;
-        label << "ID:" << obj.track_id << " L" << obj.class_id << " [main_CIPO]";
-        
         label << std::fixed << std::setprecision(1);
-        label << " " << obj.distance_m << "m";
+        label << obj.distance_m << "m | " << std::abs(obj.velocity_ms) << "m/s";
         
-        // Show velocity (negative means approaching)
-        if (std::abs(obj.velocity_ms) > 0.1f) {
-            label << " " << obj.velocity_ms << "m/s";
-        }   
-        
-        // Calculate label size and background
         std::string label_text = label.str();
         int baseline = 0;
         cv::Size label_size = cv::getTextSize(label_text, cv::FONT_HERSHEY_SIMPLEX, 
-                                               0.5, 1, &baseline);
+                                               0.8, 2, &baseline);
         
-        // Position label above bbox (or below if too close to top)
-        int label_y = obj.bbox.y - 5;
-        if (label_y < label_size.height + 5) {
-            label_y = obj.bbox.y + obj.bbox.height + label_size.height + 5;
+        // Position label ABOVE bbox
+        int label_y = obj.bbox.y - 10;
+        if (label_y < label_size.height + 10) {
+            label_y = obj.bbox.y + obj.bbox.height + label_size.height + 10;
         }
         
-        // Draw label background
+        // Draw label background (black with slight transparency)
         cv::Point label_origin(obj.bbox.x, label_y - label_size.height);
-        cv::Rect label_bg(label_origin.x, label_origin.y - 2, 
-                         label_size.width + 4, label_size.height + 4);
+        cv::Rect label_bg(label_origin.x - 5, label_origin.y - 5, 
+                         label_size.width + 10, label_size.height + 10);
+        cv::rectangle(frame, label_bg, cv::Scalar(0, 0, 0), cv::FILLED);
         
-        cv::rectangle(frame, label_bg, color, cv::FILLED);
-        
-        // Draw label text
+        // Draw label text (white for high contrast)
         cv::putText(frame, label_text,
-                   cv::Point(obj.bbox.x + 2, label_y),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.5,
-                   cv::Scalar(0, 0, 0),  // Black text
-                   1, cv::LINE_AA);
+                   cv::Point(obj.bbox.x, label_y),
+                   cv::FONT_HERSHEY_SIMPLEX, 0.8,
+                   cv::Scalar(255, 255, 255),  // White text
+                   2, cv::LINE_AA);
         
         // Draw bottom-center point (where distance is measured)
         cv::Point2f bottom_center(
             obj.bbox.x + obj.bbox.width / 2.0f,
             obj.bbox.y + obj.bbox.height
         );
-        cv::circle(frame, bottom_center, 4, color, -1);
+        cv::circle(frame, bottom_center, 5, color, -1);
+        cv::circle(frame, bottom_center, 6, cv::Scalar(255, 255, 255), 2);  // White outline
     }
     
     // Draw main_CIPO summary in top-left corner (ALWAYS shown when exists)
