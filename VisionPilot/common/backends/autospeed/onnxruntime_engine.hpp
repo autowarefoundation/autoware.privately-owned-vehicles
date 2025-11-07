@@ -127,7 +127,7 @@ private:
   
   // Buffers
   std::vector<float> input_buffer_;
-  std::vector<float> output_buffer_;
+  std::vector<Ort::Value> output_tensors_;  // Output managed by ONNX Runtime
   
   // Letterbox transform parameters (for coordinate mapping)
   float scale_;
