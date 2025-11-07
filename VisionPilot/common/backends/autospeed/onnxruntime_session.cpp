@@ -37,8 +37,7 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createCPUSession(
 {
   Ort::SessionOptions session_options;
   
-  // Set CPU execution options
-  session_options.SetIntraOpNumThreads(4);  // Use 4 threads for intra-op parallelism
+  // Simple CPU configuration - let ONNX Runtime decide optimal settings
   session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
   
   // Create and return session
@@ -68,6 +67,9 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
   OrtTensorRTProviderOptionsV2* tensorrt_options;
   Ort::ThrowOnError(api.CreateTensorRTProviderOptions(&tensorrt_options));
   
+  // Create unique cache prefix for fp32 vs fp16
+  std::string cache_prefix = "onnxrt_" + precision + "_";
+  
   // Prepare option keys and values
   std::vector<const char*> option_keys = {
     "device_id",                        // GPU device ID
@@ -75,6 +77,7 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
     "trt_fp16_enable",                  // FP16 precision
     "trt_engine_cache_enable",          // Enable engine caching
     "trt_engine_cache_path",            // Cache directory
+    "trt_engine_cache_prefix",          // Unique prefix for fp16/fp32
     "trt_timing_cache_enable",          // Enable timing cache
     "trt_timing_cache_path",            // Same as engine cache
     "trt_builder_optimization_level",   // Max optimization
@@ -91,6 +94,7 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
     fp16_flag.c_str(),         // FP16 enable/disable
     "1",                       // Enable engine cache
     cache_dir.c_str(),         // Cache path
+    cache_prefix.c_str(),      // Unique prefix (fp16/fp32)
     "1",                       // Enable timing cache
     cache_dir.c_str(),         // Timing cache path
     "5",                       // Max optimization level
@@ -122,7 +126,7 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
   LOG_INFO("[onnxrt] TensorRT session created successfully");
   LOG_INFO("[onnxrt] - Precision: %s", precision.c_str());
   LOG_INFO("[onnxrt] - Device: %d", device_id);
-  LOG_INFO("[onnxrt] - Cache: %s", cache_dir.c_str());
+  LOG_INFO("[onnxrt] - Cache: %s/%s*.engine", cache_dir.c_str(), cache_prefix.c_str());
   
   return session;
 }
