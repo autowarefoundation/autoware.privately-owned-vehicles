@@ -82,6 +82,7 @@ def _natural_keys(text: str):
 
 def getLineAnchor(
     line: Line,
+    height: int,
     verbose: bool = False
 ):
     """
@@ -97,7 +98,7 @@ def getLineAnchor(
     
     a = (y2 - y1) / (x2 - x1)
     b = y1 - a * x1
-    x0 = (H - b) / a
+    x0 = (height - b) / a
     if (verbose):
         print(f"Anchor point computed: (x0 = {x0}, a = {a}, b = {b})")
 
@@ -188,7 +189,10 @@ def parseData(
         ]
         if (line):
             line = sorted(
-                line,
+                [   # Crop bottom in effect from here
+                    point for point in line
+                    if (point[1] < NEW_H)
+                ],
                 key = lambda pt: pt[1],     # Sort by y coords
                 reverse = True
             )
@@ -214,6 +218,7 @@ def parseData(
     line_anchors = [
         getLineAnchor(
             line,
+            NEW_H,
             verbose = verbose
         )
         for line in lane_lines
@@ -255,22 +260,22 @@ def parseData(
     # Channel 3: other lanes
 
     mask = np.zeros(
-        (H, W, 3), 
+        (NEW_H, W, 3), 
         dtype = np.uint8
     )
     mask[:, :, 0] = calcLaneSegMask(
         [egoleft_lane], 
-        W, H,
+        W, NEW_H,
         normalized = False
     )
     mask[:, :, 1] = calcLaneSegMask(
         [egoright_lane], 
-        W, H,
+        W, NEW_H,
         normalized = False
     )
     mask[:, :, 2] = calcLaneSegMask(
         other_lanes, 
-        W, H,
+        W, NEW_H,
         normalized = False
     )
 
@@ -309,6 +314,10 @@ def annotateGT(
             raw_img, 
             cv2.COLOR_BGR2RGB
         )
+    )
+    # Crop bottom
+    raw_img = raw_img.crop(
+        (0, 0, W, NEW_H)
     )
     raw_img.save(os.path.join(img_dir, save_name + ".jpg"))
 
@@ -356,6 +365,8 @@ if __name__ == "__main__":
     # All scenes have reso 1920 x 1080 at 30 FPS
     W = 1920
     H = 1080
+    CROP_BOTTOM = 120
+    NEW_H = H - CROP_BOTTOM
 
     # ================================ Parsing args ================================ #
 
