@@ -25,16 +25,18 @@ AutoSpeedOnnxEngine::AutoSpeedOnnxEngine(
     Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)
   );
   
-  // Get input/output names
+  // Get input/output names and store them permanently
   Ort::AllocatorWithDefaultOptions allocator;
   
   // Input (typically "input" or "images")
-  auto input_name_raw = session_->GetInputNameAllocated(0, allocator);
-  input_names_.push_back(input_name_raw.get());
+  auto input_name_allocated = session_->GetInputNameAllocated(0, allocator);
+  input_name_storage_ = std::string(input_name_allocated.get());
+  input_names_.push_back(input_name_storage_.c_str());
   
   // Output (typically "output" or "output0")
-  auto output_name_raw = session_->GetOutputNameAllocated(0, allocator);
-  output_names_.push_back(output_name_raw.get());
+  auto output_name_allocated = session_->GetOutputNameAllocated(0, allocator);
+  output_name_storage_ = std::string(output_name_allocated.get());
+  output_names_.push_back(output_name_storage_.c_str());
   
   // Get input shape
   auto input_shape = session_->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
