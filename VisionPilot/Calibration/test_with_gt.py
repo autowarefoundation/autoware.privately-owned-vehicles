@@ -73,7 +73,7 @@ def load_homography_from_yaml(filename="homography.yaml"):
 def main(args):
     # --- 1. Setup ---
     # Load the pre-computed homography matrix from YAML
-    H = load_homography_from_yaml()
+    H = load_homography_from_yaml(filename="homography_2.yaml")
     if H is None:
         return
 
@@ -160,7 +160,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Test homography matrix accuracy on a sequence of frames.")
     parser.add_argument('--filename', type=str, 
-                        default='/home/pranavdoma/Downloads/waymo/segment-10153695247769592104_787_000_807_000_with_camera_labels.tfrecord',
+                        required=True,
                         help='Path to the Waymo TFRecord file.')
     parser.add_argument('--num_frames', type=int, default=5,
                         help='Number of frames to process for the test.')
