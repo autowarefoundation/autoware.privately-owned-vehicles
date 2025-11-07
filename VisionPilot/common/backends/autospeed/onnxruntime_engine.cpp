@@ -1,6 +1,6 @@
 #include "onnxruntime_engine.hpp"
 #include "onnxruntime_session.hpp"
-#include "logger.hpp"
+#include "logging.hpp"
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
@@ -41,24 +41,24 @@ AutoSpeedOnnxEngine::AutoSpeedOnnxEngine(
   model_input_height_ = static_cast<int>(input_shape[2]);  // NCHW format
   model_input_width_ = static_cast<int>(input_shape[3]);
   
-  // Get output shape
-  // AutoSpeed output: [1, num_attributes, num_predictions]
-  // e.g., [1, 8, 8400] for YOLO-like models
+  // Get output shape (may be dynamic, will get actual shape after inference)
   auto output_shape = session_->GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
-  model_output_channels_ = static_cast<int>(output_shape[1]);      // 8 (4 bbox + 4 classes)
-  model_output_predictions_ = static_cast<int>(output_shape[2]);   // 8400
   
-  // Allocate buffers
+  // Note: output_shape may be [-1, -1, -1] for dynamic shapes
+  // We'll get actual dimensions after first inference
+  LOG_INFO("[onnxrt_engine] Output shape (static/dynamic): [%lld, %lld, %lld]", 
+           output_shape[0], output_shape[1], output_shape[2]);
+  
+  // Allocate input buffer only
   size_t input_size = model_input_width_ * model_input_height_ * 3;
-  size_t output_size = model_output_channels_ * model_output_predictions_;
-  
   input_buffer_.resize(input_size);
-  output_buffer_.resize(output_size);
+  
+  // Initialize output dimensions (will be set after first inference for dynamic shapes)
+  model_output_channels_ = 0;
+  model_output_predictions_ = 0;
   
   LOG_INFO("[onnxrt_engine] Engine initialized successfully");
   LOG_INFO("[onnxrt_engine] - Input: %dx%d", model_input_width_, model_input_height_);
-  LOG_INFO("[onnxrt_engine] - Output: %d attributes × %d predictions", 
-           model_output_channels_, model_output_predictions_);
 }
 
 AutoSpeedOnnxEngine::~AutoSpeedOnnxEngine()
@@ -125,30 +125,26 @@ bool AutoSpeedOnnxEngine::doInference(const cv::Mat& input_image)
     input_shape.size()
   );
   
-  // Create output tensor
-  std::vector<int64_t> output_shape = {1, model_output_channels_, model_output_predictions_};
-  auto output_tensor = Ort::Value::CreateTensor<float>(
-    *memory_info_,
-    output_buffer_.data(),
-    output_buffer_.size(),
-    output_shape.data(),
-    output_shape.size()
-  );
-  
-  // Run inference
+  // Run inference (ONNX Runtime allocates output automatically)
   try {
-    session_->Run(
+    output_tensors_ = session_->Run(
       Ort::RunOptions{nullptr},
       input_names_.data(),
       &input_tensor,
       1,
       output_names_.data(),
-      &output_tensor,
       1
     );
   } catch (const Ort::Exception& e) {
     LOG_ERROR("[onnxrt_engine] Inference failed: %s", e.what());
     return false;
+  }
+  
+  // Get actual output shape after inference (for dynamic shapes)
+  if (!output_tensors_.empty()) {
+    auto shape = output_tensors_[0].GetTensorTypeAndShapeInfo().GetShape();
+    model_output_channels_ = static_cast<int>(shape[1]);
+    model_output_predictions_ = static_cast<int>(shape[2]);
   }
   
   return true;
@@ -173,7 +169,12 @@ std::vector<Detection> AutoSpeedOnnxEngine::postProcess(float conf_thresh, float
 {
   std::vector<Detection> detections;
   
-  const float* raw_output = output_buffer_.data();
+  if (output_tensors_.empty()) {
+    LOG_ERROR("[onnxrt_engine] No output tensors available");
+    return detections;
+  }
+  
+  const float* raw_output = output_tensors_[0].GetTensorData<float>();
   int num_attrs = model_output_channels_;  // e.g., 8 (4 bbox + 4 classes)
   int num_boxes = model_output_predictions_;  // e.g., 8400
 
@@ -284,16 +285,18 @@ std::vector<Detection> AutoSpeedOnnxEngine::applyNMS(
 
 const float* AutoSpeedOnnxEngine::getRawTensorData() const
 {
-  if (output_buffer_.empty()) {
+  if (output_tensors_.empty()) {
     throw std::runtime_error("Inference has not been run yet. Call inference() first.");
   }
-  return output_buffer_.data();
+  return output_tensors_[0].GetTensorData<float>();
 }
 
 std::vector<int64_t> AutoSpeedOnnxEngine::getTensorShape() const
 {
-  // Return shape: [batch=1, num_predictions, num_attributes]
-  return {1, static_cast<int64_t>(model_output_predictions_), static_cast<int64_t>(model_output_channels_)};
+  if (output_tensors_.empty()) {
+    throw std::runtime_error("Inference has not been run yet. Call inference() first.");
+  }
+  return output_tensors_[0].GetTensorTypeAndShapeInfo().GetShape();
 }
 
 }  // namespace autoware_pov::vision::autospeed
