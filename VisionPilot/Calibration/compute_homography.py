@@ -331,7 +331,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--filename', 
         type=str,
-        default='/home/pranavdoma/Downloads/waymo/segment-10153695247769592104_787_000_807_000_with_camera_labels.tfrecord',
+        required=True,
         help='Path to Waymo TFRecord file'
     )
     parser.add_argument(
