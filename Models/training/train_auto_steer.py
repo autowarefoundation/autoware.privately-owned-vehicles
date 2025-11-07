@@ -119,10 +119,10 @@ def main():
     trainer.zero_grad()
     
     # Training loop parameters
-    NUM_EPOCHS = 50
-    LOGSTEP_LOSS = 250
-    LOGSTEP_VIS = 500
-    LOGSTEP_MODEL = 5700
+    NUM_EPOCHS = 7
+    LOGSTEP_LOSS = 2500
+    LOGSTEP_VIS = 10000
+    LOGSTEP_MODEL = 15000
 
     # Val visualization param
     N_VALVIS = 25
@@ -215,7 +215,7 @@ def main():
             [
                 frame_id, 
                 # bev_image, 
-                raw_img_path,
+                # raw_img_path,
                 ego_lanes_seg, 
                 # data, 
                 # homotrans_mat,
@@ -233,10 +233,11 @@ def main():
 
             # Perspective image
             perspective_image = Image.open(
-                raw_img_path if current_dataset in ["OPENLANE"]
-                else os.path.join(
+                # raw_img_path if current_dataset in ["OPENLANE"]
+                # else 
+                os.path.join(
                     msdict[current_dataset]["path_perspective_image"],
-                    f"{frame_id}.png"
+                    f"{frame_id}.jpg"
                 )
             ).convert("RGB")
             
@@ -325,7 +326,7 @@ def main():
                             [
                                 frame_id, 
                                 # bev_image, 
-                                raw_img_path,
+                                # raw_img_path,
                                 ego_lanes_seg, 
                                 # data, 
                                 # homotrans_mat,
@@ -343,10 +344,11 @@ def main():
                             
                             # BEV
                             perspective_image = Image.open(
-                                raw_img_path if dataset in ["OPENLANE"]
-                                else os.path.join(
+                                # raw_img_path if dataset in ["OPENLANE"]
+                                # else 
+                                os.path.join(
                                     msdict[dataset]["path_perspective_image"],
-                                    f"{frame_id}.png"
+                                    f"{frame_id}.jpg"
                                 )
                             ).convert("RGB")
 

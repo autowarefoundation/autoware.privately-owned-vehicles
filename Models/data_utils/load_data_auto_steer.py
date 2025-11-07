@@ -21,10 +21,12 @@ VALID_DATASET_LITERALS = Literal[
     # "BDD100K",
     # "COMMA2K19",
     #"CULANE",
-    #"CURVELANES",
+    "CURVELANES",
     # "ROADWORK",
     "TUSIMPLE",
-    # "OPENLANE"
+    # "OPENLANE",
+    "JIQING",
+    # "ONCE3DLANE",
 ]
 VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
 
@@ -71,7 +73,7 @@ class LoadDataAutoSteer():
             self.labels = json_data
 
         self.images = sorted([
-            f for f in pathlib.Path(self.image_dirpath).glob("*.png")
+            f for f in pathlib.Path(self.image_dirpath).glob("*.jpg")
         ])
         self.masks = sorted(
             f for f in pathlib.Path(self.mask_dirpath).glob("*.png")
@@ -83,8 +85,9 @@ class LoadDataAutoSteer():
 
         # Sanity check func by Mr. Zain
         checkData = CheckData(
-            self.N_images,
-            self.N_masks
+            num_images = self.N_images,
+            num_gt = self.N_masks,
+            dataset_name = self.dataset_name
         )
 
         # ================= Initiate data loading ================= #
@@ -103,7 +106,7 @@ class LoadDataAutoSteer():
             for set_idx, frame_id in enumerate(self.labels):
 
                 # Check if there might be frame ID mismatch - happened to CULane before, just to make sure
-                frame_id_from_img_path = str(self.images[set_idx]).split("/")[-1].replace(".png", "")
+                frame_id_from_img_path = str(self.images[set_idx]).split("/")[-1].replace(".jpg", "")
                 if (frame_id == frame_id_from_img_path):
 
                     if (set_idx % 10 == 0):
@@ -174,11 +177,11 @@ class LoadDataAutoSteer():
             frame_id = self.train_ids[index]
 
             # Raw image path
-            raw_img_path = (
-                self.train_labels[index]["perspective_img_path"]
-                if self.dataset_name in ["OPENLANE"]
-                else None
-            )
+            # raw_img_path = (
+            #     self.train_labels[index]["perspective_img_path"]
+            #     if self.dataset_name in ["OPENLANE"]
+            #     else None
+            # )
 
             # # BEV-to-image transform
             # bev_to_image_transform = (
@@ -228,11 +231,11 @@ class LoadDataAutoSteer():
             frame_id = self.val_ids[index]
 
             # Raw image path
-            raw_img_path = (
-                self.val_labels[index]["perspective_img_path"]
-                if self.dataset_name in ["OPENLANE"]
-                else None
-            )
+            # raw_img_path = (
+            #     self.val_labels[index]["perspective_img_path"]
+            #     if self.dataset_name in ["OPENLANE"]
+            #     else None
+            # )
 
             # # BEV-to-image transform
             # bev_to_image_transform = (
@@ -278,7 +281,7 @@ class LoadDataAutoSteer():
         return [
             frame_id, 
             # bev_img, 
-            raw_img_path,
+            # raw_img_path,
             binary_seg, 
             # data,
             # self.BEV_to_image_transform,

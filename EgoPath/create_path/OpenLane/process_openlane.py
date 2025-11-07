@@ -401,18 +401,33 @@ def parseData(
             logs.append(f"{i} : Lane with insufficient unique y-coords detected |")
             continue
 
-        # Polyfit line before adding anchor
-        this_lane = polyfitLine(this_lane)
-        
-        # Add anchor to line, if needed
-        if (this_lane and (this_lane[0][1] < H - 1)):
-            this_lane.insert(0, (
-                getLineAnchor(this_lane, verbose)[0],
-                H - 1
-            ))
+        # Sort by y-coords
+        this_lane = sorted(
+            this_lane, 
+            key = lambda point: point[1], 
+            reverse = True
+        )
 
-        # Append to all lanes, with top-cropped y-coords
-        all_lanes.append(this_lane)
+        # Only care about those lines extending pass 0.6*H or be at 10% of left/right of frame
+        # Others will simply be just annotation artifacts
+        if (
+            (this_lane[0][1] >= H * 0.7) or
+            (this_lane[0][0] <= W * 0.1) or
+            (this_lane[0][0] >= W * 0.9)
+        ):
+        
+            # Polyfit line before adding anchor
+            this_lane = polyfitLine(this_lane)
+        
+            # Add anchor to line, if needed
+            if (this_lane and (this_lane[0][1] < H - 1)):
+                this_lane.insert(0, (
+                    getLineAnchor(this_lane, verbose)[0],
+                    H - 1
+                ))
+
+            # Append to all lanes, with top-cropped y-coords
+            all_lanes.append(this_lane)
 
         # this_attribute = lane["attribute"]
 
@@ -797,12 +812,16 @@ def calcLaneSegMask(
 
 def annotateGT(
     anno_entry: dict,
-    img_dir: str,
+    img_path: str,
+    raw_dir: str,
     mask_dir: str,
     visualization_dir: str
 ):
     """
     Annotates and saves an image with:
+        Annotates and saves an image with:
+        - Raw image, in "output_dir/image".
+        - Lane seg mask, in "output_dir/mask".
         - Annotated image with all lanes, in "output_dir/visualization".
     """
 
@@ -813,7 +832,7 @@ def annotateGT(
     # Prepping canvas
     raw_img = Image.open(
         os.path.join(
-            img_dir, 
+            img_path, 
             anno_entry["img_path"]
         )
     ).convert("RGB")
@@ -825,6 +844,9 @@ def annotateGT(
         W, 
         H
     ))
+
+    # Save raw image as JPG for lighter weight
+    raw_img.save(os.path.join(raw_dir, save_name + ".jpg"))
     
     # draw = ImageDraw.Draw(raw_img)
     
@@ -954,12 +976,14 @@ if __name__ == "__main__":
     visualizations and groundtruth JSON.
 
     --output_dir
+        |----image
+        |----mask
         |----visualization
         |----drivable_path.json
 
     """
 
-    list_subdirs = ["visualization", "mask"]
+    list_subdirs = ["image", "visualization", "mask"]
 
     if (os.path.exists(output_dir)):
         warnings.warn(f"Output directory {output_dir} already exists. Purged")
@@ -1025,9 +1049,13 @@ if __name__ == "__main__":
 
                         annotateGT(
                             anno_entry = this_label_data,
-                            img_dir = os.path.join(
+                            img_path = os.path.join(
                                 dataset_dir,
                                 IMG_DIR
+                            ),
+                            raw_dir = os.path.join(
+                                output_dir, 
+                                "image"
                             ),
                             mask_dir = os.path.join(
                                 output_dir, 
@@ -1041,7 +1069,6 @@ if __name__ == "__main__":
 
                         img_index = str(str(img_id_counter).zfill(6))
                         data_master[img_index] = {
-                            "img_path"      : this_label_data["img_path"],
                             "egoleft_lane"  : round_line_floats(
                                 normalizeCoords(
                                     this_label_data["egoleft_lane"],
