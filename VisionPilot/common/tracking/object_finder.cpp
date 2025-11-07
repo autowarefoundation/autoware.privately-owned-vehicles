@@ -332,7 +332,7 @@ CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
     cipo.track_id = main_cipo.track_id;
     cipo.class_id = main_cipo.class_id;
     cipo.distance_m = main_cipo.distance_m;
-    cipo.velocity_ms = main_cipo.velocity_ms;
+    // NOTE: velocity copied at the END after all reset logic
     
     // ===== STEP 4: Save to history for cut-in detection =====
     CIPOSnapshot snapshot;
@@ -347,7 +347,9 @@ CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
         
     // ===== STEP 5: Detect main_CIPO change (cut-in detection) =====
     if (!cipo_history_.didCIPOChange()) {
-        return cipo;  // main_CIPO unchanged, nothing to do
+        // No change - copy current velocity and return
+        cipo.velocity_ms = main_cipo.velocity_ms;
+        return cipo;
     }
     
     const CIPOSnapshot* prev_main_cipo = cipo_history_.getPrevious();
@@ -365,6 +367,8 @@ CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
         if (debug_mode_) {
             LOG_INFO("  -> Feature matching skipped (no image data)");
         }
+        // Copy current velocity before returning
+        cipo.velocity_ms = main_cipo.velocity_ms;
         return cipo;
     }
     
@@ -400,6 +404,9 @@ CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
         main_cipo.kalman.initialize(main_cipo.distance_m);
         main_cipo.velocity_ms = 0.0f;  // Unknown velocity for cut-in vehicle
     }
+    
+    // ALWAYS copy velocity from main_cipo at the end
+    cipo.velocity_ms = main_cipo.velocity_ms;
     
     return cipo;
 }
