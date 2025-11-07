@@ -1,5 +1,5 @@
 #include "../../common/include/gstreamer_engine.hpp"
-#include "../../common/backends/autospeed/tensorrt_engine.hpp"
+#include "../../common/backends/autospeed/onnxruntime_engine.hpp"
 #include "../../common/include/object_finder.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
@@ -128,7 +128,7 @@ void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<TimestampedFrame>
 }
 
 // Inference + Tracking thread (HIGH PRIORITY)
-void inferenceThread(autospeed::AutoSpeedTensorRTEngine& backend,
+void inferenceThread(autospeed::AutoSpeedOnnxEngine& backend,
                      ObjectFinder& finder,
                      ThreadSafeQueue<TimestampedFrame>& input_queue,
                      ThreadSafeQueue<InferenceResult>& output_queue,
@@ -321,56 +321,69 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 
 int main(int argc, char** argv)
 {
-    if (argc < 5) {
-        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <precision> <homography_yaml> [realtime] [measure_latency] [enable_viz] [save_video] [output_video]\n";
+    if (argc < 6) {
+        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <provider> <precision> <homography_yaml> [device_id] [cache_dir] [realtime] [measure_latency] [enable_viz] [save_video] [output_video]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
-        std::cerr << "  model_path: .pt or .onnx model file\n";
-        std::cerr << "  precision: fp32 or fp16\n";
+        std::cerr << "  model_path: ONNX model file (.onnx)\n";
+        std::cerr << "  provider: 'cpu' or 'tensorrt'\n";
+        std::cerr << "  precision: 'fp32' or 'fp16' (for TensorRT)\n";
         std::cerr << "  homography_yaml: Path to homography calibration YAML file\n";
+        std::cerr << "  device_id: (optional) GPU device ID (default: 0, TensorRT only)\n";
+        std::cerr << "  cache_dir: (optional) TensorRT engine cache directory (default: ./trt_cache)\n";
         std::cerr << "  realtime: (optional) 'true' for real-time, 'false' for max speed (default: true)\n";
         std::cerr << "  measure_latency: (optional) 'true' to show latency metrics (default: false)\n";
         std::cerr << "  enable_viz: (optional) 'true' to show visualization, 'false' for headless (default: true)\n";
         std::cerr << "  save_video: (optional) 'true' to save output video (default: false, requires enable_viz=true)\n";
         std::cerr << "  output_video: (optional) Output video path (required if save_video=true, default: output_tracking.mp4)\n";
         std::cerr << "\nExample:\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml false true false  # Headless mode\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx fp16 homography.yaml true true true true output.mp4  # Full viz + save\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx tensorrt fp16 homography.yaml\n";
+        std::cerr << "  " << argv[0] << " video.mp4 model.onnx cpu fp32 homography.yaml 0 ./trt_cache false true false\n";
         return 1;
     }
 
     std::string stream_source = argv[1];
     std::string model_path = argv[2];
-    std::string precision = argv[3];
-    std::string homography_yaml = argv[4];
+    std::string provider = argv[3];
+    std::string precision = argv[4];
+    std::string homography_yaml = argv[5];
+    int device_id = 0;  // Default GPU device
+    std::string cache_dir = "./trt_cache";  // Default cache directory
     bool realtime = true;  // Default to real-time playback
     bool measure_latency = false;  // Default to no metrics
     bool enable_viz = true;  // Default to visualization enabled
     bool save_video = false;  // Default to no video saving
     std::string output_video_path = "output_tracking.mp4";  // Default output path
     
-    if (argc >= 6) {
-        std::string realtime_arg = argv[5];
-        realtime = (realtime_arg != "false" && realtime_arg != "0");
-    }
-    
     if (argc >= 7) {
-        std::string measure_arg = argv[6];
-        measure_latency = (measure_arg == "true" || measure_arg == "1");
+        device_id = std::atoi(argv[6]);
     }
     
     if (argc >= 8) {
-        std::string viz_arg = argv[7];
-        enable_viz = (viz_arg != "false" && viz_arg != "0");
+        cache_dir = argv[7];
     }
     
     if (argc >= 9) {
-        std::string save_video_arg = argv[8];
-        save_video = (save_video_arg == "true" || save_video_arg == "1");
+        std::string realtime_arg = argv[8];
+        realtime = (realtime_arg != "false" && realtime_arg != "0");
     }
     
     if (argc >= 10) {
-        output_video_path = argv[9];
+        std::string measure_arg = argv[9];
+        measure_latency = (measure_arg == "true" || measure_arg == "1");
+    }
+    
+    if (argc >= 11) {
+        std::string viz_arg = argv[10];
+        enable_viz = (viz_arg != "false" && viz_arg != "0");
+    }
+    
+    if (argc >= 12) {
+        std::string save_video_arg = argv[11];
+        save_video = (save_video_arg == "true" || save_video_arg == "1");
+    }
+    
+    if (argc >= 13) {
+        output_video_path = argv[12];
     }
     
     if (save_video && !enable_viz) {
@@ -385,9 +398,18 @@ int main(int argc, char** argv)
     
     float conf_thresh = 0.6f;
     float iou_thresh = 0.45f;
-    int gpu_id = 0;
 
-    // Initialize GStreamer
+    // Initialize ONNX Runtime backend FIRST (TensorRT may take 30s to build engine)
+    std::cout << "Loading model: " << model_path << std::endl;
+    std::cout << "Provider: " << provider << " | Precision: " << precision << std::endl;
+    if (provider == "tensorrt") {
+        std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
+        std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
+    }
+    autospeed::AutoSpeedOnnxEngine backend(model_path, provider, precision, device_id, cache_dir);
+    std::cout << "Backend ready!\n" << std::endl;
+
+    // Initialize GStreamer AFTER backend is ready
     std::cout << "Initializing GStreamer for: " << stream_source << std::endl;
     std::cout << "Playback mode: " << (realtime ? "Real-time (matches video FPS)" : "Benchmark (max speed)") << std::endl;
     GStreamerEngine gstreamer(stream_source, 0, 0, realtime);  // width=0, height=0 (auto), sync=realtime
@@ -395,10 +417,6 @@ int main(int argc, char** argv)
         std::cerr << "Failed to initialize GStreamer" << std::endl;
         return 1;
     }
-
-    // Initialize TensorRT backend
-    std::cout << "Loading model: " << model_path << " (" << precision << ")" << std::endl;
-    autospeed::AutoSpeedTensorRTEngine backend(model_path, precision, gpu_id);
 
     // Initialize ObjectFinder with tracking
     std::cout << "Loading homography from: " << homography_yaml << std::endl;
