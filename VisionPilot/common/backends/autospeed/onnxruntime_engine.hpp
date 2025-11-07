@@ -115,7 +115,9 @@ private:
   std::unique_ptr<Ort::Session> session_;
   std::unique_ptr<Ort::MemoryInfo> memory_info_;
   
-  // Input/Output tensor names
+  // Input/Output tensor names (storage + pointers)
+  std::string input_name_storage_;
+  std::string output_name_storage_;
   std::vector<const char*> input_names_;
   std::vector<const char*> output_names_;
   
