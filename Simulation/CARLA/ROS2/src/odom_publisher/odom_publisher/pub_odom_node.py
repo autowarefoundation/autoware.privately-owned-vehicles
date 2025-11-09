@@ -29,7 +29,7 @@ class CarlaOdomPublisher(Node):
         self.odom_pub_ = self.create_publisher(Odometry, '/hero/odom', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
 
-        self.timer = self.create_timer(0.01, self.timer_callback)
+        self.timer = self.create_timer(self.world.get_settings().fixed_delta_seconds, self.timer_callback)
 
     def _find_ego_vehicle(self):
         for actor in self.world.get_actors().filter('vehicle.*'):

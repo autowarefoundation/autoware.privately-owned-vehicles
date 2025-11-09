@@ -70,7 +70,7 @@ class RoadShapePublisher(Node):
             self.get_logger().warn('Ego vehicle not found, waiting ...')
             time.sleep(1.0)
         self.waypoints = self.get_global_waypoints()
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        self.timer = self.create_timer(0.05, self.timer_callback)
             
     def get_global_waypoints(self):
         all_waypts = self.map.generate_waypoints(STEP_DISTANCE)
