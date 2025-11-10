@@ -1,6 +1,6 @@
-# VisionPilot - OpenADKit Container
+# VisionPilot - OpenADKit Workloads
 
-Containerized VisionPilot for OpenADKit deployments.
+Containerized VisionPilot workloads for OpenADKit deployments.
 
 ## Prerequisites
 
