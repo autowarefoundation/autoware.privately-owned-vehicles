@@ -6,53 +6,60 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find dependencies
 find_package(OpenCV REQUIRED)
-find_package(CUDA REQUIRED)
 
 # GStreamer
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
 pkg_check_modules(GSTREAMER_APP REQUIRED gstreamer-app-1.0)
 
-# TensorRT
-set(TENSORRT_ROOT "/usr/local/tensorrt" CACHE PATH "TensorRT installation directory")
-if(NOT EXISTS ${TENSORRT_ROOT})
-    set(TENSORRT_ROOT "/usr")
+# yaml-cpp for calibration loading
+find_package(yaml-cpp REQUIRED)
+
+# ONNX Runtime - user must set ONNXRUNTIME_ROOT
+if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
+    message(FATAL_ERROR "Please set ONNXRUNTIME_ROOT environment variable to ONNX Runtime installation directory\n"
+                        "Example: export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0")
 endif()
 
-find_path(TENSORRT_INCLUDE_DIR NvInfer.h
-    HINTS ${TENSORRT_ROOT}/include
-    PATH_SUFFIXES include)
-find_library(TENSORRT_LIBRARY nvinfer
-    HINTS ${TENSORRT_ROOT}/lib
-    PATH_SUFFIXES lib lib64)
-find_library(TENSORRT_ONNX_LIBRARY nvonnxparser
-    HINTS ${TENSORRT_ROOT}/lib
-    PATH_SUFFIXES lib lib64)
+set(ONNXRUNTIME_ROOT $ENV{ONNXRUNTIME_ROOT})
+set(ONNXRUNTIME_INCLUDE_DIR ${ONNXRUNTIME_ROOT}/include)
+set(ONNXRUNTIME_LIB_DIR ${ONNXRUNTIME_ROOT}/lib)
 
-if(NOT TENSORRT_INCLUDE_DIR OR NOT TENSORRT_LIBRARY OR NOT TENSORRT_ONNX_LIBRARY)
-    message(FATAL_ERROR "TensorRT not found")
+# Find library (handle versioned .so files)
+file(GLOB ONNXRUNTIME_LIBRARY "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.so*")
+list(GET ONNXRUNTIME_LIBRARY 0 ONNXRUNTIME_LIBRARY)
+
+if(NOT EXISTS ${ONNXRUNTIME_INCLUDE_DIR}/onnxruntime_cxx_api.h)
+    message(FATAL_ERROR "ONNX Runtime headers not found at: ${ONNXRUNTIME_INCLUDE_DIR}")
+endif()
+
+if(NOT ONNXRUNTIME_LIBRARY)
+    message(FATAL_ERROR "ONNX Runtime library not found at: ${ONNXRUNTIME_LIB_DIR}")
 endif()
 
 # Include directories
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
-    ${CUDA_INCLUDE_DIRS}
-    ${TENSORRT_INCLUDE_DIR}
+    ${ONNXRUNTIME_INCLUDE_DIR}
     ${GSTREAMER_INCLUDE_DIRS}
     ${GSTREAMER_APP_INCLUDE_DIRS}
     ../../common/include
 )
 
-# AutoSpeed TensorRT backend
+# AutoSpeed ONNX Runtime backend
 add_library(autospeed_backend
-    ../../common/backends/autospeed/tensorrt_engine.cpp
+    ../../common/backends/autospeed/onnxruntime_engine.cpp
+    ../../common/backends/autospeed/onnxruntime_session.cpp
 )
 target_compile_definitions(autospeed_backend PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 target_link_libraries(autospeed_backend
     ${OpenCV_LIBS}
-    ${CUDA_LIBRARIES}
-    ${TENSORRT_LIBRARY}
-    ${TENSORRT_ONNX_LIBRARY}
+    ${ONNXRUNTIME_LIBRARY}
+)
+# Add RPATH so executable can find libonnxruntime.so at runtime
+set_target_properties(autospeed_backend PROPERTIES
+    BUILD_RPATH ${ONNXRUNTIME_LIB_DIR}
+    INSTALL_RPATH ${ONNXRUNTIME_LIB_DIR}
 )
 
 # GStreamer engine
@@ -72,7 +79,22 @@ add_library(fps_timer
 )
 target_compile_definitions(fps_timer PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 
-# Main executable
+# ObjectFinder (tracking + distance/velocity estimation)
+add_library(object_finder
+    ../../common/tracking/object_finder.cpp
+    ../../common/tracking/kalman_filter.cpp
+    ../../common/tracking/tracking_utils.cpp
+    ../../common/tracking/cipo_history.cpp
+    ../../common/tracking/cipo_utils.cpp
+    ../../common/tracking/feature_matching_utils.cpp
+)
+target_compile_definitions(object_finder PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_link_libraries(object_finder
+    ${OpenCV_LIBS}
+    yaml-cpp
+)
+
+# Main executable - infer_stream (bbox visualization with tracking)
 add_executable(autospeed_infer_stream
     infer_stream.cpp
 )
@@ -81,6 +103,7 @@ target_link_libraries(autospeed_infer_stream
     autospeed_backend
     gstreamer_engine
     fps_timer
+    object_finder
     ${OpenCV_LIBS}
     pthread
 )
@@ -91,7 +114,8 @@ install(TARGETS autospeed_infer_stream
 )
 
 message(STATUS "OpenCV: ${OpenCV_VERSION}")
-message(STATUS "CUDA: ${CUDA_VERSION}")
-message(STATUS "TensorRT: ${TENSORRT_INCLUDE_DIR}")
+message(STATUS "ONNX Runtime: ${ONNXRUNTIME_ROOT}")
+message(STATUS "  - Library: ${ONNXRUNTIME_LIBRARY}")
+message(STATUS "  - Include: ${ONNXRUNTIME_INCLUDE_DIR}")
 message(STATUS "GStreamer: ${GSTREAMER_VERSION}")
 

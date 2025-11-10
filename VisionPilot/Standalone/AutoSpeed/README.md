@@ -1,86 +1,169 @@
 # AutoSpeed Standalone Inference
 
-Multi-threaded GStreamer + TensorRT inference for real-time object detection.
+Multi-threaded inference pipeline with ONNX Runtime (CPU/TensorRT) for real-time object detection and tracking.
 
 ## Features
 
-- **Multi-threaded Architecture**: Separate threads for capture, inference, and display
-- **Zero Bottleneck**: Inference never waits for display
-- **Real-time Metrics**: Separate FPS measurements for each pipeline stage
+- **ONNX Runtime Backend**: Supports CPU and TensorRT execution providers
+- **Multi-threaded Pipeline**: Separate threads for capture, inference, and display
+- **Object Tracking**: Kalman filter-based tracking with cut-in detection
+- **CIPO Detection**: Closest In-Path Object identification with distance/velocity estimation
 - **GStreamer Support**: RTSP streams, USB cameras, video files
 
-## Architecture
-
-```
-Capture Thread → Queue → Inference Thread → Queue → Display Thread
-                         (HIGH PRIORITY)           (LOW PRIORITY)
-                         
-Latency 1: Frame → Preprocess → Inference (~4-6ms)
-Latency 2: Draw boxes → cv::imshow (~10-20ms)
-```
-
-**Key Design:** Inference thread processes frames independently of display, achieving maximum throughput.
-
 ## Build
+
+### Prerequisites
+
+1. **ONNX Runtime** (GPU version with TensorRT support)
+   - Download from: https://github.com/microsoft/onnxruntime/releases
+   - Extract to: `/path/to/onnxruntime-linux-x64-gpu-X.X.X`
+
+2. **cuDNN** (for TensorRT provider)
+   - Install cuDNN matching your CUDA version
+   - Typically: `/usr/lib/x86_64-linux-gnu/libcudnn.so.X`
+
+3. **Dependencies**
+   - OpenCV 4.x
+   - GStreamer 1.0
+   - yaml-cpp
+
+### Build Steps
 
 ```bash
 cd VisionPilot/Standalone/AutoSpeed
 mkdir build && cd build
-cmake .. -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 \
-         -DCMAKE_BUILD_TYPE=Release
+
+# Set ONNX Runtime path (REQUIRED)
+export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0
+
+# Configure and build
+cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
 ## Usage
 
-### RTSP Stream
+### Quick Start (Shell Script)
+
+Edit `run_objectFinder.sh` to configure:
+
 ```bash
-./autospeed_infer_stream rtsp://192.168.1.10:8554/stream /path/to/model.onnx fp16
+# ===== Required Parameters =====
+VIDEO_PATH="/path/to/video.mp4"
+MODEL_PATH="/path/to/model.onnx"
+PROVIDER="tensorrt"       # 'cpu' or 'tensorrt'
+PRECISION="fp16"          # 'fp32' or 'fp16' (TensorRT only)
+HOMOGRAPHY_YAML="/path/to/homography.yaml"
+
+# ===== ONNX Runtime Options =====
+DEVICE_ID="0"             # GPU device ID
+CACHE_DIR="./trt_cache"   # TensorRT engine cache directory
+
+# ===== Pipeline Options =====
+REALTIME="true"           # Real-time playback
+MEASURE_LATENCY="false"   # Enable latency metrics
+ENABLE_VIZ="true"         # Enable visualization
+SAVE_VIDEO="false"        # Save output video
+OUTPUT_VIDEO="output.mp4"
 ```
 
-### USB Camera
+Run:
 ```bash
-./autospeed_infer_stream /dev/video0 /path/to/model.onnx fp32
+export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0
+bash run_objectFinder.sh
 ```
 
-### Video File
+### Direct Execution
+
 ```bash
-./autospeed_infer_stream /path/to/video.mp4 /path/to/model.onnx fp16
+export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0
+
+./build/autospeed_infer_stream \
+    <video_source> \
+    <model.onnx> \
+    <provider> \
+    <precision> \
+    <homography.yaml> \
+    [device_id] \
+    [cache_dir] \
+    [realtime] \
+    [measure_latency] \
+    [enable_viz] \
+    [save_video] \
+    [output_video]
 ```
 
-## Metrics Output
-
-Every 2 seconds, the application prints:
-
+Example:
+```bash
+./build/autospeed_infer_stream \
+    video.mp4 \
+    model.onnx \
+    tensorrt \
+    fp16 \
+    homography.yaml \
+    0 \
+    ./trt_cache \
+    true \
+    false \
+    true \
+    false \
+    output.mp4
 ```
-========================================
-CAPTURE FPS:    30.00
-INFERENCE FPS:  160.00 (avg latency: 4.25 ms)
-DISPLAY FPS:    30.00 (avg latency: 12.50 ms)
-========================================
-```
 
-**Interpretation:**
-- **CAPTURE FPS**: Stream framerate (limited by source)
-- **INFERENCE FPS**: Model throughput (your hardware capability)
-- **DISPLAY FPS**: Visualization rate (can drop frames)
+## Configuration
 
-**Inference FPS > Capture FPS** = Your model is fast enough for real-time!
+### Execution Providers
+
+- **CPU**: Uses ONNX Runtime CPU provider (MLAS)
+  - No GPU required
+  - Slower (~50ms per frame)
+
+- **TensorRT**: Uses TensorRT execution provider
+  - Requires NVIDIA GPU with CUDA/cuDNN
+  - Fast (~3-5ms per frame with FP16)
+  - Engine cached for fast subsequent runs
+
+### TensorRT Cache
+
+- First run: Builds and caches engine (~30 seconds)
+- Subsequent runs: Loads from cache (<1 second)
+- Cache location: `./trt_cache/onnxrt_fp16_*.engine` (or `fp32_*`)
+
+### Precision Options
+
+- **FP32**: Full precision (slower, higher accuracy)
+- **FP16**: Half precision (2x faster, minimal accuracy loss)
+
+## Output
+
+- **Console**: Main CIPO status (track ID, distance, velocity)
+- **Visualization**: Bounding boxes, distance, speed, cut-in warnings
+- **Video**: Optional output video with annotations
 
 ## Controls
 
-- Press `q` to quit
+- Press `q` in video window to quit (if visualization enabled)
 
-## Dependencies
+## Troubleshooting
 
-- GStreamer 1.0 (with app plugin)
-- OpenCV 4.x
-- CUDA 11.x or 12.x
-- TensorRT 8.x or 10.x
+### TensorRT Provider Fails
 
-## Notes
+1. **Check cuDNN**: Ensure `libcudnn.so` is in library path
+   ```bash
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu
+   ```
 
-- **Inference Priority**: Set to high to ensure real-time performance
-- **Display Drops Frames**: If inference is faster than 60 FPS, display will drop frames (human eyes can't see >60 FPS anyway)
-- **Queue Sizes**: Automatically managed (drops oldest frame if full)
+2. **Clear Cache**: If switching precision, clear old cache
+   ```bash
+   rm -rf ./trt_cache/*.engine
+   ```
+
+3. **Use CPU Fallback**: Set `PROVIDER="cpu"` in script
+
+### ONNX Runtime Not Found
+
+```bash
+# Set ONNXRUNTIME_ROOT before building/running
+export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0
+```
 
