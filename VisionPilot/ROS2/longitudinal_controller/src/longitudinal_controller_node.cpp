@@ -2,14 +2,14 @@
 
 LongitudinalControllerNode::LongitudinalControllerNode(const rclcpp::NodeOptions &options)
     : Node("steering_controller_node", "", options),
-      pi_controller_(1.0, 0.07)
+      pi_controller_(0.25, 0.02)
 {
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 10, std::bind(&LongitudinalControllerNode::odomCallback, this, std::placeholders::_1));
   control_pub_ = this->create_publisher<std_msgs::msg::Float32>("/vehicle/throttle_cmd", 1);
   pathfinder_sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 2, std::bind(&LongitudinalControllerNode::stateCallback, this, std::placeholders::_1));
   RCLCPP_INFO(this->get_logger(), "LongitudinalController Node started");
   forward_velocity_ = 0.0;
-  TARGET_VEL = 22;   // 80 km/h in m/s
+  TARGET_VEL = 23.6;    // 80 km/h in m/s, actual 25m/s after adding steady state error
   ACC_LAT_MAX = 2.25; // 7.0 m/s^2
   TARGET_VEL_CAPPED = TARGET_VEL;
 }
@@ -28,10 +28,30 @@ void LongitudinalControllerNode::stateCallback(const std_msgs::msg::Float32Multi
 void LongitudinalControllerNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
   forward_velocity_ = msg->twist.twist.linear.x; // [m/s]
-  double u = pi_controller_.computeEffort(forward_velocity_, TARGET_VEL_CAPPED);
+  // double u = pi_controller_.computeEffort(forward_velocity_, TARGET_VEL_CAPPED);
+  double feedforward_vel = (forward_velocity_ > TARGET_VEL_CAPPED) ? 0 : vel_to_throttle(TARGET_VEL_CAPPED);
+  double u = feedforward_vel + pi_controller_.computeEffort(forward_velocity_, TARGET_VEL_CAPPED);
   auto control_msg = std_msgs::msg::Float32();
   control_msg.data = std::clamp(u, -1.0, 1.0);
   control_pub_->publish(control_msg);
+}
+
+double LongitudinalControllerNode::vel_to_throttle(double v)
+{
+  double a = 5.94694605;
+  double b = 2.37747535;
+  if (v < 0)
+  {
+    throw std::invalid_argument("speed must be non-negative");
+  }
+  double val = v / a + 1.0;
+  if (val <= 0)
+  {
+    throw std::invalid_argument("invalid value for log; check parameters");
+  }
+  double x = std::log(val) / b;
+  // clamp to [0,1]
+  return std::clamp(x, 0.0, 1.0);
 }
 
 int main(int argc, char *argv[])
@@ -70,4 +90,3 @@ int main(int argc, char *argv[])
 // # Example with previously fitted parameters:
 // a = 5.94694605   # example fit result
 // b = 2.37747535
-

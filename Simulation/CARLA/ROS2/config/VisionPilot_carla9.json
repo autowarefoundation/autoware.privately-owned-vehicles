@@ -12,6 +12,24 @@
                 "fov": 120.0,
                 "sensor_tick": 0.05
             }
+        },
+
+        {
+            "type": "sensor.other.imu",
+            "id": "imu",
+            "spawn_point": {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "noise_accel_stddev_x": 0.0, 
+                "noise_accel_stddev_y": 0.0, 
+                "noise_accel_stddev_z": 0.0,
+                "noise_gyro_stddev_x": 0.0, 
+                "noise_gyro_stddev_y": 0.0, 
+                "noise_gyro_stddev_z": 0.0,
+                "noise_gyro_bias_x": 0.0, 
+                "noise_gyro_bias_y": 0.0, 
+                "noise_gyro_bias_z": 0.0,
+                "sensor_tick": 0.02
+            }
         }
     ]
 }

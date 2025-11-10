@@ -15,6 +15,7 @@ public:
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr pathfinder_sub_;
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
     void stateCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
+    double vel_to_throttle(double v);
 
 private:
     PI_Controller pi_controller_;
