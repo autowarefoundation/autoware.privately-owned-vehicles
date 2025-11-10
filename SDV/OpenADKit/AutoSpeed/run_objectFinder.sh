@@ -1,10 +1,5 @@
 #!/bin/bash
-# Quick test script for AutoSpeed standalone inference with ONNX Runtime
-#
-# USAGE:
-#   1. Copy this template: cp run_objectFinder.sh.template run_objectFinder.sh
-#   2. Edit run_objectFinder.sh with your paths
-#   3. Run: bash run_objectFinder.sh
+# Containerized AutoSpeed standalone inference with ONNX Runtime
 
 # Suppress GStreamer warnings
 export GST_DEBUG=1
@@ -76,4 +71,14 @@ if [ -z "$ONNXRUNTIME_ROOT" ]; then
     exit 1
 fi
 
-/visionpilot/autospeed_infer_stream "$VIDEO_PATH" "$MODEL_PATH" "$PROVIDER" "$PRECISION" "$HOMOGRAPHY_YAML" "$DEVICE_ID" "$CACHE_DIR" "$REALTIME" "$MEASURE_LATENCY" "$ENABLE_VIZ" "$SAVE_VIDEO" "$OUTPUT_VIDEO"
+# Enable X11 forwarding for visualization
+xhost +
+
+# Run the container
+docker run -it --rm \
+    -e DISPLAY="$DISPLAY" \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -v "$(pwd)/model-weights:/visionpilot/model-weights" \
+    -v "$(pwd)/test:/visionpilot/test" \
+    visionpilot:latest \
+    /visionpilot/autospeed_infer_stream "$VIDEO_PATH" "$MODEL_PATH" "$PROVIDER" "$PRECISION" "$HOMOGRAPHY_YAML" "$DEVICE_ID" "$CACHE_DIR" "$REALTIME" "$MEASURE_LATENCY" "$ENABLE_VIZ" "$SAVE_VIDEO" "$OUTPUT_VIDEO"

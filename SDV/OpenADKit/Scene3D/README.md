@@ -10,7 +10,7 @@ Containerized Scene3D Demo for VisionPilot.
 
     ```bash
     mkdir -p model-weights
-    curl "https://drive.usercontent.google.com/download?id=19gMPt_1z4eujo4jm5XKuH-8eafh-wJC6&confirm=xxx" -o model-weights/scene3d.pth
+    curl "https://drive.usercontent.google.com/download?id=1MrKhfEkR0fVJt-SdZEc0QwjwVDumPf7B&confirm=xxx" -o model-weights/scene3d.pth
     ```
 
 - Download the [Test image](https://drive.google.com/file/d/100rOuKXAFqaW7iZ5KHlamRtaSHoRVJaq/view?usp=drive_link) and place it in the `test` directory with the name `image.jpg`.
