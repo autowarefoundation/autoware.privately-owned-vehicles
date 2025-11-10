@@ -10,7 +10,7 @@ on:
   pull_request:
     paths:
       - 'VisionPilot/**'
-      - 'SDV/OpenADKit/docker/**'
+      - 'SDV/OpenADKit/Docker/**'
       - 'Models/**'
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./SDV/OpenADKit/docker/Dockerfile
+          file: ./SDV/OpenADKit/Docker/Dockerfile
           tags: visionpilot:${{ inputs.tag }}
           push: false
           cache-from: type=gha
