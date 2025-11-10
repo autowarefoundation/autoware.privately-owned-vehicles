@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 
 # x64 or aarch64
-ARG PLATFORM=x64 
+ARG ARCH=x64 
 ARG ONNXRUNTIME_VERSION=1.22.0
 
 # Install visionpilot dependencies
@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     x11-apps \
-    build-essential cmake pkg-config git wget \
-    libopencv-dev python3-opencv \
+    build-essential cmake pkg-config git wget curl nano \
+    libopencv-dev \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
     gstreamer1.0-tools \
@@ -28,15 +28,15 @@ RUN apt-get update && apt-get install -y \
 # Install model dependencies
 COPY Models /visionpilot/Models
 ENV PYTHONPATH=/visionpilot/Models
-RUN pip install --no-cache-dir -r /visionpilot/Models/requirements.txt --break-system-packages --ignore-installed \
-    && pip install --no-cache-dir --break-system-packages --ignore-installed gdown 
+RUN pip install --no-cache-dir -r /visionpilot/Models/requirements.txt --break-system-packages \
+    && pip install --no-cache-dir --break-system-packages gdown 
 
 # Install onnxruntime
 COPY VisionPilot /visionpilot/VisionPilot
-ENV ONNXRUNTIME_ROOT=/visionpilot/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}
-RUN wget https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz && \
-    tar -xzf onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz && \
-    rm onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz
+ENV ONNXRUNTIME_ROOT=/visionpilot/onnxruntime-linux-${ARCH}-${ONNXRUNTIME_VERSION}
+RUN wget https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-${ARCH}-${ONNXRUNTIME_VERSION}.tgz && \
+    tar -xzf onnxruntime-linux-${ARCH}-${ONNXRUNTIME_VERSION}.tgz && \
+    rm onnxruntime-linux-${ARCH}-${ONNXRUNTIME_VERSION}.tgz
 
 # Build AutoSpeed
 RUN cd /visionpilot/VisionPilot/Standalone/AutoSpeed && \
