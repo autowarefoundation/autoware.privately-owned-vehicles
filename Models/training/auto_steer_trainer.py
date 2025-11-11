@@ -216,6 +216,11 @@ class AutoSteerTrainer():
         egolanes_tensor = egolanes_tensor.unsqueeze(0)
         self.egolanes_tensor = egolanes_tensor.to(self.device)
 
+        # Reducing size of Egolanes Segmentation to 1/4
+        reduction = nn.MaxPool2d(2, stride=2)
+        self.egolanes_tensor = reduction(self.egolanes_tensor)
+        self.egolanes_tensor = reduction(self.egolanes_tensor)
+
         # # Data Tensor
         # data_tensor = torch.from_numpy(self.data)
         # data_tensor = data_tensor.type(torch.FloatTensor).unsqueeze(0)
