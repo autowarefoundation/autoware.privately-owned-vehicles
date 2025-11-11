@@ -112,6 +112,7 @@ class LoadDataAutoSteer():
 
         self.N_trains = 0
         self.N_vals = 0
+        self.val_cap = VAL_SAMPLE_CAPS[self.dataset_name]
 
         if (checkData.getCheck()):
             for set_idx, frame_id in enumerate(self.labels):
@@ -120,7 +121,10 @@ class LoadDataAutoSteer():
                 frame_id_from_img_path = str(self.images[set_idx]).split("/")[-1].replace(".jpg", "")
                 if (frame_id == frame_id_from_img_path):
 
-                    if (set_idx % 10 == 0):
+                    if (
+                        (set_idx % 10 == 0) and
+                        (self.N_vals < self.val_cap)
+                    ):
                         # Slap it to Val
                         self.val_images.append(str(self.images[set_idx]))
                         self.val_masks.append(str(self.masks[set_idx]))
