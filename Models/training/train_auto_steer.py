@@ -119,7 +119,7 @@ def main():
     trainer.zero_grad()
     
     # Training loop parameters
-    NUM_EPOCHS = 7
+    NUM_EPOCHS = 10
     LOGSTEP_LOSS = 2500
     LOGSTEP_VIS = 10000
     LOGSTEP_MODEL = 15000

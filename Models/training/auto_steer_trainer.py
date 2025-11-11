@@ -657,10 +657,10 @@ class AutoSteerTrainer():
         alpha = 0.5
 
         # Creating visualization image
-        vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
+        # vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
         vis_predict_object = np.array(self.perspective_image)
         vis_predict_object = cv2.resize(vis_predict_object, (160, 80))
-        gt_object = np.zeros((320, 640, 3), dtype = "uint8")
+        # gt_object = np.zeros((320, 640, 3), dtype = "uint8")
         gt_object = np.array(self.perspective_image)
         gt_object = cv2.resize(gt_object, (160, 80))
 
@@ -732,6 +732,18 @@ class AutoSteerTrainer():
         gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 1] = 255
         gt_raw_object[gt_other_lanes[0], gt_other_lanes[1], 2] = 145
 
+        # Upsample vis predict and gt objects
+        vis_predict_object = cv2.resize(
+            vis_predict_object,
+            (640, 320),
+            interpolation = cv2.INTER_NEAREST
+        )
+        gt_object = cv2.resize(
+            gt_object,
+            (640, 320),
+            interpolation = cv2.INTER_NEAREST
+        )
+
         # Alpha blended visualization
         prediction_vis = cv2.addWeighted(vis_predict_object, \
             alpha, self.perspective_image, 1 - alpha, 0)    
@@ -767,7 +779,7 @@ class AutoSteerTrainer():
         if(is_train):
             self.writer.add_figure("Train (Seg) RAW", fig_raw_lane_seg, global_step = (log_count))
         else:
-            fig_raw_lane_seg.savefig(vis_path + '_seg.png')
+            fig_raw_lane_seg.savefig(vis_path + '_seg_raw.png')
 
         plt.close(fig_raw_lane_seg)
 
