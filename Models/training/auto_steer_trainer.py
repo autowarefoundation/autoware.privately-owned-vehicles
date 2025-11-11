@@ -659,12 +659,14 @@ class AutoSteerTrainer():
         # Creating visualization image
         vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
         vis_predict_object = np.array(self.perspective_image)
+        vis_predict_object = cv2.resize(vis_predict_object, (160, 80))
         gt_object = np.zeros((320, 640, 3), dtype = "uint8")
         gt_object = np.array(self.perspective_image)
+        gt_object = cv2.resize(gt_object, (160, 80))
 
         # Creating raw visualization images
-        vis_raw_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
-        gt_raw_object = np.zeros((320, 640, 3), dtype = "uint8")
+        vis_raw_predict_object = np.zeros((80, 160, 3), dtype = "uint8")
+        gt_raw_object = np.zeros((80, 160, 3), dtype = "uint8")
 
         # Prediction
         egolanes_prediction = torch.squeeze(self.pred_binary_seg_tensor, 0)
