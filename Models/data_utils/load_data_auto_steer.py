@@ -29,9 +29,15 @@ VALID_DATASET_LITERALS = Literal[
     # "ONCE3DLANE",
 ]
 VAL_SAMPLE_CAPS = {
-    "TUSIMPLE": 500,
-    "CURVELANES": 1000,
-    "JIQING": 1000,
+    "TUSIMPLE":     500,
+    "CURVELANES":   1000,
+    "JIQING":       1000,
+    "CULANE":       1000,
+    "BDD100K":      1000,
+    "COMMA2K19":    1000,
+    "ROADWORK":     1000,
+    "OPENLANE":     1000,
+    "ONCE3DLANE":   1000,
 }
 VALID_DATASET_LIST = list(get_args(VALID_DATASET_LITERALS))
 
