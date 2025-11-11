@@ -8,7 +8,7 @@ class EgoLanesHead(nn.Module):
 
         # Standard
         self.GeLU = nn.GELU()
-
+  
         # Segmentation Head - Output Layers
         self.upsample_layer_3 = nn.ConvTranspose2d(256, 256, 2, 2)
         self.skip_link_layer_3 = nn.Conv2d(32, 256, 1)
@@ -19,7 +19,7 @@ class EgoLanesHead(nn.Module):
         self.decode_layer_9 = nn.Conv2d(128, 64, 3, 1, 1)
         self.decode_layer_10 = nn.Conv2d(64, 3, 3, 1, 1)
 
- 
+
 
     def forward(self, neck, features):
 
