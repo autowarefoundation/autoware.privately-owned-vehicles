@@ -46,6 +46,7 @@ make -j$(nproc)
 ### Quick Start (Shell Script)
 
 Edit `run_objectFinder.sh` to configure:
+The H matrix is in homography.yaml for waiymo/OpeLane dataset (front camera):
 
 ```bash
 # ===== Required Parameters =====
