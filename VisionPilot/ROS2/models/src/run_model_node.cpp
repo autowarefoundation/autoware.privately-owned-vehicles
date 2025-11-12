@@ -10,7 +10,11 @@
 #include "../../common/include/masks_visualization_kernels.hpp"
 #endif
 
+#ifdef ROS_HUMBLE
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
+#endif
 #include <sensor_msgs/image_encodings.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 #include <opencv2/imgproc/imgproc.hpp>

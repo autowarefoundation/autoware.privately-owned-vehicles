@@ -5,6 +5,16 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# Check the ROS_DISTRO environment variable to set a compile-time macro
+# It's used to fix the cv_bridge compatibility issue with ROS Humble and later versions
+set(ROS_DISTRO_ENV $ENV{ROS_DISTRO})
+if(ROS_DISTRO_ENV STREQUAL "humble")
+    add_definitions(-DROS_HUMBLE)
+    message(STATUS "ROS_DISTRO is 'humble'. Defining MACRO: ROS_HUMBLE")
+else()
+    message(STATUS "ROS_DISTRO is set to '${ROS_DISTRO_ENV}'. ROS_HUMBLE MACRO not defined.")
+endif()
+
 # Enable CUDA if available (optional)
 find_package(CUDA QUIET)
 if(CUDA_FOUND)

@@ -1,6 +1,10 @@
 #include "visualize_masks_node.hpp"
 #include "../../common/include/masks_visualization_engine.hpp"
+#ifdef ROS_HUMBLE
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
+#endif
 #include <rclcpp_components/register_node_macro.hpp>
 
 namespace autoware_pov::visualization
