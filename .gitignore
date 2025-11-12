@@ -1,0 +1,16 @@
+/Models/saves/*
+/Models/training/runs/
+
+.gitignore
+.vscode/
+
+VisionPilot/ROS2/build/
+VisionPilot/ROS2/install/
+VisionPilot/ROS2/log/
+
+Control/Steering/SteeringController/build/
+Control/Longitudinal/PI_Controller/build/
+
+Simulation/CARLA/ROS2/build/
+Simulation/CARLA/ROS2/install/
+Simulation/CARLA/ROS2/log/
