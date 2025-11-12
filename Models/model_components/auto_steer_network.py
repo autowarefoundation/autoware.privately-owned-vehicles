@@ -34,6 +34,6 @@ class AutoSteerNetwork(nn.Module):
         fused_features = self.BackboneFeatureFusion(features)
         context = self.AutoSteerContext(fused_features)
         neck = self.EgopathNeck(context, features)
-        ego_lanes = self.EgoLanesHead(neck, features)
+        ego_lanes = self.EgoLanesHead(neck)
 
         return ego_lanes

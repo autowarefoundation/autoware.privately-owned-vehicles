@@ -2,15 +2,12 @@ name: Build VisionPilot Container
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to build'
-        required: true
-        default: 'latest'
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - 'VisionPilot/**'
-      - 'SDV/OpenADKit/docker/**'
+      - 'SDV/OpenADKit/Docker/**'
       - 'Models/**'
 
 jobs:
@@ -21,6 +18,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Set Docker tag
+        id: docker_tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag=$(date +%Y-%m-%d)-dispatch" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
@@ -28,8 +34,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./SDV/OpenADKit/docker/Dockerfile
-          tags: visionpilot:${{ inputs.tag }}
+          file: ./SDV/OpenADKit/Docker/Dockerfile
+          tags: visionpilot:${{ steps.docker_tag.outputs.tag }}
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
