@@ -1,12 +1,19 @@
 #! /usr/bin/env python3
 
 class CheckData():
-    def __init__(self, num_images, num_gt):
+    def __init__(
+            self, 
+            dataset_name, 
+            num_images, 
+            num_gt
+    ):
 
         is_gt_path_valid = False
         is_image_path_valid = False
         is_data_valid = False
         self.check_passed = False
+
+        print(f"Checking dataset: {dataset_name}")
 
         # Checking if ground truth labels were read and logging error if missing
         if (num_gt > 0):
