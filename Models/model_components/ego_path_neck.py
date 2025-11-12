@@ -1,9 +1,9 @@
 #! /usr/bin/env python3
 import torch.nn as nn
 
-class BEVPathNeck(nn.Module):
+class EgoPathNeck(nn.Module):
     def __init__(self):
-        super(BEVPathNeck, self).__init__()
+        super(EgoPathNeck, self).__init__()
         # Standard
         self.GeLU = nn.GELU()
 

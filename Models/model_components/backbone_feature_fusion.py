@@ -2,9 +2,9 @@
 import torch
 import torch.nn as nn
 
-class BEVFeatureFusion(nn.Module):
+class BackboneFeatureFusion(nn.Module):
     def __init__(self):
-        super(BEVFeatureFusion, self).__init__()
+        super(BackboneFeatureFusion, self).__init__()
         # Standard
         self.GeLU = nn.GELU()
         self.pool = nn.MaxPool2d(2, stride=2)
