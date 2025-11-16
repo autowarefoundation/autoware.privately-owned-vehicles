@@ -158,8 +158,12 @@ auto main(int argc, char* argv[]) -> int {
         bool kalman_reset = finder.wasKalmanReset();
         finder.clearEventFlags();
         
-        // Prepare CIPO message
-        CIPOMessage cipo_msg;
+        // STEP 1: Loan shared memory for CIPO message (zero-copy)
+        auto cipo_sample = cipo_publisher.loan_uninit().expect("loan sample");
+        
+        // STEP 2: Fill CIPO data directly in shared memory (no local copy)
+        CIPOMessage& cipo_msg = cipo_sample.payload_mut();
+        
         cipo_msg.frame_id = raw_frame.frame_id;
         cipo_msg.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
@@ -189,9 +193,8 @@ auto main(int argc, char* argv[]) -> int {
             }
         }
         
-        // Publish CIPO message
-        auto cipo_sample = cipo_publisher.loan_uninit().expect("loan sample");
-        auto initialized_cipo = cipo_sample.write_payload(cipo_msg);
+        // STEP 3: Finalize and publish (write_payload on already-filled data)
+        auto initialized_cipo = std::move(cipo_sample).write_payload(cipo_msg);
         send(std::move(initialized_cipo)).expect("send successful");
         
         processed_frames++;
