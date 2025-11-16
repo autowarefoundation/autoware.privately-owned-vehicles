@@ -1,15 +1,22 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <root>
- <tabbed_widget parent="main_window" name="Main Window">
-  <Tab tab_name="tab1" containers="1">
+ <tabbed_widget name="Main Window" parent="main_window">
+  <Tab containers="1" tab_name="tab1">
    <Container>
-    <DockSplitter orientation="-" sizes="1" count="1">
+    <DockSplitter sizes="0.5;0.5" count="2" orientation="-">
      <DockArea name="...">
-      <plot flip_y="false" style="Lines" flip_x="false" mode="TimeSeries">
-       <range bottom="-12.000000" top="26.000000" right="69.568388" left="64.601562"/>
-       <limitY min="-12" max="26"/>
-       <curve color="#d62728" name="/carla/hero/imu/linear_acceleration/x"/>
-       <curve color="#1ac938" name="/hero/odom/twist/twist/linear/x"/>
+      <plot flip_x="false" mode="TimeSeries" flip_y="false" style="Lines">
+       <range bottom="-12.000000" top="26.000000" right="1671.289327" left="1668.055664"/>
+       <limitY max="26" min="-12"/>
+       <curve color="#d62728" name="jerk"/>
+       <curve color="#1ac938" name="/carla/hero/imu/linear_acceleration/x"/>
+       <curve color="#9467bd" name="/hero/odom/twist/twist/linear/x"/>
+      </plot>
+     </DockArea>
+     <DockArea name="...">
+      <plot flip_x="false" mode="TimeSeries" flip_y="false" style="Lines">
+       <range bottom="-0.025000" top="1.025000" right="1671.289327" left="1668.055664"/>
+       <limitY max="1.025" min="-0.025"/>
        <curve color="#ff7f0e" name="/carla/hero/vehicle_control_cmd/brake"/>
        <curve color="#f14cc1" name="/carla/hero/vehicle_control_cmd/throttle"/>
       </plot>
@@ -42,7 +49,7 @@
    <max_array_size value="100"/>
    <boolean_strings_to_number value="true"/>
    <remove_suffix_from_strings value="true"/>
-   <selected_topics value="/carla/hero/vehicle_control_cmd;/hero/odom;/carla/hero/imu"/>
+   <selected_topics value="/carla/hero/imu;/carla/hero/vehicle_control_cmd;/hero/odom"/>
   </plugin>
   <plugin ID="UDP Server"/>
   <plugin ID="WebSocket Server"/>
@@ -60,7 +67,46 @@
  <previouslyLoaded_Datafiles/>
  <previouslyLoaded_Streamer name="ROS2 Topic Subscriber"/>
  <!-- - - - - - - - - - - - - - - -->
- <customMathEquations/>
+ <customMathEquations>
+  <snippet name="jerk">
+   <global>firstX = 0
+firstY = 0
+is_first = true
+secondX = 0
+secondY = 0
+is_second = false
+value = 0
+v1 = 0</global>
+   <function>-- Wait for initial values
+if (is_first) then
+  is_first = false
+  is_second = true
+  firstX = time
+  firstY = v1
+end
+
+if (is_second) then
+  is_second = false
+  secondX = time
+  secondY = v1
+end
+
+-- Central derivative: dy/dx ~= f(x+delta_x)-f(x-delta_x)/(2*delta_x)
+dx = time - firstX
+dy = v1 - firstY
+-- Increment
+firstX = secondX
+firstY = secondY
+secondX = time
+secondY = v1
+
+return dy/dx</function>
+   <linked_source>/carla/hero/imu/linear_acceleration/x</linked_source>
+   <additional_sources>
+    <v1>/carla/hero/imu/linear_acceleration/x</v1>
+   </additional_sources>
+  </snippet>
+ </customMathEquations>
  <snippets/>
  <!-- - - - - - - - - - - - - - - -->
 </root>

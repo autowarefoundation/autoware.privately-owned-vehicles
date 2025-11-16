@@ -14,6 +14,7 @@ add_subdirectory(
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
@@ -30,7 +31,7 @@ target_include_directories(longitudinal_controller_node PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_compile_features(longitudinal_controller_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
-ament_target_dependencies(longitudinal_controller_node rclcpp std_msgs nav_msgs)
+ament_target_dependencies(longitudinal_controller_node rclcpp std_msgs nav_msgs sensor_msgs)
 
 install(TARGETS longitudinal_controller_node
   DESTINATION lib/${PROJECT_NAME})

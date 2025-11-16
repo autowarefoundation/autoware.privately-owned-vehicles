@@ -11,7 +11,7 @@ def generate_launch_description():
     
     return LaunchDescription([
         ExecuteProcess(
-            cmd=['python3', script_path,'-m' ,'-f', os.path.join(ws_dir,'config/VisionPilot_carla9.json')],
+            cmd=['python3', script_path,'-f', os.path.join(ws_dir,'config/VisionPilot_carla9.json')],
             output='screen'
         ),
         

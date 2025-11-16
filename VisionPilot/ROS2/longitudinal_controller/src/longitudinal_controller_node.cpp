@@ -2,15 +2,20 @@
 
 LongitudinalControllerNode::LongitudinalControllerNode(const rclcpp::NodeOptions &options)
     : Node("steering_controller_node", "", options),
-      pi_controller_(0.25, 0.02)
+      pi_throttle_(0.05, 0.000, 0.5),
+      pi_brake_(0.005, 0.0, 0.0)
 {
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/hero/odom", 10, std::bind(&LongitudinalControllerNode::odomCallback, this, std::placeholders::_1));
-  control_pub_ = this->create_publisher<std_msgs::msg::Float32>("/vehicle/throttle_cmd", 1);
+  imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>("/carla/hero/imu", 10, std::bind(&LongitudinalControllerNode::imuCallback, this, std::placeholders::_1));
+  throttle_pub_ = this->create_publisher<std_msgs::msg::Float32>("/vehicle/throttle_cmd", 1);
+  brake_pub_ = this->create_publisher<std_msgs::msg::Float32>("/vehicle/brake_cmd", 1);
   pathfinder_sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>("/pathfinder/tracked_states", 2, std::bind(&LongitudinalControllerNode::stateCallback, this, std::placeholders::_1));
   RCLCPP_INFO(this->get_logger(), "LongitudinalController Node started");
   forward_velocity_ = 0.0;
-  TARGET_VEL = 23.6;    // 80 km/h in m/s, actual 25m/s after adding steady state error
+  longitudinal_acceleration_ = 0.0;
+  TARGET_VEL = 23.6;  // 80 km/h in m/s, actual 25m/s after adding steady state error
   ACC_LAT_MAX = 2.25; // 7.0 m/s^2
+  ACC_LONG_MAX = 5.0;
   TARGET_VEL_CAPPED = TARGET_VEL;
 }
 
@@ -25,15 +30,35 @@ void LongitudinalControllerNode::stateCallback(const std_msgs::msg::Float32Multi
   TARGET_VEL_CAPPED = std::min(TARGET_VEL, std::sqrt(ACC_LAT_MAX / std::max(std::abs(curvature_), 1e-6)));
 }
 
+void LongitudinalControllerNode::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
+{
+  longitudinal_acceleration_ = msg->linear_acceleration.x; // [m/s^2]
+}
+
 void LongitudinalControllerNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
+  auto throttle_msg = std_msgs::msg::Float32();
+  auto brake_msg = std_msgs::msg::Float32();
+  brake_msg.data = 0.0;
+  throttle_msg.data = 0.0;
+
   forward_velocity_ = msg->twist.twist.linear.x; // [m/s]
-  // double u = pi_controller_.computeEffort(forward_velocity_, TARGET_VEL_CAPPED);
-  double feedforward_vel = (forward_velocity_ > TARGET_VEL_CAPPED) ? 0 : vel_to_throttle(TARGET_VEL_CAPPED);
-  double u = feedforward_vel + pi_controller_.computeEffort(forward_velocity_, TARGET_VEL_CAPPED);
-  auto control_msg = std_msgs::msg::Float32();
-  control_msg.data = std::clamp(u, -1.0, 1.0);
-  control_pub_->publish(control_msg);
+  double feedforward_u = (forward_velocity_ > TARGET_VEL_CAPPED) ? 0 : vel_to_throttle(TARGET_VEL_CAPPED);
+  // double TARGET_ACCEL = TARGET_VEL_CAPPED > forward_velocity_ ? (TARGET_VEL_CAPPED - forward_velocity_) / 0.02 : 0.0; // determine how much to brake
+  double TARGET_ACCEL = (TARGET_VEL_CAPPED - forward_velocity_) / 0.02; // determine how much to brake
+
+  double brake = pi_brake_.computeEffort(-longitudinal_acceleration_, -TARGET_ACCEL);
+  double throttle = feedforward_u;
+  // double throttle = pi_throttle_.computeEffort(longitudinal_acceleration_, TARGET_ACCEL);
+
+  if (TARGET_ACCEL < -2.5)
+  {
+    brake_msg.data = std::clamp(brake, 0.0, 1.0);
+  }
+
+  throttle_msg.data = std::clamp(throttle, 0.0, 1.0);
+  throttle_pub_->publish(throttle_msg);
+  brake_pub_->publish(brake_msg);
 }
 
 double LongitudinalControllerNode::vel_to_throttle(double v)
