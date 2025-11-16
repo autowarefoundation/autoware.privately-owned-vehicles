@@ -82,37 +82,46 @@ auto main(int argc, char* argv[]) -> int {
     
     while (running) {
         // Capture frame from GStreamer
-        cv::Mat frame = gstreamer.getFrame();
+        cv::Mat gstreamer_frame = gstreamer.getFrame();
         
-        if (frame.empty()) {
+        if (gstreamer_frame.empty()) {
             std::cout << "[FrameNode] End of stream or failed to capture frame" << std::endl;
             break;
         }
         
         // Ensure frame is 1920x1280 (Waymo dimensions)
-        if (frame.cols != 1920 || frame.rows != 1280) {
-            cv::resize(frame, frame, cv::Size(1920, 1280));
+        if (gstreamer_frame.cols != 1920 || gstreamer_frame.rows != 1280) {
+            cv::resize(gstreamer_frame, gstreamer_frame, cv::Size(1920, 1280));
         }
         
-        // Prepare frame data
-        RawFrame frame_data;
+        // STEP 1: Loan shared memory FIRST (zero-copy)
+        auto sample = publisher.loan_uninit().expect("loan sample");
+        
+        // STEP 2: Get mutable reference to uninitialized payload in shared memory
+        RawFrame& frame_data = sample.payload_mut();
+        
+        // STEP 3: Fill metadata directly in shared memory
         frame_data.frame_id = frame_id++;
         frame_data.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
-        frame_data.width = frame.cols;
-        frame_data.height = frame.rows;
-        frame_data.channels = frame.channels();
-        frame_data.step = frame.step;
+        frame_data.width = gstreamer_frame.cols;
+        frame_data.height = gstreamer_frame.rows;
+        frame_data.channels = gstreamer_frame.channels();
+        frame_data.step = gstreamer_frame.step[0];
         frame_data.is_valid = true;
         frame_data.source_id = 0;
         
-        // Copy image data
-        std::memcpy(frame_data.data, frame.data, frame.total() * frame.elemSize());
+        // STEP 4: Create cv::Mat wrapper pointing to shared memory buffer (no copy!)
+        cv::Mat shared_frame(frame_data.height, frame_data.width, CV_8UC3, 
+                            frame_data.data, frame_data.step);
         
-        // Loan, write, and publish (zero-copy from shared memory to subscribers)
-        auto sample = publisher.loan_uninit().expect("loan sample");
-        auto initialized_sample = sample.write_payload(frame_data);
+        // STEP 5: Copy from GStreamer directly to shared memory (ONE unavoidable copy)
+        gstreamer_frame.copyTo(shared_frame);
+        
+        // STEP 6: Finalize by writing the already-filled payload (no extra copy since we wrote directly)
+        // Note: write_payload with the same reference just marks it as initialized
+        auto initialized_sample = std::move(sample).write_payload(frame_data);
         send(std::move(initialized_sample)).expect("send successful");
         
         total_frames++;
