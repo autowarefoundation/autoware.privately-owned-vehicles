@@ -118,6 +118,7 @@ auto main(int argc, char* argv[]) -> int {
     
     while (running) {
         // Receive frame (zero-copy read from shared memory)
+        auto receive_start = std::chrono::steady_clock::now();
         auto frame_sample = frame_subscriber.receive().expect("receive succeeds");
         
         if (!frame_sample.has_value()) {
@@ -131,6 +132,12 @@ auto main(int argc, char* argv[]) -> int {
         if (!raw_frame.is_valid) {
             continue;
         }
+        
+        // Calculate IPC transfer latency (frame_node publish → inference_node receive)
+        uint64_t receive_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            receive_start.time_since_epoch()
+        ).count();
+        float ipc_latency_us = (receive_timestamp_ns - raw_frame.publish_timestamp_ns) / 1000.0f;
         
         // Reconstruct cv::Mat (no copy, points to shared memory)
         cv::Mat frame(raw_frame.height, raw_frame.width, CV_8UC3,
@@ -178,6 +185,7 @@ auto main(int argc, char* argv[]) -> int {
         cipo_msg.num_tracked_objects = static_cast<uint8_t>(tracked_objects.size());
         cipo_msg.inference_latency_ms = inference_latency_ms;
         cipo_msg.tracking_latency_ms = tracking_latency_ms;
+        cipo_msg.ipc_latency_us = ipc_latency_us;
         
         // Fill bounding box if CIPO exists
         if (cipo.exists) {
@@ -193,7 +201,12 @@ auto main(int argc, char* argv[]) -> int {
             }
         }
         
-        // STEP 3: Finalize and publish (write_payload on already-filled data)
+        // STEP 3: Set publish timestamp for CIPO message (for downstream IPC latency)
+        cipo_msg.publish_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        
+        // STEP 4: Finalize and publish (write_payload on already-filled data)
         auto initialized_cipo = std::move(cipo_sample).write_payload(cipo_msg);
         send(std::move(initialized_cipo)).expect("send successful");
         
@@ -221,8 +234,9 @@ auto main(int argc, char* argv[]) -> int {
             float fps = (elapsed > 0) ? (float)processed_frames / elapsed : 0.0f;
             std::cout << "[InferenceNode] Processed " << processed_frames << " frames"
                       << " | FPS: " << std::fixed << std::setprecision(1) << fps
-                      << " | Avg Inference: " << inference_latency_ms << "ms"
-                      << " | Avg Tracking: " << tracking_latency_ms << "ms" << std::endl;
+                      << " | IPC: " << std::setprecision(2) << ipc_latency_us << "μs"
+                      << " | Inference: " << inference_latency_ms << "ms"
+                      << " | Tracking: " << tracking_latency_ms << "ms" << std::endl;
         }
     }
     
