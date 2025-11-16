@@ -5,7 +5,7 @@
 #include <iostream>
 
 // ============================================================================
-// RawFrame: Zero-copy image frame (7.3 MB per frame @ 1920x1280x3)
+// RawFrame: Zero-copy image frame 
 // ============================================================================
 struct RawFrame {
     uint64_t frame_id;                  // Sequential frame counter
@@ -24,7 +24,7 @@ struct RawFrame {
 };
 
 // ============================================================================
-// CIPOMessage: Main CIPO tracking information (lightweight, ~120 bytes)
+// CIPOMessage: Main CIPO tracking information 
 // ============================================================================
 struct CIPOMessage {
     // Frame association
