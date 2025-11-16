@@ -1,0 +1,128 @@
+#!/bin/bash
+# ============================================================================
+# Launch script for iceoryx2-based VisionPilot pipeline
+# Starts frame_node, inference_node, and optionally viz_node
+#
+# USAGE:
+#   1. Copy this template: cp run_pipeline.sh.template run_pipeline.sh
+#   2. Edit run_pipeline.sh with your paths
+#   3. Run: bash run_pipeline.sh
+# ============================================================================
+
+# ===== Configuration =====
+VIDEO_PATH="/path/to/your/video.mp4"
+MODEL_PATH="/path/to/your/model.onnx"
+PROVIDER="tensorrt"          # 'cpu' or 'tensorrt'
+PRECISION="fp16"             # 'fp32' or 'fp16'
+HOMOGRAPHY_YAML="/path/to/your/homography.yaml"
+DEVICE_ID="0"                # GPU device ID
+CACHE_DIR="./trt_cache"      # TensorRT cache directory
+REALTIME="true"              # Video playback: 'true' or 'false'
+
+# Visualization
+ENABLE_VIZ="true"            # Launch viz_node: 'true' or 'false'
+SAVE_VIDEO="false"           # Save output video: 'true' or 'false'
+OUTPUT_VIDEO="output_iceoryx2.mp4"
+
+# ===== Validation =====
+if [ ! -f "$VIDEO_PATH" ]; then
+    echo "Error: Video file not found: $VIDEO_PATH"
+    exit 1
+fi
+
+if [ ! -f "$MODEL_PATH" ]; then
+    echo "Error: Model file not found: $MODEL_PATH"
+    exit 1
+fi
+
+if [ ! -f "$HOMOGRAPHY_YAML" ]; then
+    echo "Error: Homography file not found: $HOMOGRAPHY_YAML"
+    exit 1
+fi
+
+if [ ! -f "./build/frame_node" ]; then
+    echo "Error: Executables not found. Please build first:"
+    echo "  mkdir build && cd build"
+    echo "  export ONNXRUNTIME_ROOT=/path/to/onnxruntime"
+    echo "  cmake .. && make -j\$(nproc)"
+    exit 1
+fi
+
+# ===== Environment Setup =====
+if [ -z "$ONNXRUNTIME_ROOT" ]; then
+    echo "Error: ONNXRUNTIME_ROOT not set."
+    echo "Please export: export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-X.X.X"
+    exit 1
+fi
+
+# ===== Display Configuration =====
+echo "========================================"
+echo "   VisionPilot IceOryx2 Pipeline"
+echo "========================================"
+echo "Video:       $VIDEO_PATH"
+echo "Model:       $MODEL_PATH"
+echo "Provider:    $PROVIDER"
+echo "Precision:   $PRECISION"
+echo "Homography:  $HOMOGRAPHY_YAML"
+echo "Realtime:    $REALTIME"
+echo "Visualization: $ENABLE_VIZ"
+if [ "$SAVE_VIDEO" == "true" ]; then
+    echo "Save Video:  $OUTPUT_VIDEO"
+fi
+echo "========================================"
+echo ""
+
+# ===== Cleanup function =====
+cleanup() {
+    echo ""
+    echo "Shutting down all nodes..."
+    kill $(jobs -p) 2>/dev/null
+    wait
+    echo "Pipeline stopped."
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+# ===== Launch Nodes =====
+
+# Node 1: Frame Publisher
+echo "Starting frame_node..."
+./build/frame_node "$VIDEO_PATH" "$REALTIME" &
+FRAME_PID=$!
+sleep 2  # Give it time to initialize
+
+# Node 2: Inference + Tracking
+echo "Starting inference_node..."
+./build/inference_node "$MODEL_PATH" "$PROVIDER" "$PRECISION" "$HOMOGRAPHY_YAML" "$DEVICE_ID" "$CACHE_DIR" &
+INFERENCE_PID=$!
+sleep 3  # Wait for model loading + warmup
+
+# Node 3: Visualization (optional)
+if [ "$ENABLE_VIZ" == "true" ]; then
+    echo "Starting viz_node..."
+    if [ "$SAVE_VIDEO" == "true" ]; then
+        ./build/viz_node --save "$OUTPUT_VIDEO" &
+    else
+        ./build/viz_node &
+    fi
+    VIZ_PID=$!
+fi
+
+echo ""
+echo "========================================"
+echo "Pipeline running!"
+echo "========================================"
+echo "  frame_node:     PID $FRAME_PID"
+echo "  inference_node: PID $INFERENCE_PID"
+if [ "$ENABLE_VIZ" == "true" ]; then
+    echo "  viz_node:       PID $VIZ_PID"
+fi
+echo "========================================"
+echo "Press Ctrl+C to stop all nodes"
+echo "========================================"
+echo ""
+
+# Wait for all background jobs
+wait
+
