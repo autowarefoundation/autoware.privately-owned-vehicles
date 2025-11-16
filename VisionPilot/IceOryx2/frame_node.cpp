@@ -119,8 +119,12 @@ auto main(int argc, char* argv[]) -> int {
         // STEP 5: Copy from GStreamer directly to shared memory (ONE unavoidable copy)
         gstreamer_frame.copyTo(shared_frame);
         
-        // STEP 6: Finalize by writing the already-filled payload (no extra copy since we wrote directly)
-        // Note: write_payload with the same reference just marks it as initialized
+        // STEP 6: Set publish timestamp right before sending (for IPC latency measurement)
+        frame_data.publish_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        
+        // STEP 7: Finalize and publish (zero-copy to subscribers)
         auto initialized_sample = std::move(sample).write_payload(frame_data);
         send(std::move(initialized_sample)).expect("send successful");
         
