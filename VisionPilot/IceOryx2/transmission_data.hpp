@@ -10,6 +10,7 @@
 struct RawFrame {
     uint64_t frame_id;                  // Sequential frame counter
     uint64_t timestamp_ns;              // Capture timestamp (nanoseconds)
+    uint64_t publish_timestamp_ns;      // Publish timestamp (for IPC latency measurement)
     uint32_t width;                     // Frame width (1920)
     uint32_t height;                    // Frame height (1280)
     uint32_t channels;                  // Color channels (3 = BGR)
@@ -19,8 +20,9 @@ struct RawFrame {
     bool is_valid;                      // Frame validity flag
     uint8_t source_id;                  // Camera/source identifier
     
-    RawFrame() : frame_id(0), timestamp_ns(0), width(1920), height(1280), 
-                 channels(3), step(1920 * 3), is_valid(false), source_id(0) {}
+    RawFrame() : frame_id(0), timestamp_ns(0), publish_timestamp_ns(0), 
+                 width(1920), height(1280), channels(3), step(1920 * 3), 
+                 is_valid(false), source_id(0) {}
 };
 
 // ============================================================================
@@ -30,6 +32,7 @@ struct CIPOMessage {
     // Frame association
     uint64_t frame_id;                  // Links to RawFrame
     uint64_t timestamp_ns;              // Processing timestamp
+    uint64_t publish_timestamp_ns;      // Publish timestamp (for IPC latency measurement)
     
     // Main CIPO data
     bool exists;                        // Main CIPO detected
@@ -53,13 +56,15 @@ struct CIPOMessage {
     uint8_t num_tracked_objects;        // Total number of tracked objects
     float inference_latency_ms;         // Inference latency (ms)
     float tracking_latency_ms;          // Tracking latency (ms)
+    float ipc_latency_us;               // IPC transfer latency from frame_node (microseconds)
     
-    CIPOMessage() : frame_id(0), timestamp_ns(0), exists(false), track_id(-1),
-                    class_id(0), distance_m(0.0f), velocity_ms(0.0f),
-                    bbox_x1(0.0f), bbox_y1(0.0f), bbox_x2(0.0f), bbox_y2(0.0f),
-                    confidence(0.0f), cut_in_detected(false), kalman_reset(false),
+    CIPOMessage() : frame_id(0), timestamp_ns(0), publish_timestamp_ns(0), 
+                    exists(false), track_id(-1), class_id(0), distance_m(0.0f), 
+                    velocity_ms(0.0f), bbox_x1(0.0f), bbox_y1(0.0f), 
+                    bbox_x2(0.0f), bbox_y2(0.0f), confidence(0.0f), 
+                    cut_in_detected(false), kalman_reset(false),
                     num_tracked_objects(0), inference_latency_ms(0.0f),
-                    tracking_latency_ms(0.0f) {}
+                    tracking_latency_ms(0.0f), ipc_latency_us(0.0f) {}
 };
 
 // ============================================================================
