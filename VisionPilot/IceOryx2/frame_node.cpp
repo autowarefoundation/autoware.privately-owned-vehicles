@@ -24,14 +24,16 @@ void signalHandler(int) {
 auto main(int argc, char* argv[]) -> int {
     // Parse arguments
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <video_path> [realtime=true]" << std::endl;
-        std::cerr << "  video_path: Path to video file or camera device" << std::endl;
-        std::cerr << "  realtime:   'true' or 'false' (default: true)" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <video_path> [realtime=true] [measure_ipc=false]" << std::endl;
+        std::cerr << "  video_path:   Path to video file or camera device" << std::endl;
+        std::cerr << "  realtime:     'true' or 'false' (default: true)" << std::endl;
+        std::cerr << "  measure_ipc:  'true' or 'false' (default: false, logs every 50 frames)" << std::endl;
         return 1;
     }
     
     std::string video_path = argv[1];
     bool realtime = (argc > 2) ? (std::string(argv[2]) == "true") : true;
+    bool measure_ipc_latency = (argc > 3) ? (std::string(argv[3]) == "true") : false;
     
     // Handle Ctrl+C
     std::signal(SIGINT, signalHandler);
@@ -40,9 +42,10 @@ auto main(int argc, char* argv[]) -> int {
     std::cout << "======================================" << std::endl;
     std::cout << "    Frame Node (iceoryx2 Publisher)" << std::endl;
     std::cout << "======================================" << std::endl;
-    std::cout << "Video:    " << video_path << std::endl;
-    std::cout << "Realtime: " << (realtime ? "Yes" : "No (max speed)") << std::endl;
-    std::cout << "Service:  VisionPilot/RawFrames" << std::endl;
+    std::cout << "Video:        " << video_path << std::endl;
+    std::cout << "Realtime:     " << (realtime ? "Yes" : "No (max speed)") << std::endl;
+    std::cout << "Service:      VisionPilot/RawFrames" << std::endl;
+    std::cout << "Measure IPC:  " << (measure_ipc_latency ? "Yes (log every 50 frames)" : "No") << std::endl;
     std::cout << "======================================\n" << std::endl;
     
     // Initialize iceoryx2
@@ -82,6 +85,7 @@ auto main(int argc, char* argv[]) -> int {
     
     while (running) {
         // Capture frame from GStreamer
+        auto capture_time = std::chrono::steady_clock::now();
         cv::Mat gstreamer_frame = gstreamer.getFrame();
         
         if (gstreamer_frame.empty()) {
@@ -102,8 +106,8 @@ auto main(int argc, char* argv[]) -> int {
         
         // STEP 3: Fill metadata directly in shared memory
         frame_data.frame_id = frame_id++;
-        frame_data.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
+        frame_data.capture_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            capture_time.time_since_epoch()
         ).count();
         frame_data.width = gstreamer_frame.cols;
         frame_data.height = gstreamer_frame.rows;
@@ -119,9 +123,10 @@ auto main(int argc, char* argv[]) -> int {
         // STEP 5: Copy from GStreamer directly to shared memory (ONE unavoidable copy)
         gstreamer_frame.copyTo(shared_frame);
         
-        // STEP 6: Set publish timestamp right before sending (for IPC latency measurement)
+        // STEP 6: Set publish timestamp right before sending
+        auto publish_time = std::chrono::steady_clock::now();
         frame_data.publish_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
+            publish_time.time_since_epoch()
         ).count();
         
         // STEP 7: Finalize and publish (zero-copy to subscribers)
@@ -129,6 +134,16 @@ auto main(int argc, char* argv[]) -> int {
         send(std::move(initialized_sample)).expect("send successful");
         
         total_frames++;
+        
+        // Log latency every 50 frames if measurement is enabled
+        if (measure_ipc_latency && total_frames % 50 == 0) {
+            float capture_to_publish_us = std::chrono::duration<float, std::micro>(
+                publish_time - capture_time
+            ).count();
+            std::cout << "[FrameNode] Frame " << frame_data.frame_id 
+                      << " | Capture→Publish: " << std::fixed << std::setprecision(1) 
+                      << capture_to_publish_us << "μs" << std::endl;
+        }
         
         // Print stats every 100 frames
         if (total_frames % 100 == 0) {
