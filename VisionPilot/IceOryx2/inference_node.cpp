@@ -26,13 +26,14 @@ void signalHandler(int) {
 auto main(int argc, char* argv[]) -> int {
     // Parse arguments
     if (argc < 6) {
-        std::cerr << "Usage: " << argv[0] << " <model_path> <provider> <precision> <homography_yaml> <device_id> [cache_dir]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <model_path> <provider> <precision> <homography_yaml> <device_id> [cache_dir] [measure_ipc]" << std::endl;
         std::cerr << "  model_path:      Path to ONNX model" << std::endl;
         std::cerr << "  provider:        'cpu' or 'tensorrt'" << std::endl;
         std::cerr << "  precision:       'fp32' or 'fp16'" << std::endl;
         std::cerr << "  homography_yaml: Path to homography calibration file" << std::endl;
         std::cerr << "  device_id:       GPU device ID (0, 1, ...)" << std::endl;
         std::cerr << "  cache_dir:       TensorRT cache directory (default: ./trt_cache)" << std::endl;
+        std::cerr << "  measure_ipc:     'true' or 'false' (default: false, logs every 50 frames)" << std::endl;
         return 1;
     }
     
@@ -42,6 +43,7 @@ auto main(int argc, char* argv[]) -> int {
     std::string homography_yaml = argv[4];
     int device_id = std::stoi(argv[5]);
     std::string cache_dir = (argc > 6) ? argv[6] : "./trt_cache";
+    bool measure_ipc_latency = (argc > 7) ? (std::string(argv[7]) == "true") : false;
     
     // Handle Ctrl+C
     std::signal(SIGINT, signalHandler);
@@ -50,17 +52,17 @@ auto main(int argc, char* argv[]) -> int {
     std::cout << "======================================" << std::endl;
     std::cout << "  Inference Node (iceoryx2 Sub/Pub)" << std::endl;
     std::cout << "======================================" << std::endl;
-    std::cout << "Model:       " << model_path << std::endl;
-    std::cout << "Provider:    " << provider << std::endl;
-    std::cout << "Precision:   " << precision << std::endl;
-    std::cout << "Homography:  " << homography_yaml << std::endl;
-    std::cout << "Device ID:   " << device_id << std::endl;
+    std::cout << "Model:        " << model_path << std::endl;
+    std::cout << "Provider:     " << provider << std::endl;
+    std::cout << "Precision:    " << precision << std::endl;
+    std::cout << "Homography:   " << homography_yaml << std::endl;
+    std::cout << "Device ID:    " << device_id << std::endl;
     if (provider == "tensorrt") {
-        std::cout << "Cache Dir:   " << cache_dir << std::endl;
+        std::cout << "Cache Dir:    " << cache_dir << std::endl;
     }
-    std::cout << "======================================" << std::endl;
-    std::cout << "Subscribe:   VisionPilot/RawFrames" << std::endl;
-    std::cout << "Publish:     VisionPilot/CIPO" << std::endl;
+    std::cout << "Subscribe:    VisionPilot/RawFrames" << std::endl;
+    std::cout << "Publish:      VisionPilot/CIPO" << std::endl;
+    std::cout << "Measure IPC:  " << (measure_ipc_latency ? "Yes (log every 50 frames)" : "No") << std::endl;
     std::cout << "======================================\n" << std::endl;
     
     // Initialize iceoryx2
@@ -118,7 +120,7 @@ auto main(int argc, char* argv[]) -> int {
     
     while (running) {
         // Receive frame (zero-copy read from shared memory)
-        auto receive_start = std::chrono::steady_clock::now();
+        auto receive_time = std::chrono::steady_clock::now();
         auto frame_sample = frame_subscriber.receive().expect("receive succeeds");
         
         if (!frame_sample.has_value()) {
@@ -133,11 +135,25 @@ auto main(int argc, char* argv[]) -> int {
             continue;
         }
         
-        // Calculate IPC transfer latency (frame_node publish → inference_node receive)
-        uint64_t receive_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            receive_start.time_since_epoch()
-        ).count();
-        float ipc_latency_us = (receive_timestamp_ns - raw_frame.publish_timestamp_ns) / 1000.0f;
+        // Calculate latencies (only if measurement is enabled)
+        float capture_to_publish_us = 0.0f;
+        float publish_to_receive_us = 0.0f;
+        float capture_to_receive_us = 0.0f;
+        
+        if (measure_ipc_latency) {
+            uint64_t receive_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                receive_time.time_since_epoch()
+            ).count();
+            
+            // Latency 1: Capture → Publish (frame_node processing)
+            capture_to_publish_us = (raw_frame.publish_timestamp_ns - raw_frame.capture_timestamp_ns) / 1000.0f;
+            
+            // Latency 2: Publish → Receive (IPC transfer)
+            publish_to_receive_us = (receive_timestamp_ns - raw_frame.publish_timestamp_ns) / 1000.0f;
+            
+            // Latency 3: Capture → Receive (end-to-end)
+            capture_to_receive_us = (receive_timestamp_ns - raw_frame.capture_timestamp_ns) / 1000.0f;
+        }
         
         // Reconstruct cv::Mat (no copy, points to shared memory)
         cv::Mat frame(raw_frame.height, raw_frame.width, CV_8UC3,
@@ -185,7 +201,7 @@ auto main(int argc, char* argv[]) -> int {
         cipo_msg.num_tracked_objects = static_cast<uint8_t>(tracked_objects.size());
         cipo_msg.inference_latency_ms = inference_latency_ms;
         cipo_msg.tracking_latency_ms = tracking_latency_ms;
-        cipo_msg.ipc_latency_us = ipc_latency_us;
+        cipo_msg.ipc_latency_us = publish_to_receive_us;  // Store IPC transfer latency in CIPO message
         
         // Fill bounding box if CIPO exists
         if (cipo.exists) {
@@ -226,6 +242,14 @@ auto main(int argc, char* argv[]) -> int {
             std::cout << "Frame " << raw_frame.frame_id << " | No main_CIPO" << std::endl;
         }
         
+        // Log IPC latencies every 50 frames if measurement is enabled
+        if (measure_ipc_latency && processed_frames % 50 == 0) {
+            std::cout << "[InferenceNode] Frame " << raw_frame.frame_id 
+                      << " | Capture→Publish: " << std::fixed << std::setprecision(1) << capture_to_publish_us << "μs"
+                      << " | Publish→Receive: " << publish_to_receive_us << "μs"
+                      << " | Capture→Receive: " << capture_to_receive_us << "μs" << std::endl;
+        }
+        
         // Stats every 100 frames
         if (processed_frames % 100 == 0) {
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
@@ -234,8 +258,7 @@ auto main(int argc, char* argv[]) -> int {
             float fps = (elapsed > 0) ? (float)processed_frames / elapsed : 0.0f;
             std::cout << "[InferenceNode] Processed " << processed_frames << " frames"
                       << " | FPS: " << std::fixed << std::setprecision(1) << fps
-                      << " | IPC: " << std::setprecision(2) << ipc_latency_us << "μs"
-                      << " | Inference: " << inference_latency_ms << "ms"
+                      << " | Inference: " << std::setprecision(2) << inference_latency_ms << "ms"
                       << " | Tracking: " << tracking_latency_ms << "ms" << std::endl;
         }
     }
