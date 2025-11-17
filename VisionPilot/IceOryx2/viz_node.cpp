@@ -85,22 +85,15 @@ void drawCIPO(cv::Mat& frame, const CIPOMessage* cipo) {
     status << "Track ID: " << cipo->track_id 
            << " | Level: " << cipo->class_id
            << " | Objects: " << (int)cipo->num_tracked_objects;
-    cv::putText(frame, status.str(), cv::Point(10, frame.rows - 90),
+    cv::putText(frame, status.str(), cv::Point(10, frame.rows - 60),
                 cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
     
-    // Latency info - Line 1
-    std::ostringstream latency1;
-    latency1 << "IPC: " << std::fixed << std::setprecision(1) 
-             << cipo->ipc_latency_us << "us | Inf: " 
-             << cipo->inference_latency_ms << "ms";
-    cv::putText(frame, latency1.str(), cv::Point(10, frame.rows - 60),
-                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
-    
-    // Latency info - Line 2
-    std::ostringstream latency2;
-    latency2 << "Track: " << std::fixed << std::setprecision(1) 
-             << cipo->tracking_latency_ms << "ms";
-    cv::putText(frame, latency2.str(), cv::Point(10, frame.rows - 30),
+    // Processing latency info (IPC latency logged to console if enabled)
+    std::ostringstream latency;
+    latency << "Inference: " << std::fixed << std::setprecision(1) 
+            << cipo->inference_latency_ms << "ms | Track: " 
+            << cipo->tracking_latency_ms << "ms";
+    cv::putText(frame, latency.str(), cv::Point(10, frame.rows - 30),
                 cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
 }
 
