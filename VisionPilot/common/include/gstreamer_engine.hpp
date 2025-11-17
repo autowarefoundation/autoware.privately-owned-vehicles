@@ -56,6 +56,19 @@ public:
   cv::Mat getFrame();
 
   /**
+   * @brief Get frame directly into provided buffer (zero-copy to shared memory)
+   * @param dest_buffer Destination buffer (must be pre-allocated, BGR format)
+   * @param buffer_size Size of destination buffer in bytes
+   * @param out_width Output: actual frame width
+   * @param out_height Output: actual frame height
+   * @return true if successful, false if error or buffer too small
+   * 
+   * This method copies directly from GStreamer's buffer to the provided destination,
+   * avoiding intermediate allocations. Ideal for copying to shared memory.
+   */
+  bool getFrameInto(uint8_t* dest_buffer, size_t buffer_size, int& out_width, int& out_height);
+
+  /**
    * @brief Check if stream is active
    */
   bool isActive() const { return is_active_.load(); }
