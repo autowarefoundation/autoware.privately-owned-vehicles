@@ -104,9 +104,6 @@ int main(int argc, char** argv) {
                 frame_count = 0;
                 start_time = current_time;
             }
-
-            // Release sample
-            z_drop(z_move(sample));
         }
 
         // Clean up

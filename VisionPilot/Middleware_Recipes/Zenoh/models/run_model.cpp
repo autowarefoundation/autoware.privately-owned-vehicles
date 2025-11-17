@@ -239,6 +239,11 @@ int main(int argc, char* argv[]) {
 
             // Benchmark: Output done
             timer.recordOutputEnd();
+
+            // Release slice
+            z_drop(z_move(zslice));
+            // Release sample
+            z_drop(z_move(sample));
         }
         
         // Cleanup
