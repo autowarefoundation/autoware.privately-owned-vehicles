@@ -84,44 +84,41 @@ auto main(int argc, char* argv[]) -> int {
     auto start_time = std::chrono::steady_clock::now();
     
     while (running) {
-        // Capture frame from GStreamer
+        // STEP 1: Record capture start time
         auto capture_time = std::chrono::steady_clock::now();
-        cv::Mat gstreamer_frame = gstreamer.getFrame();
         
-        if (gstreamer_frame.empty()) {
+        // STEP 2: Loan shared memory FIRST (zero-copy pattern)
+        auto sample = publisher.loan_uninit().expect("loan sample");
+        
+        // STEP 3: Get mutable reference to uninitialized payload in shared memory
+        RawFrame& frame_data = sample.payload_mut();
+        
+        // STEP 4: Capture frame DIRECTLY into shared memory (no intermediate allocation!)
+        // This eliminates the stack-allocated cv::Mat
+        int actual_width, actual_height;
+        bool success = gstreamer.getFrameInto(
+            frame_data.data, 
+            sizeof(frame_data.data),  // 1920 * 1280 * 3
+            actual_width, 
+            actual_height
+        );
+        
+        if (!success) {
             std::cout << "[FrameNode] End of stream or failed to capture frame" << std::endl;
             break;
         }
         
-        // Ensure frame is 1920x1280 (Waymo dimensions)
-        if (gstreamer_frame.cols != 1920 || gstreamer_frame.rows != 1280) {
-            cv::resize(gstreamer_frame, gstreamer_frame, cv::Size(1920, 1280));
-        }
-        
-        // STEP 1: Loan shared memory FIRST (zero-copy)
-        auto sample = publisher.loan_uninit().expect("loan sample");
-        
-        // STEP 2: Get mutable reference to uninitialized payload in shared memory
-        RawFrame& frame_data = sample.payload_mut();
-        
-        // STEP 3: Fill metadata directly in shared memory
+        // STEP 6: Fill metadata directly in shared memory
         frame_data.frame_id = frame_id++;
         frame_data.capture_timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             capture_time.time_since_epoch()
         ).count();
-        frame_data.width = gstreamer_frame.cols;
-        frame_data.height = gstreamer_frame.rows;
-        frame_data.channels = gstreamer_frame.channels();
-        frame_data.step = gstreamer_frame.step[0];
+        frame_data.width = actual_width;
+        frame_data.height = actual_height;
+        frame_data.channels = 3;  // BGR
+        frame_data.step = actual_width * 3;
         frame_data.is_valid = true;
         frame_data.source_id = 0;
-        
-        // STEP 4: Create cv::Mat wrapper pointing to shared memory buffer (no copy!)
-        cv::Mat shared_frame(frame_data.height, frame_data.width, CV_8UC3, 
-                            frame_data.data, frame_data.step);
-        
-        // STEP 5: Copy from GStreamer directly to shared memory (ONE unavoidable copy)
-        gstreamer_frame.copyTo(shared_frame);
         
         // STEP 6: Set publish timestamp right before sending
         auto publish_time = std::chrono::steady_clock::now();
