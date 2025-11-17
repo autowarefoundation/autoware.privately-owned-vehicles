@@ -5,11 +5,11 @@
 export GST_DEBUG=1
 
 # ===== Required Parameters =====
-VIDEO_PATH="/visionpilot/test/free-lane-driving.mp4"
+VIDEO_PATH="/visionpilot/test/traffic-driving.mp4"
 MODEL_PATH="/visionpilot/model-weights/autospeed.onnx"
 PROVIDER="cpu"       # Execution provider: 'cpu' or 'tensorrt'
 PRECISION="fp32"          # Precision: 'fp32' or 'fp16' (for TensorRT)
-HOMOGRAPHY_YAML="/visionpilot/model-weights/homography.yaml"
+HOMOGRAPHY_YAML="/visionpilot/VisionPilot/Standalone/AutoSpeed/homography.yaml"
 
 # ===== ONNX Runtime Options =====
 DEVICE_ID="0"             # GPU device ID (TensorRT only)
@@ -71,14 +71,4 @@ if [ -z "$ONNXRUNTIME_ROOT" ]; then
     exit 1
 fi
 
-# Enable X11 forwarding for visualization
-xhost +
-
-# Run the container
-docker run -it --rm \
-    -e DISPLAY="$DISPLAY" \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v "$(pwd)/model-weights:/visionpilot/model-weights" \
-    -v "$(pwd)/test:/visionpilot/test" \
-    visionpilot:latest \
-    /visionpilot/autospeed_infer_stream "$VIDEO_PATH" "$MODEL_PATH" "$PROVIDER" "$PRECISION" "$HOMOGRAPHY_YAML" "$DEVICE_ID" "$CACHE_DIR" "$REALTIME" "$MEASURE_LATENCY" "$ENABLE_VIZ" "$SAVE_VIDEO" "$OUTPUT_VIDEO"
+/visionpilot/autospeed_infer_stream "$VIDEO_PATH" "$MODEL_PATH" "$PROVIDER" "$PRECISION" "$HOMOGRAPHY_YAML" "$DEVICE_ID" "$CACHE_DIR" "$REALTIME" "$MEASURE_LATENCY" "$ENABLE_VIZ" "$SAVE_VIDEO" "$OUTPUT_VIDEO"
