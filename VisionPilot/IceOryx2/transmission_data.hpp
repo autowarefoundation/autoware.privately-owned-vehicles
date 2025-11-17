@@ -9,8 +9,8 @@
 // ============================================================================
 struct RawFrame {
     uint64_t frame_id;                  // Sequential frame counter
-    uint64_t timestamp_ns;              // Capture timestamp (nanoseconds)
-    uint64_t publish_timestamp_ns;      // Publish timestamp (for IPC latency measurement)
+    uint64_t capture_timestamp_ns;      // When frame was captured from GStreamer
+    uint64_t publish_timestamp_ns;      // When frame was published to iceoryx2
     uint32_t width;                     // Frame width (1920)
     uint32_t height;                    // Frame height (1280)
     uint32_t channels;                  // Color channels (3 = BGR)
@@ -20,7 +20,7 @@ struct RawFrame {
     bool is_valid;                      // Frame validity flag
     uint8_t source_id;                  // Camera/source identifier
     
-    RawFrame() : frame_id(0), timestamp_ns(0), publish_timestamp_ns(0), 
+    RawFrame() : frame_id(0), capture_timestamp_ns(0), publish_timestamp_ns(0), 
                  width(1920), height(1280), channels(3), step(1920 * 3), 
                  is_valid(false), source_id(0) {}
 };
@@ -73,7 +73,7 @@ struct CIPOMessage {
 inline std::ostream& operator<<(std::ostream& os, const RawFrame& frame) {
     os << "RawFrame[id=" << frame.frame_id 
        << ", " << frame.width << "x" << frame.height 
-       << ", ts=" << frame.timestamp_ns << "ns]";
+       << ", capture_ts=" << frame.capture_timestamp_ns << "ns]";
     return os;
 }
 
