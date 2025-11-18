@@ -11,6 +11,7 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <sstream>
 
 using namespace autoware_pov::vision;
 using namespace autoware_pov::vision::autospeed;  // For Detection type
@@ -92,8 +93,9 @@ struct PerformanceMetrics {
     bool measure_latency{true};                // Flag to enable metrics printing
 };
 
-// Visualization helper - draws tracked objects with IDs and CIPO indicator
-void drawTrackedObjects(cv::Mat& frame, 
+// Visualization helper - draws detections and tracked objects with IDs and CIPO indicator
+void drawTrackedObjects(cv::Mat& frame,
+                        const std::vector<Detection>& detections,
                         const std::vector<TrackedObject>& tracked_objects,
                         const CIPOInfo& cipo,
                         bool cut_in_detected = false,
@@ -202,6 +204,13 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
     }
     
+    // Warning persistence: keep warnings visible for 2 seconds
+    const auto WARNING_DURATION = std::chrono::seconds(2);
+    std::chrono::steady_clock::time_point last_cut_in_time;
+    std::chrono::steady_clock::time_point last_kalman_reset_time;
+    bool show_cut_in = false;
+    bool show_kalman_reset = false;
+    
     while (running.load()) {
         InferenceResult result;
         if (!queue.try_pop(result)) {
@@ -213,6 +222,24 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         
         // ===== CORE: Always output main_CIPO info (for pub/sub, logging, etc.) =====
         int count = metrics.frame_count.fetch_add(1) + 1;
+        
+        // Update warning persistence timers
+        if (result.cut_in_detected) {
+            last_cut_in_time = t_display_start;
+            show_cut_in = true;
+        }
+        if (result.kalman_reset) {
+            last_kalman_reset_time = t_display_start;
+            show_kalman_reset = true;
+        }
+        
+        // Check if warnings should still be shown (within 2 seconds)
+        if (show_cut_in && (t_display_start - last_cut_in_time) > WARNING_DURATION) {
+            show_cut_in = false;
+        }
+        if (show_kalman_reset && (t_display_start - last_kalman_reset_time) > WARNING_DURATION) {
+            show_kalman_reset = false;
+        }
         
         // Console output: main_CIPO status
         if (result.cipo.exists) {
@@ -232,9 +259,10 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         
         // ===== VISUALIZATION MODULE (optional, detachable) =====
         if (enable_viz) {
-            // Draw tracked objects with IDs, CIPO indicator, and event warnings
-            drawTrackedObjects(result.frame, result.tracked_objects, result.cipo, 
-                              result.cut_in_detected, result.kalman_reset);
+            // Draw ALL detections and tracked objects with IDs, CIPO indicator, and event warnings
+            // Use persistent warning flags instead of immediate event flags
+            drawTrackedObjects(result.frame, result.detections, result.tracked_objects, result.cipo, 
+                              show_cut_in, show_kalman_reset);
         }
         
         // Initialize video writer on first frame if needed
@@ -471,8 +499,9 @@ int main(int argc, char** argv)
     return 0;
 }
 
-// Draw tracked objects with IDs, distances, velocities, and CIPO indicator
-void drawTrackedObjects(cv::Mat& frame, 
+// Draw detections and tracked objects with IDs, distances, velocities, and CIPO indicator
+void drawTrackedObjects(cv::Mat& frame,
+                        const std::vector<Detection>& detections,
                         const std::vector<TrackedObject>& tracked_objects,
                         const CIPOInfo& cipo,
                         bool cut_in_detected,
@@ -488,32 +517,88 @@ void drawTrackedObjects(cv::Mat& frame,
         }
     };
 
-    // Draw ONLY the main_CIPO bounding box
-    for (const auto& obj : tracked_objects) {
-        // Skip if this object is NOT the main_CIPO
-        if (!cipo.exists || cipo.track_id != obj.track_id) {
+    // Helper to check if a detection bbox is being tracked
+    auto isTracked = [&tracked_objects](const cv::Rect& bbox) -> bool {
+        for (const auto& obj : tracked_objects) {
+            // Check if bboxes overlap significantly (IoU > 0.5)
+            int x_overlap = std::max(0, std::min(bbox.x + bbox.width, obj.bbox.x + obj.bbox.width) - 
+                                        std::max(bbox.x, obj.bbox.x));
+            int y_overlap = std::max(0, std::min(bbox.y + bbox.height, obj.bbox.y + obj.bbox.height) - 
+                                        std::max(bbox.y, obj.bbox.y));
+            int overlap_area = x_overlap * y_overlap;
+            int bbox_area = bbox.width * bbox.height;
+            int obj_area = obj.bbox.width * obj.bbox.height;
+            int union_area = bbox_area + obj_area - overlap_area;
+            
+            if (union_area > 0 && (float)overlap_area / union_area > 0.5f) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // STEP 1: Draw ALL detections (especially untracked level 3s) as basic boxes
+    for (const auto& det : detections) {
+        cv::Rect bbox(det.x1, det.y1, det.x2 - det.x1, det.y2 - det.y1);
+        
+        // Skip if this detection is already tracked (will be drawn in next step)
+        if (isTracked(bbox)) {
             continue;
         }
         
+        cv::Scalar color = getColor(det.class_id);
+        
+        // Draw semi-transparent filled bounding box (lighter for untracked)
+        cv::Mat overlay = frame.clone();
+        cv::rectangle(overlay, bbox, color, cv::FILLED);
+        cv::addWeighted(overlay, 0.2, frame, 0.8, 0, frame);  // 20% overlay (lighter)
+        
+        // Draw thin border for untracked detections
+        cv::rectangle(frame, bbox, color, 1);
+        
+        // Simple confidence label for untracked detections
+        std::stringstream label;
+        label << std::fixed << std::setprecision(2) << det.confidence;
+        std::string label_text = label.str();
+        
+        cv::putText(frame, label_text,
+                   cv::Point(bbox.x + 5, bbox.y + 20),
+                   cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                   cv::Scalar(255, 255, 255),  // White text
+                   1, cv::LINE_AA);
+    }
+
+    // STEP 2: Draw TRACKED objects with full info (distance, velocity, track ID)
+    for (const auto& obj : tracked_objects) {
+        bool is_main_cipo = (cipo.exists && cipo.track_id == obj.track_id);
+        
         cv::Scalar color = getColor(obj.class_id);
         
-        // Draw semi-transparent filled bounding box
+        // Draw semi-transparent filled bounding box (darker for tracked)
         cv::Mat overlay = frame.clone();
         cv::rectangle(overlay, obj.bbox, color, cv::FILLED);
-        cv::addWeighted(overlay, 0.3, frame, 0.7, 0, frame);  // 30% overlay, 70% original
+        cv::addWeighted(overlay, 0.35, frame, 0.65, 0, frame);  // 35% overlay (darker for tracked)
         
-        // Draw solid border on top
-        cv::rectangle(frame, obj.bbox, color, 3);
+        // Draw solid border on top (thicker for main_CIPO)
+        int border_thickness = is_main_cipo ? 4 : 2;
+        cv::rectangle(frame, obj.bbox, color, border_thickness);
         
         // Prepare distance and speed text (ABOVE the bbox)
         std::stringstream label;
         label << std::fixed << std::setprecision(1);
-        label << obj.distance_m << "m | " << std::abs(obj.velocity_ms) << "m/s";
+        label << obj.distance_m << "m | " << obj.velocity_ms << "m/s";
+        
+        // Add track ID for non-CIPO objects
+        if (!is_main_cipo) {
+            label << " [" << obj.track_id << "]";
+        }
         
         std::string label_text = label.str();
         int baseline = 0;
+        float font_scale = is_main_cipo ? 0.8 : 0.6;
+        int font_thickness = is_main_cipo ? 2 : 1;
         cv::Size label_size = cv::getTextSize(label_text, cv::FONT_HERSHEY_SIMPLEX, 
-                                               0.8, 2, &baseline);
+                                               font_scale, font_thickness, &baseline);
         
         // Position label ABOVE bbox
         int label_y = obj.bbox.y - 10;
@@ -530,9 +615,9 @@ void drawTrackedObjects(cv::Mat& frame,
         // Draw label text (white for high contrast)
         cv::putText(frame, label_text,
                    cv::Point(obj.bbox.x, label_y),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.8,
+                   cv::FONT_HERSHEY_SIMPLEX, font_scale,
                    cv::Scalar(255, 255, 255),  // White text
-                   2, cv::LINE_AA);
+                   font_thickness, cv::LINE_AA);
         
         // Draw bottom-center point (where distance is measured)
         cv::Point2f bottom_center(
