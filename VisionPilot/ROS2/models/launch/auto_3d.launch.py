@@ -14,7 +14,7 @@ def generate_launch_description():
     )
     param_file_arg = DeclareLaunchArgument(
         'param_file',
-        default_value='VisionPilot/ROS2/models/config/auto3d.yaml',
+        default_value='models/config/auto3d.yaml',
         description='Path to the YAML file with model parameters'
     )
 

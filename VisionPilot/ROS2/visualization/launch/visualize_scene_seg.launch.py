@@ -14,7 +14,7 @@ def generate_launch_description():
     
     image_topic_arg = DeclareLaunchArgument(
         'image_topic',
-        default_value='/sensors/video/image_raw',
+        default_value='/sensors/camera/image_raw',
         description='Input image topic for blending'
     )
     
