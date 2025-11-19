@@ -109,7 +109,7 @@ def main(args):
         original_settings = world.get_settings()
         settings = world.get_settings()
         settings.synchronous_mode = True
-        settings.fixed_delta_seconds = 0.01
+        settings.fixed_delta_seconds = 0.02
         world.apply_settings(settings)
 
         traffic_manager = client.get_trafficmanager()

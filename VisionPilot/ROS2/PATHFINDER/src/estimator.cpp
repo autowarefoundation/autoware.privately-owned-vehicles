@@ -25,8 +25,7 @@ void Estimator::update(const std::array<Gaussian, STATE_DIM> &measurement)
         double v1, m1;
         if (std::isnan(measurement[i].mean))
         {
-            m1 = state[i].mean;
-            v1 = state[i].variance * 1.25;
+            state[i].variance *= 1.25;
             continue;
         }
         else

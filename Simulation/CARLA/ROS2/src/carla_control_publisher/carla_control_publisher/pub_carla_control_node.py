@@ -10,16 +10,19 @@ class CarlaControlPublisher(Node):
         super().__init__('carla_control_publisher')
         self.steering_sub_ = self.create_subscription(Float32, '/vehicle/steering_cmd', self.steering_callback, 1)
         self.throttle_sub_ = self.create_subscription(Float32, '/vehicle/throttle_cmd', self.throttle_callback, 1)
+        self.brake_sub_    = self.create_subscription(Float32, '/vehicle/brake_cmd', self.brake_callback, 1)
+
         self.control_pub_ = self.create_publisher(CarlaEgoVehicleControl, '/carla/hero/vehicle_control_cmd', 1)
-        self.timer = self.create_timer(0.01, self.timer_callback)
+        self.timer = self.create_timer(0.02, self.timer_callback)
         self.steering_angle_cmd = 0.0
         self.throttle_cmd = 0.0
+        self.brake_cmd = 0.0
 
     def timer_callback(self):
         msg = CarlaEgoVehicleControl()
         msg.throttle = self.throttle_cmd if self.throttle_cmd > 0 else 0.0
         msg.steer = np.clip((180.0 / np.pi) * (self.steering_angle_cmd / 70.0), -1.0, 1.0) # vehicle specific
-        msg.brake = - self.throttle_cmd if self.throttle_cmd < 0 else 0.0
+        msg.brake = self.brake_cmd
         msg.hand_brake = False
         msg.reverse = False
         msg.manual_gear_shift = False
@@ -32,7 +35,11 @@ class CarlaControlPublisher(Node):
         
     def throttle_callback(self, msg):
         self.get_logger().info(f'Throttle command received: {msg.data}')
-        self.throttle_cmd = msg.data
+        self.throttle_cmd = msg.data    
+        
+    def brake_callback(self, msg):
+        self.get_logger().info(f'Brake command received: {msg.data}')
+        self.brake_cmd = msg.data
 
 def main(args=None):
     rclpy.init(args=args)
