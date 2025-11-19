@@ -97,6 +97,7 @@ target_link_libraries(object_finder
 # Main executable - infer_stream (bbox visualization with tracking)
 add_executable(autospeed_infer_stream
     infer_stream.cpp
+    draw_det.cpp
 )
 target_compile_definitions(autospeed_infer_stream PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 target_link_libraries(autospeed_infer_stream

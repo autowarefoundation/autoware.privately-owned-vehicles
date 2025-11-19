@@ -11,6 +11,8 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <sstream>
+#include "draw_det.hpp"
 
 using namespace autoware_pov::vision;
 using namespace autoware_pov::vision::autospeed;  // For Detection type
@@ -92,12 +94,6 @@ struct PerformanceMetrics {
     bool measure_latency{true};                // Flag to enable metrics printing
 };
 
-// Visualization helper - draws tracked objects with IDs and CIPO indicator
-void drawTrackedObjects(cv::Mat& frame, 
-                        const std::vector<TrackedObject>& tracked_objects,
-                        const CIPOInfo& cipo,
-                        bool cut_in_detected = false,
-                        bool kalman_reset = false);
 
 // Capture thread - timestamps when frame arrives and measures GStreamer→cv::Mat latency
 void captureThread(GStreamerEngine& gstreamer, ThreadSafeQueue<TimestampedFrame>& queue, 
@@ -202,6 +198,13 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
     }
     
+    // Warning persistence: keep warnings visible for 2 seconds
+    const auto WARNING_DURATION = std::chrono::seconds(2);
+    std::chrono::steady_clock::time_point last_cut_in_time;
+    std::chrono::steady_clock::time_point last_kalman_reset_time;
+    bool show_cut_in = false;
+    bool show_kalman_reset = false;
+    
     while (running.load()) {
         InferenceResult result;
         if (!queue.try_pop(result)) {
@@ -213,6 +216,24 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         
         // ===== CORE: Always output main_CIPO info (for pub/sub, logging, etc.) =====
         int count = metrics.frame_count.fetch_add(1) + 1;
+        
+        // Update warning persistence timers
+        if (result.cut_in_detected) {
+            last_cut_in_time = t_display_start;
+            show_cut_in = true;
+        }
+        if (result.kalman_reset) {
+            last_kalman_reset_time = t_display_start;
+            show_kalman_reset = true;
+        }
+        
+        // Check if warnings should still be shown (within 2 seconds)
+        if (show_cut_in && (t_display_start - last_cut_in_time) > WARNING_DURATION) {
+            show_cut_in = false;
+        }
+        if (show_kalman_reset && (t_display_start - last_kalman_reset_time) > WARNING_DURATION) {
+            show_kalman_reset = false;
+        }
         
         // Console output: main_CIPO status
         if (result.cipo.exists) {
@@ -232,9 +253,10 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         
         // ===== VISUALIZATION MODULE (optional, detachable) =====
         if (enable_viz) {
-            // Draw tracked objects with IDs, CIPO indicator, and event warnings
-            drawTrackedObjects(result.frame, result.tracked_objects, result.cipo, 
-                              result.cut_in_detected, result.kalman_reset);
+            // Draw ALL detections and tracked objects with IDs, CIPO indicator, and event warnings
+            // Use persistent warning flags instead of immediate event flags
+            drawTrackedObjects(result.frame, result.detections, result.tracked_objects, result.cipo, 
+                              show_cut_in, show_kalman_reset);
         }
         
         // Initialize video writer on first frame if needed
@@ -471,162 +493,3 @@ int main(int argc, char** argv)
     return 0;
 }
 
-// Draw tracked objects with IDs, distances, velocities, and CIPO indicator
-void drawTrackedObjects(cv::Mat& frame, 
-                        const std::vector<TrackedObject>& tracked_objects,
-                        const CIPOInfo& cipo,
-                        bool cut_in_detected,
-                        bool kalman_reset)
-{
-    // Color map based on level (1=red, 2=yellow, 3=cyan)
-    auto getColor = [](int class_id) -> cv::Scalar {
-        switch(class_id) {
-            case 1: return cv::Scalar(0, 0, 255);      // Red (BGR) - Level 1 (Main CIPO priority)
-            case 2: return cv::Scalar(0, 255, 255);    // Yellow (BGR) - Level 2 (Secondary priority)
-            case 3: return cv::Scalar(255, 255, 0);    // Cyan (BGR) - Level 3 (Other)
-            default: return cv::Scalar(255, 255, 255); // White fallback
-        }
-    };
-
-    // Draw ONLY the main_CIPO bounding box
-    for (const auto& obj : tracked_objects) {
-        // Skip if this object is NOT the main_CIPO
-        if (!cipo.exists || cipo.track_id != obj.track_id) {
-            continue;
-        }
-        
-        cv::Scalar color = getColor(obj.class_id);
-        
-        // Draw semi-transparent filled bounding box
-        cv::Mat overlay = frame.clone();
-        cv::rectangle(overlay, obj.bbox, color, cv::FILLED);
-        cv::addWeighted(overlay, 0.3, frame, 0.7, 0, frame);  // 30% overlay, 70% original
-        
-        // Draw solid border on top
-        cv::rectangle(frame, obj.bbox, color, 3);
-        
-        // Prepare distance and speed text (ABOVE the bbox)
-        std::stringstream label;
-        label << std::fixed << std::setprecision(1);
-        label << obj.distance_m << "m | " << std::abs(obj.velocity_ms) << "m/s";
-        
-        std::string label_text = label.str();
-        int baseline = 0;
-        cv::Size label_size = cv::getTextSize(label_text, cv::FONT_HERSHEY_SIMPLEX, 
-                                               0.8, 2, &baseline);
-        
-        // Position label ABOVE bbox
-        int label_y = obj.bbox.y - 10;
-        if (label_y < label_size.height + 10) {
-            label_y = obj.bbox.y + obj.bbox.height + label_size.height + 10;
-        }
-        
-        // Draw label background (black with slight transparency)
-        cv::Point label_origin(obj.bbox.x, label_y - label_size.height);
-        cv::Rect label_bg(label_origin.x - 5, label_origin.y - 5, 
-                         label_size.width + 10, label_size.height + 10);
-        cv::rectangle(frame, label_bg, cv::Scalar(0, 0, 0), cv::FILLED);
-        
-        // Draw label text (white for high contrast)
-        cv::putText(frame, label_text,
-                   cv::Point(obj.bbox.x, label_y),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.8,
-                   cv::Scalar(255, 255, 255),  // White text
-                   2, cv::LINE_AA);
-        
-        // Draw bottom-center point (where distance is measured)
-        cv::Point2f bottom_center(
-            obj.bbox.x + obj.bbox.width / 2.0f,
-            obj.bbox.y + obj.bbox.height
-        );
-        cv::circle(frame, bottom_center, 5, color, -1);
-        cv::circle(frame, bottom_center, 6, cv::Scalar(255, 255, 255), 2);  // White outline
-    }
-    
-    // Draw main_CIPO summary in top-left corner (ALWAYS shown when exists)
-    if (cipo.exists) {
-        std::stringstream cipo_text;
-        cipo_text << "main_CIPO: Track " << cipo.track_id 
-                  << " (Level " << cipo.class_id << ") "
-                  << std::fixed << std::setprecision(1)
-                  << cipo.distance_m << "m, "
-                  << cipo.velocity_ms << "m/s";
-        
-        std::string text = cipo_text.str();
-        int baseline = 0;
-        cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 
-                                             0.7, 2, &baseline);
-        
-        // Draw background
-        cv::Rect bg_rect(5, 5, text_size.width + 10, text_size.height + 10);
-        cv::rectangle(frame, bg_rect, cv::Scalar(0, 0, 0), cv::FILLED);
-        
-        // Draw text
-        cv::putText(frame, text,
-                   cv::Point(10, 15 + text_size.height),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                   cv::Scalar(0, 255, 0),  // Green text for CIPO
-                   2, cv::LINE_AA);
-    } else {
-        // No main_CIPO message
-        std::string text = "No main_CIPO detected";
-        cv::putText(frame, text,
-                   cv::Point(10, 30),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                   cv::Scalar(0, 0, 255),  // Red text
-                   2, cv::LINE_AA);
-    }
-    
-    // ===== EVENT WARNINGS =====
-    // Display prominent warnings for cut-in detection and Kalman reset
-    if (cut_in_detected || kalman_reset) {
-        // Position warnings in center-top of frame
-        int warning_y = 80;
-        
-        if (cut_in_detected) {
-            std::string warning_text = "!!! CUT-IN DETECTED !!!";
-            int baseline = 0;
-            cv::Size text_size = cv::getTextSize(warning_text, cv::FONT_HERSHEY_SIMPLEX, 
-                                                 1.2, 3, &baseline);
-            
-            int warning_x = (frame.cols - text_size.width) / 2;
-            
-            // Draw black background with red border
-            cv::Rect bg_rect(warning_x - 15, warning_y - text_size.height - 10, 
-                           text_size.width + 30, text_size.height + 20);
-            cv::rectangle(frame, bg_rect, cv::Scalar(255, 0, 0), 4);  // Red border
-            cv::rectangle(frame, bg_rect, cv::Scalar(0, 0, 0), cv::FILLED);  // Black bg
-            
-            // Draw warning text
-            cv::putText(frame, warning_text,
-                       cv::Point(warning_x, warning_y),
-                       cv::FONT_HERSHEY_SIMPLEX, 1.2,
-                       cv::Scalar(0, 0, 255),  // Red text
-                       3, cv::LINE_AA);
-            
-            warning_y += text_size.height + 35;
-        }
-        
-        if (kalman_reset) {
-            std::string reset_text = "Kalman Filter Reset";
-            int baseline = 0;
-            cv::Size text_size = cv::getTextSize(reset_text, cv::FONT_HERSHEY_SIMPLEX, 
-                                                 0.9, 2, &baseline);
-            
-            int reset_x = (frame.cols - text_size.width) / 2;
-            
-            // Draw black background with orange border
-            cv::Rect bg_rect(reset_x - 10, warning_y - text_size.height - 8, 
-                           text_size.width + 20, text_size.height + 16);
-            cv::rectangle(frame, bg_rect, cv::Scalar(0, 165, 255), 3);  // Orange border
-            cv::rectangle(frame, bg_rect, cv::Scalar(0, 0, 0), cv::FILLED);  // Black bg
-            
-            // Draw reset text
-            cv::putText(frame, reset_text,
-                       cv::Point(reset_x, warning_y),
-                       cv::FONT_HERSHEY_SIMPLEX, 0.9,
-                       cv::Scalar(0, 165, 255),  // Orange text
-                       2, cv::LINE_AA);
-        }
-    }
-}

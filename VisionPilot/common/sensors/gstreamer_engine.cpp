@@ -144,5 +144,64 @@ cv::Mat GStreamerEngine::getFrame()
   return frame_copy;
 }
 
+bool GStreamerEngine::getFrameInto(uint8_t* dest_buffer, size_t buffer_size, 
+                                   int& out_width, int& out_height)
+{
+  if (!is_active_.load() || !appsink_) {
+    return false;
+  }
+
+  if (!dest_buffer) {
+    LOG_ERROR("Destination buffer is null");
+    return false;
+  }
+
+  GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink_));
+  if (!sample) {
+    LOG_ERROR("Failed to pull sample");
+    is_active_.store(false);
+    return false;
+  }
+
+  GstBuffer* buffer = gst_sample_get_buffer(sample);
+  GstCaps* caps = gst_sample_get_caps(sample);
+  
+  // Get frame dimensions from caps
+  GstStructure* structure = gst_caps_get_structure(caps, 0);
+  gst_structure_get_int(structure, "width", &width_);
+  gst_structure_get_int(structure, "height", &height_);
+
+  // Map buffer to access raw data
+  GstMapInfo map;
+  if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+    LOG_ERROR("Failed to map buffer");
+    gst_sample_unref(sample);
+    return false;
+  }
+
+  // Calculate required buffer size (BGR = 3 bytes per pixel)
+  size_t required_size = width_ * height_ * 3;
+  if (buffer_size < required_size) {
+    LOG_ERROR(("Buffer too small: " + std::to_string(buffer_size) + 
+               " < " + std::to_string(required_size)).c_str());
+    gst_buffer_unmap(buffer, &map);
+    gst_sample_unref(sample);
+    return false;
+  }
+
+  // Copy directly from GStreamer buffer to destination (shared memory)
+  // This is ONE copy: GStreamer → Shared Memory (no intermediate allocation!)
+  std::memcpy(dest_buffer, map.data, required_size);
+
+  // Set output dimensions
+  out_width = width_;
+  out_height = height_;
+
+  gst_buffer_unmap(buffer, &map);
+  gst_sample_unref(sample);
+
+  return true;
+}
+
 }  // namespace autoware_pov::vision
 
