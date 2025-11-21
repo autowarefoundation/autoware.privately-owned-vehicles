@@ -13,52 +13,57 @@ def make_visualization(
         prediction: np.ndarray
 ):
     
-    # Prepping canvas
-    vis_predict_object = np.zeros((320, 640, 3), dtype = "uint8")
+    # Compute scale from prediction to image
+    img_h, img_w = image.shape[:2]
+    _, ph, pw = prediction.shape
+    scale_x = img_w / pw
+    scale_y = img_h / ph
 
-    # Fetch predictions and groundtruth labels
-    pred_egoleft_lanes  = np.where(prediction[0,:,:] > 0)
-    pred_egoright_lanes = np.where(prediction[1,:,:] > 0)
-    pred_other_lanes    = np.where(prediction[2,:,:] > 0)
+    # Prep img for drawing (convert to BGR for OpenCV)
+    img_bgr = cv2.cvtColor(image.copy(), cv2.COLOR_RGB2BGR)
 
-    # Color codes
-    egoleft_color   = [0, 255, 255] # Kinda blue
-    egoright_color  = [255, 0, 200] # Magenta
-    others_color    = [0, 153, 0]   # Quite green
+    # Fetch coords (y, x) for each channel
+    pred_coords = [
+        np.where(prediction[c] > 0)
+        for c in range(prediction.shape[0])
+    ]
 
-    # Visualize egoleft
-    for i in range(3):
-        vis_predict_object[
-            pred_egoleft_lanes[0], 
-            pred_egoleft_lanes[1], 
-            i
-        ] = egoleft_color[i]
+    # Choose radius based on scale
+    base_scale = min(scale_x, scale_y)
+    radius = max(1, int(round(base_scale * 0.5)))
 
-    # Visualize egoright
-    for i in range(3):
-        vis_predict_object[
-            pred_egoright_lanes[0],
-            pred_egoright_lanes[1],
-            i
-        ] = egoright_color[i]
+    # Color codes (RGB)
+    colors = [
+        (0, 0, 255),        # Blue      (ego left)
+        (200, 0, 255),      # Magenta   (ego right)
+        (0, 153, 0),        # Green     (other lanes)
+    ]
 
-    # Visualize other lanes
-    for i in range(3):
-        vis_predict_object[
-            pred_other_lanes[0],
-            pred_other_lanes[1],
-            i
-        ] = others_color[i]
+    # Draw
+    for i, (ys, xs) in enumerate(pred_coords):
+        if ys.size == 0:
+            continue
 
-    # Fuse image with mask
-    fused_image = cv2.addWeighted(
-        cv2.cvtColor(vis_predict_object, cv2.COLOR_BGR2RGB), 1,
-        image, 1,
-        0
-    )
-    fused_image = Image.fromarray(fused_image)
+        # Scale and clip to image bounds
+        xs_scaled = (xs.astype(np.float32) * scale_x).astype(np.int32)
+        ys_scaled = (ys.astype(np.float32) * scale_y).astype(np.int32)
+        xs_scaled = np.clip(xs_scaled, 0, img_w - 1)
+        ys_scaled = np.clip(ys_scaled, 0, img_h - 1)
 
-    return fused_image
+        # Draw dots
+        color = colors[i] if i < len(colors) else (255,255,255)
+        for x, y in zip(xs_scaled, ys_scaled):
+            cv2.circle(
+                img_bgr, 
+                (int(x), int(y)), 
+                radius, color, thickness = -1, 
+                lineType=cv2.LINE_AA
+            )
+
+    # Back to PIL Image
+    vis_image = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
+
+    return vis_image
 
 
 def main(): 
