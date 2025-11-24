@@ -54,7 +54,7 @@ def main():
         autospeed_builder = AutoSpeedNetwork()
         model = autospeed_builder.build_model(version='n', num_classes=4)
     elif (model_name == 'EgoLanes'):
-        print('Processing EgoLanes (AutoSteer) Network')
+        print('Processing EgoLanes Network')
         model = EgoLanesNetwork()
     else:
         raise Exception("Model name not specified correctly, please check")
