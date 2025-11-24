@@ -75,7 +75,7 @@ def main():
 
     # Load datasets
     for dataset in VALID_DATASET_LIST:
-        this_dataset_loader = LoadDataAutoSteer(
+        this_dataset_loader = LoadDataEgoLanes(
             labels_filepath = msdict[dataset]["path_labels"],
             mask_dirpath = msdict[dataset]["path_masks"],
             images_filepath = msdict[dataset]["path_perspective_image"],
@@ -111,9 +111,9 @@ def main():
 
     CHECKPOINT_PATH = None #args.checkpoint_path
     if (CHECKPOINT_PATH != None):
-        trainer = AutoSteerTrainer(checkpoint_path = CHECKPOINT_PATH)    
+        trainer = EgoLanesTrainer(checkpoint_path = CHECKPOINT_PATH)    
     else:
-        trainer = AutoSteerTrainer()
+        trainer = EgoLanesTrainer()
     
     # Zero gradients
     trainer.zero_grad()
