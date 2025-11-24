@@ -23,14 +23,22 @@
 using namespace autoware_pov::vision::autosteer;
 using namespace std::chrono;
 
-// Thread-safe queue
+// Thread-safe queue with max size limit
 template<typename T>
 class ThreadSafeQueue {
 public:
+    explicit ThreadSafeQueue(size_t max_size = 10) : max_size_(max_size) {}
+
     void push(const T& item) {
         std::unique_lock<std::mutex> lock(mutex_);
+        // Wait if queue is full (backpressure)
+        cond_not_full_.wait(lock, [this] { 
+            return queue_.size() < max_size_ || !active_; 
+        });
+        if (!active_) return;
+        
         queue_.push(item);
-        cond_.notify_one();
+        cond_not_empty_.notify_one();
     }
 
     bool try_pop(T& item) {
@@ -40,23 +48,26 @@ public:
         }
         item = queue_.front();
         queue_.pop();
+        cond_not_full_.notify_one();  // Notify that space is available
         return true;
     }
 
     T pop() {
         std::unique_lock<std::mutex> lock(mutex_);
-        cond_.wait(lock, [this] { return !queue_.empty() || !active_; });
+        cond_not_empty_.wait(lock, [this] { return !queue_.empty() || !active_; });
         if (!active_ && queue_.empty()) {
             return T();
         }
         T item = queue_.front();
         queue_.pop();
+        cond_not_full_.notify_one();  // Notify that space is available
         return item;
     }
 
     void stop() {
         active_ = false;
-        cond_.notify_all();
+        cond_not_empty_.notify_all();
+        cond_not_full_.notify_all();
     }
 
     size_t size() {
@@ -67,8 +78,10 @@ public:
 private:
     std::queue<T> queue_;
     std::mutex mutex_;
-    std::condition_variable cond_;
+    std::condition_variable cond_not_empty_;
+    std::condition_variable cond_not_full_;
     std::atomic<bool> active_{true};
+    size_t max_size_;
 };
 
 // Timestamped frame
@@ -236,12 +249,14 @@ void displayThread(
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
-                int fourcc = cv::VideoWriter::fourcc('X', 'V', 'I', 'D');
+                // Use H.264 for better performance and smaller file size
+                // XVID is slower and creates larger files
+                int fourcc = cv::VideoWriter::fourcc('a', 'v', 'c', '1');  // H.264
                 video_writer.open(output_video_path, fourcc, 30.0,
                                 cv::Size(result.frame.cols, result.frame.rows), true);
 
                 if (video_writer.isOpened()) {
-                    std::cout << "Video writer initialized: " << result.frame.cols 
+                    std::cout << "Video writer initialized (H.264): " << result.frame.cols 
                               << "x" << result.frame.rows << " @ 30 fps" << std::endl;
                     video_writer_initialized = true;
                 } else {
@@ -381,9 +396,9 @@ int main(int argc, char** argv)
     
     std::cout << "Backend ready!\n" << std::endl;
 
-    // Thread-safe queues
-    ThreadSafeQueue<TimestampedFrame> capture_queue;
-    ThreadSafeQueue<InferenceResult> display_queue;
+    // Thread-safe queues with bounded size (prevents memory overflow)
+    ThreadSafeQueue<TimestampedFrame> capture_queue(5);   // Max 5 frames waiting for inference
+    ThreadSafeQueue<InferenceResult> display_queue(5);    // Max 5 frames waiting for display
 
     // Performance metrics
     PerformanceMetrics metrics;
