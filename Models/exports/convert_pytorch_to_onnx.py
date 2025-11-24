@@ -11,6 +11,7 @@ from model_components.scene_3d_network import Scene3DNetwork
 from model_components.ego_path_network import EgoPathNetwork
 from model_components.domain_seg_network import DomainSegNetwork
 from model_components.auto_speed_network import AutoSpeedNetwork
+from model_components.ego_lanes_network import EgoLanesNetwork
 def main():
 
     # Argument parser for data root path and save path
@@ -57,6 +58,10 @@ def main():
         print('Processing AutoSpeed Network')
         autospeed_builder = AutoSpeedNetwork()
         model = autospeed_builder.build_model(version='n', num_classes=4)
+    elif (model_name == 'EgoLanes'):
+        print('Processing EgoLanes Network')
+        sceneSegNetwork = SceneSegNetwork()
+        model = EgoLanesNetwork(sceneSegNetwork)
     else:
         raise Exception("Model name not specified correctly, please check")
     
