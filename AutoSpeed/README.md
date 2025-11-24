@@ -1,10 +1,10 @@
-# AutoSpeed
+## AutoSpeed
 
 Maintaining the vehicle speed and keep safe distance from the vehicle in front is crucial for safe driving. In order to
 determine the closest inpath object AutoSpeed network is used. This network is inspired by YOLOv11 architecture, with
 substituted c3K2 by a new block ASC block to improve CIPO object detection.
 
-## Performance Results
+### Performance Results
 
 Network is trained on [OpenLane](https://github.com/OpenDriveLab/OpenLane) dataset.
 
