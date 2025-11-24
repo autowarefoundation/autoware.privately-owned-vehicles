@@ -27,7 +27,7 @@ class AutoSteerHead(nn.Module):
         self.angle_end = nn.Linear(1600, 1)
  
 
-    def forward(self, features):
+    def forward(self, neck, neck_prev, neck_prev_prev):
 
         # Calculating feature vector
         p0 = self.path_layer_0(features)
