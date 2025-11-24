@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from argparse import ArgumentParser
 sys.path.append('../..')
-from inference.auto_steer_infer import AutoSteerNetworkInfer
+from inference.ego_lanes_infer import EgoLanesNetworkInfer
 
     
 def make_visualization(
