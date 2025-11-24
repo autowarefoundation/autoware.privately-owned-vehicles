@@ -19,6 +19,13 @@
 ### [Link to Download Traced Pytorch Model *.pt](https://drive.google.com/file/d/12fLHpx3IZDglRJaDZT9kMhsV-f6ZTyks/view?usp=drive_link)
 ### [Link to Download ONNX FP32 Weights *.onnx](https://drive.google.com/file/d/1zCworKw4aQ9_hDBkHfj1-sXitAAebl5Y/view?usp=drive_link)
 
+## AutoSpeed - closest in-path object detection
+### [Link to Download Pytorch Model Weights *.pth](https://drive.google.com/file/d/1iD-LKf5wSuvf0F5OHVHH3znGEvSIS8LY/view?usp=drive_link)
+### [Link to Download ONNX FP32 Weights *.onnx](https://drive.google.com/file/d/1Zhe8uXPbrPr8cvcwHkl1Hv0877HHbxbB/view?usp=drive_link)
+
+## EgoLanes - multi-lane segmentation and ego-lanes classification
+### [Link to Download Pytorch Model Weights *.pth](https://drive.google.com/file/d/1Njo9EEc2tdU1ffo8AUQ9mjwuQ9CzSRPX/view?usp=sharing)
+
 # Description
 
 ## data_utils
