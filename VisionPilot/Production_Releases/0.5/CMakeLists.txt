@@ -1,118 +1,86 @@
 cmake_minimum_required(VERSION 3.16)
-project(autosteer_pipeline)
+project(autosteer_pipeline LANGUAGES CXX)
 
-# C++ Standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Build type
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# Compiler flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-
-# Find required packages
+# Find dependencies
 find_package(OpenCV REQUIRED)
 find_package(Threads REQUIRED)
 
-# ONNX Runtime - Manual configuration
-# Set ONNXRUNTIME_ROOT to your ONNX Runtime installation directory
-# Example: cmake -DONNXRUNTIME_ROOT=/usr/local/onnxruntime ..
-if(NOT DEFINED ONNXRUNTIME_ROOT)
-  set(ONNXRUNTIME_ROOT "/usr/local/onnxruntime" CACHE PATH "ONNX Runtime installation directory")
+# ONNX Runtime - user must set ONNXRUNTIME_ROOT
+if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
+    message(FATAL_ERROR "Please set ONNXRUNTIME_ROOT environment variable to ONNX Runtime installation directory\n"
+                        "Example: export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0")
 endif()
 
-set(ONNXRUNTIME_INCLUDE_DIRS "${ONNXRUNTIME_ROOT}/include")
-set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
+set(ONNXRUNTIME_ROOT $ENV{ONNXRUNTIME_ROOT})
+set(ONNXRUNTIME_INCLUDE_DIR ${ONNXRUNTIME_ROOT}/include)
+set(ONNXRUNTIME_LIB_DIR ${ONNXRUNTIME_ROOT}/lib)
 
-# Find ONNX Runtime library
-find_library(ONNXRUNTIME_LIBRARY
-  NAMES onnxruntime
-  PATHS ${ONNXRUNTIME_LIB_DIR}
-  NO_DEFAULT_PATH
-)
+# Find library (handle versioned .so files)
+file(GLOB ONNXRUNTIME_LIBRARY "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.so*")
+list(GET ONNXRUNTIME_LIBRARY 0 ONNXRUNTIME_LIBRARY)
+
+if(NOT EXISTS ${ONNXRUNTIME_INCLUDE_DIR}/onnxruntime_cxx_api.h)
+    message(FATAL_ERROR "ONNX Runtime headers not found at: ${ONNXRUNTIME_INCLUDE_DIR}")
+endif()
 
 if(NOT ONNXRUNTIME_LIBRARY)
-  message(FATAL_ERROR "ONNX Runtime library not found. Please set ONNXRUNTIME_ROOT to your ONNX Runtime installation directory.")
+    message(FATAL_ERROR "ONNX Runtime library not found at: ${ONNXRUNTIME_LIB_DIR}")
 endif()
 
-message(STATUS "ONNX Runtime include: ${ONNXRUNTIME_INCLUDE_DIRS}")
-message(STATUS "ONNX Runtime library: ${ONNXRUNTIME_LIBRARY}")
+# Include directories
+include_directories(
+    ${OpenCV_INCLUDE_DIRS}
+    ${ONNXRUNTIME_INCLUDE_DIR}
+)
 
-# ===== Inference Library =====
+# AutoSteer inference backend
 add_library(autosteer_inference
-  src/inference/onnxruntime_session.cpp
-  src/inference/onnxruntime_engine.cpp
+    src/inference/onnxruntime_session.cpp
+    src/inference/onnxruntime_engine.cpp
 )
-
-target_include_directories(autosteer_inference PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${OpenCV_INCLUDE_DIRS}
-  ${ONNXRUNTIME_INCLUDE_DIRS}
-)
-
+target_compile_definitions(autosteer_inference PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 target_link_libraries(autosteer_inference
-  ${OpenCV_LIBS}
-  ${ONNXRUNTIME_LIBRARY}
+    ${OpenCV_LIBS}
+    ${ONNXRUNTIME_LIBRARY}
+)
+# Add RPATH so executable can find libonnxruntime.so at runtime
+set_target_properties(autosteer_inference PROPERTIES
+    BUILD_RPATH ${ONNXRUNTIME_LIB_DIR}
+    INSTALL_RPATH ${ONNXRUNTIME_LIB_DIR}
 )
 
-# ===== Visualization Library =====
+# Visualization module
 add_library(autosteer_visualization
-  src/visualization/draw_lanes.cpp
+    src/visualization/draw_lanes.cpp
 )
-
-target_include_directories(autosteer_visualization PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${OpenCV_INCLUDE_DIRS}
-)
-
+target_compile_definitions(autosteer_visualization PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 target_link_libraries(autosteer_visualization
-  autosteer_inference
-  ${OpenCV_LIBS}
+    autosteer_inference
+    ${OpenCV_LIBS}
 )
 
-# ===== Main Executable =====
+# Main executable
 add_executable(autosteer_pipeline
-  main.cpp
+    main.cpp
 )
-
+target_compile_definitions(autosteer_pipeline PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 target_link_libraries(autosteer_pipeline
-  autosteer_inference
-  autosteer_visualization
-  Threads::Threads
-  ${OpenCV_LIBS}
+    autosteer_inference
+    autosteer_visualization
+    ${OpenCV_LIBS}
+    pthread
 )
 
 # Installation
-install(TARGETS autosteer_inference autosteer_visualization autosteer_pipeline
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
+install(TARGETS autosteer_pipeline
+    RUNTIME DESTINATION bin
 )
 
-install(FILES
-  src/inference/onnxruntime_session.hpp
-  src/inference/onnxruntime_engine.hpp
-  DESTINATION include/autosteer/inference
-)
-
-install(FILES
-  src/visualization/draw_lanes.hpp
-  DESTINATION include/autosteer/visualization
-)
-
-# Print configuration summary
-message(STATUS "")
-message(STATUS "AutoSteer Pipeline Configuration:")
-message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "  C++ standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "  OpenCV version: ${OpenCV_VERSION}")
-message(STATUS "  ONNX Runtime: ${ONNXRUNTIME_ROOT}")
-message(STATUS "  Components:")
-message(STATUS "    - Inference library: autosteer_inference")
-message(STATUS "    - Visualization library: autosteer_visualization")
-message(STATUS "    - Main executable: autosteer_pipeline")
-message(STATUS "")
+message(STATUS "OpenCV: ${OpenCV_VERSION}")
+message(STATUS "ONNX Runtime: ${ONNXRUNTIME_ROOT}")
+message(STATUS "  - Library: ${ONNXRUNTIME_LIBRARY}")
+message(STATUS "  - Include: ${ONNXRUNTIME_INCLUDE_DIR}")
 
