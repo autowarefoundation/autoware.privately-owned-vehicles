@@ -10,7 +10,7 @@ from inference.auto_steer_infer import AutoSteerNetworkInfer
 from image_visualization import make_visualization
 
 FRAME_INF_SIZE = (640, 320)
-FRAME_ORI_SIZE = (1280, 720)
+FRAME_ORI_SIZE = (720, 360)
 
 
 def main():
@@ -82,6 +82,9 @@ def main():
 
         # Inference
         prediction = model.inference(image)
+        prediction = np.moveaxis(prediction, 0, -1)
+        save_path = '/mnt/media/Daihatsu/100/lanes/'
+        np.save(save_path + str(i) + '.npy', prediction)
 
         # Frame preprocessing
         vis_image_data = make_visualization(image.copy(), prediction)
