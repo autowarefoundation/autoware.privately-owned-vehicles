@@ -357,6 +357,28 @@ int main(int argc, char** argv)
     }
 
     AutoSteerOnnxEngine engine(model_path, provider, precision, device_id, cache_dir);
+    std::cout << "Backend initialized!\n" << std::endl;
+
+    // Warm-up inference (builds TensorRT engine on first run)
+    if (provider == "tensorrt") {
+        std::cout << "Running warm-up inference to build TensorRT engine..." << std::endl;
+        std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
+        
+        cv::Mat dummy_frame(720, 1280, CV_8UC3, cv::Scalar(128, 128, 128));
+        auto warmup_start = std::chrono::steady_clock::now();
+        
+        // Run warm-up inference
+        LaneSegmentation warmup_result = engine.inference(dummy_frame, threshold);
+        
+        auto warmup_end = std::chrono::steady_clock::now();
+        double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+            warmup_end - warmup_start).count() / 1000.0;
+        
+        std::cout << "Warm-up complete! (took " << std::fixed << std::setprecision(1) 
+                  << warmup_time << "s)" << std::endl;
+        std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
+    }
+    
     std::cout << "Backend ready!\n" << std::endl;
 
     // Thread-safe queues
