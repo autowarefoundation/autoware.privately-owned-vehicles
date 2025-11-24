@@ -1,6 +1,7 @@
-## EgoPath
-Self-driving cars most often rely on lane detection to detect the driving path, especially on highways. By detecting the left and right ego lane, the vehicle is able to determine an ideal driving path and track that path to remain centred within its lane. However, there are many circumstances when this is not possible and lanes are not visible - leading to system failure and safety risk - for example, lanes may be faded due to old road infrastructure, lanes may be covered by snow or obstructed due to road splashes/reflections during heavy rain. Another important edge case scenario is when the driving path is no longer defined by lanes, but rather by roadwork elements such as traffic cones and construction barriers, and in such scenarios, lane detection systems are unable to inform a car of where it should drive. 
+## EgoLanes
+EgoLanes is a neural network that processes raw image frames and performs real-time semantic segmentation of driving lanes in the image. It produces a three class segmentation output for the ego-left lane, the ego-right lane and all other lanes. It outputs lanes at 1/4 resolution of the input image size allowing for quick inference on low power embedded hardware. EgoLanes was trained with data from a variety of real-world datasets including TuSimple, OpenLane, CurveLanes, Jiqing, and ONCE3D Lane.
 
-EgoPath is a neural network which processes raw camera image frames and directly predicts the driving path in an end-to-end manner, allowing for safe autonomous driving in challenging road conditions where lane detection alone is insufficient.
+### Loss Function:
 
-The EgoPath network comprises a total of 3.17 Billion Floating Point Operations.
+- Lane-level binary cross-entropy loss: This loss penalized the model in its individual class level predictions
+- Edge preservation loss: This loss ensured the model was able to predict lane boundaries accurately
