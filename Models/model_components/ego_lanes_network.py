@@ -7,9 +7,9 @@ from .ego_lanes_head import EgoLanesHead
 
 import torch.nn as nn
 
-class AutoSteerNetwork(nn.Module):
+class EgoLanesNetwork(nn.Module):
     def __init__(self):
-        super(AutoSteerNetwork, self).__init__()
+        super(EgoLanesNetwork, self).__init__()
 
         # Upstream blocks
         self.BEVBackbone = Backbone()
