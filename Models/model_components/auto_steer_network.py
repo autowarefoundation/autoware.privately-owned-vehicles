@@ -1,9 +1,7 @@
 from .backbone import Backbone
 from .backbone_feature_fusion import BackboneFeatureFusion
 from .auto_steer_context import AutoSteerContext
-from .auto_steer_head import AutoSteerHead
 from .ego_path_neck import EgoPathNeck
-from .ego_path_head import EgoPathHead
 from .ego_lanes_head import EgoLanesHead
 
 

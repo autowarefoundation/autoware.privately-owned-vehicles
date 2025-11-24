@@ -57,7 +57,6 @@ class AutoSteerNetworkInfer():
 
         # Get output
         binary_seg = prediction.squeeze(0).cpu().detach().numpy()
-        binary_seg = binary_seg.permute(1, 2, 0)
 
         return binary_seg
 
