@@ -1,4 +1,4 @@
-# VisionPilot - Middleware-Agnostic Vision Framework
+# Middleware recipes for Vision Pilot
 
 A modular, hardware and middleware-independent vision processing framework designed for autonomous vehicle perception tasks. VisionPilot provides a unified API for AI inference and visualization that can be deployed across different middleware systems.
 
