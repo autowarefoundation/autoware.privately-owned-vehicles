@@ -52,7 +52,7 @@ DYNAMIC_HOMOTRANS_DATASETS = [
 ]
 
 
-class LoadDataAutoSteer():
+class LoadDataEgoLanes():
     def __init__(
             self, 
             labels_filepath: str,

@@ -12,12 +12,12 @@ from typing import Literal, get_args
 import sys
 
 sys.path.append('..')
-from model_components.auto_steer_network import AutoSteerNetwork
+from model_components.ego_lanes_network import EgoLanesNetwork
 from data_utils.augmentations import Augmentations
-from data_utils.load_data_auto_steer import VALID_DATASET_LIST
+from data_utils.load_data_ego_lanes import VALID_DATASET_LIST
 
 
-class AutoSteerTrainer():
+class EgoLanesTrainer():
     def __init__(
         self,  
         checkpoint_path = ""
@@ -90,7 +90,7 @@ class AutoSteerTrainer():
         print(f"Using {self.device} for inference.")
 
         # Instantiate model
-        self.model = AutoSteerNetwork()
+        self.model = EgoLanesNetwork()
         
         if(checkpoint_path):
             print("Loading trained AutoSteer model from checkpoint")

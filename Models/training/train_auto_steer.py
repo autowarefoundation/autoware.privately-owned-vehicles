@@ -10,8 +10,8 @@ from PIL import Image
 from typing import Literal, get_args
 import sys
 sys.path.append('../..')
-from Models.data_utils.load_data_auto_steer import LoadDataAutoSteer, VALID_DATASET_LIST
-from Models.training.auto_steer_trainer import AutoSteerTrainer
+from Models.data_utils.load_data_ego_lanes import LoadDataEgoLanes, VALID_DATASET_LIST
+from Models.training.ego_lanes_trainer import EgoLanesTrainer
 
 BEV_JSON_PATH = "drivable_path_bev.json"
 BEV_IMG_PATH = "image_bev"
