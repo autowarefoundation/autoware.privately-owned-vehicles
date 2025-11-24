@@ -5,7 +5,7 @@ sys.path.append("..")
 from model_components.ego_lanes_network import EgoLanesNetwork
 
 
-class AutoSteerNetworkInfer():
+class EgoLanesNetworkInfer():
     def __init__(
             self, 
             checkpoint_path: str = ""
@@ -30,7 +30,7 @@ class AutoSteerNetworkInfer():
         print(f"Using {self.device} for inference")
             
         # Init model
-        self.model = AutoSteerNetwork()
+        self.model = EgoLanesNetwork()
         if (checkpoint_path):
             print(f"Loading trained AutoSteer checkpoint: {checkpoint_path}")
             self.model.load_state_dict(
