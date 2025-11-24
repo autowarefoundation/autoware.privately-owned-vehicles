@@ -1,5 +1,5 @@
-# Model Descriptions with weights
-![SceneSeg GIF](../Media/SceneSeg_GIF.gif) ![Scene3D GIF](../Media/Scene3D_GIF.gif) ![DomainSeg GIF 2](../Media/DomainSeg_GIF_2.gif) 
+# Model descriptions with links to download model weights
+![SceneSeg GIF](../Media/SceneSeg_GIF.gif) ![Scene3D GIF](../Media/Scene3D_GIF.gif) ![DomainSeg GIF 2](../Media/DomainSeg_GIF_2.gif) ![AutoSpeed GIF](../Media/AutoSpeed_GIF.gif) ![EgoLanes GIF](../Media/EgoLanes_GIF.gif) 
 
 ---
 
@@ -152,6 +152,8 @@ At FP16 precision, SceneSeg achieved 23.9 Frames Per Second inference speed
 Maintaining the vehicle speed and keep safe distance from the vehicle in front is crucial for safe driving. In order to
 determine the closest inpath object AutoSpeed network is used. This network is inspired by YOLOv11 architecture, with
 substituted c3K2 by a new block ASC block to improve CIPO object detection.
+
+<img src="../Media/AutoSpeed_GIF_2.gif" width="100%">
 
 ### Performance Results
 
@@ -334,6 +336,8 @@ object, and result in some sequences are low because some of the far away object
 
 ## EgoLanes
 EgoLanes is a neural network that processes raw image frames and performs real-time semantic segmentation of driving lanes in the image. It produces a three class segmentation output for the ego-left lane, the ego-right lane and all other lanes. It outputs lanes at 1/4 resolution of the input image size allowing for quick inference on low power embedded hardware. EgoLanes was trained with data from a variety of real-world datasets including TuSimple, OpenLane, CurveLanes, Jiqing, and ONCE3D Lane.
+
+<img src="../Media/EgoLanes_GIF_2.gif" width="100%">
 
 ### Loss Function:
 
