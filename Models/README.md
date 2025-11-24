@@ -1,11 +1,12 @@
 # Model Descriptions with weights
+![SceneSeg GIF](../Media/SceneSeg_GIF.gif) ![Scene3D GIF](../Media/Scene3D_GIF.gif) ![DomainSeg GIF](../Media/DomainSeg_GIF.gif) 
 
 ---
 
 ## SceneSeg
 Self-driving cars are usually trained to detect specific object types, such as cars, pedestrians, buses, etc. Such approaches are prone to failure cases when a self-driving car encounters an unusual object that it hasn't seen before, e.g. a rickshaw, or if a self-driving car encounters a strange presentation of a known object, e.g. a cyclist that has fallen over. In these scenarios, self-driving cars are unable to detect these critical objects leading to dangerous driving outcomes. To address this, we have developed SceneSeg, a neural network that is able to segment all important foreground objects, irrespective of what that object is. SceneSeg is able to implicitly learn the visual features of foreground objects such as cars, buses, vans, pedestrians, cyclists, animals, rickshaws, trucks and other similar objects, even though it has not been explicitly trained to detect these object types. SceneSeg is also able to detect objects that are outside of its training data, such as tyres rolling down a highway, or a loose trailer. SceneSeg can also detect objects in unusual presentations that it hasn't seen during training. SceneSeg performs robustly across challenging weather and lighting conditions, including during heavy rain, snow and low light driving. SceneSeg performs out of the box on roads across the world without any parameter tuning. SceneSeg provides self-driving cars with a core safety layer, helping to address 'long-tail' edge cases which plauge object-level detectors. SceneSeg is part of the [AutoSeg Foundation Model](../AutoSeg/README.md) which forms the core of the vision-pipeline of the [Autoware Privately Owned Vehicle Autonomous Highway Pilot System](..).
 
-![SceneSeg GIF](../Media/SceneSeg_GIF.gif) ![SceneSeg GIF 2](../Media/SceneSeg_GIF_Rain.gif)
+![SceneSeg GIF 2](../Media/SceneSeg_GIF_Rain.gif)
 
 During training, SceneSeg estimates three semantic classes
 
@@ -61,13 +62,12 @@ At FP16 precision, SceneSeg achieved 26.7 Frames Per Second inference speed
 ## Scene3D
 Depth estimation is an essential technology for safe operation of self-driving cars, especially in challenging edge case scenarios. By sensing depth, self-driving cars are able to detect important objects in the scene irrespective of their appearance. Scene3D is able process monocular camera images to produce high resolution depth maps with sharp object boundaries, visible on the leaves of trees, thin structures such as poles, and on the edges of foreground objects - helping self-driving cars understand the dynamic driving scene in real-time. Scene3D enables important downstream perception tasks such as foreground obstacle detection, and is robust to changes in object appearance, size, shape and type, addressing 'long-tail' edge case scenarios. The current release of Scene3D estimates per-pixel relative depth, indicating which objects are nearer vs further away from the camera. Scene3D is part of the [AutoSeg Foundation Model](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main/AutoSeg) which forms the core of the vision-pipeline of the [Autoware Autonomous Highway Pilot System](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main)
 
-![Scene3D GIF](../Media/Scene3D_GIF.gif) ![Scene3D GIF 2](../Media/Scene3D_GIF_2.gif)
+![Scene3D GIF 2](../Media/Scene3D_GIF_2.gif)
 
 ## Watch the explainer video
 Please click the video link to play - [***Video link***](https://drive.google.com/file/d/19E57_ECVF3ImMGY8TNmg7dqixH1ej8MB/view?usp=drive_link)
 
 ## Scene3D model weights
-![Scene3D GIF](../Media/Scene3D_GIF.gif) ![Scene3D GIF 2](../Media/Scene3D_GIF_2.gif)
 ### [Link to Download Pytorch Model Weights *.pth](https://drive.google.com/file/d/1MrKhfEkR0fVJt-SdZEc0QwjwVDumPf7B/view?usp=sharing)
 ### [Link to Download Traced Pytorch Model *.pt](https://drive.google.com/file/d/1-LO3j2YCvwxeNLzyLrnzEwalTrYUZgK0/view?usp=drive_link)
 ### [Link to Download ONNX FP32 Weights *.onnx](https://drive.google.com/file/d/19gMPt_1z4eujo4jm5XKuH-8eafh-wJC6/view?usp=drive_link)
@@ -111,7 +111,7 @@ At FP16 precision, Scene3D achieved 23.9 Frames Per Second inference speed
 ## DomainSeg
 Roadwork scenes and construction objects present a challenging edge-case scenario for self-driving cars. Roadwork objects can be placed dynamically and their position can be changed at a moments notice by construction workers. On many occassions, roadwork objects can be used to artifically narrow the driving corridor and guide vehicles to merge lanes. These scenarios are very demanding for self-driving cars, creating a need for a robust and reliable roadwork scene segmentation technology. DomainSeg addresses this key technology gap, delivering robust safety perception across urban driving scenarios, highways and even unstrcutured roads. It is able to adapt to challenging weather conditions such as snow and low-light, and is robust to edge cases such as detection of traffic cones that have been knocked over by other cars. DomainSeg is part of the [AutoSeg Foundation Model](../AutoSeg/README.md) which forms the core of the vision-pipeline of the [Autoware Privately Owned Vehicle Autonomous Highway Pilot System](..).
 
-![DomainSeg GIF](../Media/DomainSeg_GIF.gif) ![DomainSeg GIF 2](../Media/DomainSeg_GIF_2.gif)
+![DomainSeg GIF 2](../Media/DomainSeg_GIF_2.gif)
 
 During training, DomainSeg estimates a binary segmentation mask with a probability of each pixel belonging to a single 'super-class' of **roadwork objects**
 
