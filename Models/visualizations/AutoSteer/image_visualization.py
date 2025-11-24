@@ -34,7 +34,7 @@ def make_visualization(
 
     # Color codes (RGB)
     colors = [
-        (0, 0, 255),        # Blue      (ego left)
+        (0, 72, 255),        # Blue      (ego left)
         (200, 0, 255),      # Magenta   (ego right)
         (0, 153, 0),        # Green     (other lanes)
     ]
