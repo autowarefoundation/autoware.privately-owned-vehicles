@@ -6,7 +6,7 @@
 ## SceneSeg
 Self-driving cars are usually trained to detect specific object types, such as cars, pedestrians, buses, etc. Such approaches are prone to failure cases when a self-driving car encounters an unusual object that it hasn't seen before, e.g. a rickshaw, or if a self-driving car encounters a strange presentation of a known object, e.g. a cyclist that has fallen over. In these scenarios, self-driving cars are unable to detect these critical objects leading to dangerous driving outcomes. To address this, we have developed SceneSeg, a neural network that is able to segment all important foreground objects, irrespective of what that object is. SceneSeg is able to implicitly learn the visual features of foreground objects such as cars, buses, vans, pedestrians, cyclists, animals, rickshaws, trucks and other similar objects, even though it has not been explicitly trained to detect these object types. SceneSeg is also able to detect objects that are outside of its training data, such as tyres rolling down a highway, or a loose trailer. SceneSeg can also detect objects in unusual presentations that it hasn't seen during training. SceneSeg performs robustly across challenging weather and lighting conditions, including during heavy rain, snow and low light driving. SceneSeg performs out of the box on roads across the world without any parameter tuning. SceneSeg provides self-driving cars with a core safety layer, helping to address 'long-tail' edge cases which plauge object-level detectors. SceneSeg is part of the [AutoSeg Foundation Model](../AutoSeg/README.md) which forms the core of the vision-pipeline of the [Autoware Privately Owned Vehicle Autonomous Highway Pilot System](..).
 
-![SceneSeg GIF 2](../Media/SceneSeg_GIF_Rain.gif)
+<img src="../Media/SceneSeg_GIF_Rain.gif" width="100%">
 
 During training, SceneSeg estimates three semantic classes
 
@@ -62,7 +62,7 @@ At FP16 precision, SceneSeg achieved 26.7 Frames Per Second inference speed
 ## Scene3D
 Depth estimation is an essential technology for safe operation of self-driving cars, especially in challenging edge case scenarios. By sensing depth, self-driving cars are able to detect important objects in the scene irrespective of their appearance. Scene3D is able process monocular camera images to produce high resolution depth maps with sharp object boundaries, visible on the leaves of trees, thin structures such as poles, and on the edges of foreground objects - helping self-driving cars understand the dynamic driving scene in real-time. Scene3D enables important downstream perception tasks such as foreground obstacle detection, and is robust to changes in object appearance, size, shape and type, addressing 'long-tail' edge case scenarios. The current release of Scene3D estimates per-pixel relative depth, indicating which objects are nearer vs further away from the camera. Scene3D is part of the [AutoSeg Foundation Model](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main/AutoSeg) which forms the core of the vision-pipeline of the [Autoware Autonomous Highway Pilot System](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main)
 
-![Scene3D GIF 2](../Media/Scene3D_GIF_2.gif)
+<img src="../Media/Scene3D_GIF_2.gif" width="100%">
 
 ## Watch the explainer video
 Please click the video link to play - [***Video link***](https://drive.google.com/file/d/19E57_ECVF3ImMGY8TNmg7dqixH1ej8MB/view?usp=drive_link)
