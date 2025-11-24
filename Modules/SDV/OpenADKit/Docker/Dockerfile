@@ -46,6 +46,6 @@ RUN cd /visionpilot/VisionPilot/Standalone/AutoSpeed && \
     mv /visionpilot/VisionPilot/Standalone/AutoSpeed/build/autospeed_infer_stream /visionpilot/autospeed_infer_stream
 
 # Set the entrypoint
-COPY SDV/OpenADKit/Docker/entrypoint.sh /entrypoint.sh
+COPY Modules/SDV/OpenADKit/Docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
