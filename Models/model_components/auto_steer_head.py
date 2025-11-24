@@ -18,9 +18,9 @@ class AutoSteerHead(nn.Module):
         self.neck_reduce_layer_3 = nn.Conv2d(64, 64, 3, 1, 1)
 
         # Road shape decoding layers
-        self.decode_layer_1 = nn.Conv2d(192, 128, 3, 1, 1)
-        self.decode_layer_2 = nn.Conv2d(128, 128, 3, 1, 1)
-        self.decode_layer_3 = nn.Conv2d(128, 1, 3, 1, 1)
+        self.decode_layer_1 = nn.Conv2d(64, 64, 3, 1, 1)
+        self.decode_layer_2 = nn.Conv2d(64, 64, 3, 1, 1)
+        self.decode_layer_3 = nn.Conv2d(64, 1, 3, 1, 1)
         
         # Steering angle decoding layers
         self.steering_decode_layer = nn.Linear(800, 800)
@@ -41,7 +41,7 @@ class AutoSteerHead(nn.Module):
         feature = self.GeLU(p3)
 
         # Extract Spatio-Temporal Path Information
-        spatiotemporal_features = torch.cat((feature, feature_prev, feature_prev_prev), 1)
+        spatiotemporal_features = torch.cat((feature, feature_prev, feature_prev_prev), 3)
         spatiotemporal_features = self.decode_layer_1(spatiotemporal_features)
         spatiotemporal_features = self.GeLU(spatiotemporal_features)
         spatiotemporal_features = self.decode_layer_2(spatiotemporal_features)
