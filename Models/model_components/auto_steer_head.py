@@ -5,64 +5,56 @@ import torch.nn as nn
 class AutoSteerHead(nn.Module):
     def __init__(self):
         super(AutoSteerHead, self).__init__()
+        
         # Standard
         self.GeLU = nn.GELU()
         self.dropout_aggressize = nn.Dropout(p=0.4)
         self.sigmoid = nn.Sigmoid()
         self.pool = nn.MaxPool2d(2, stride=2)
         
-        # Extraction Layers
-        self.path_layer_0 = nn.Conv2d(1456, 512, 3, 1, 1)
-        self.path_layer_1 = nn.Conv2d(512, 128, 3, 1, 1)
-        self.path_layer_2 = nn.Conv2d(128, 15, 3, 1, 1)
+        # Neck Reduction Layer
+        self.neck_reduce_layer_1 = nn.Conv2d(256, 128, 3, 1, 1)
+        self.neck_reduce_layer_2 = nn.Conv2d(128, 64, 3, 1, 1)
+        self.neck_reduce_layer_3 = nn.Conv2d(64, 64, 3, 1, 1)
 
-        # Driving Corridor  Decode layers
-        self.driving_corridor_layer_0 = nn.Linear(3000, 1600)
-        self.driving_corridor_layer_1 = nn.Linear(1600, 1600)
+        # Road shape decoding layers
+        self.decode_layer_1 = nn.Conv2d(192, 128, 3, 1, 1)
+        self.decode_layer_2 = nn.Conv2d(128, 128, 3, 1, 1)
+        self.decode_layer_3 = nn.Conv2d(128, 1, 3, 1, 1)
+        
+        # Steering angle decoding layers
+        self.steering_decode_layer = nn.Linear(800, 800)
+        self.steering_output = nn.Linear(800, 1)
 
-        self.ego_left_x_offset = nn.Linear(1600, 1)
-        self.ego_right_x_offset = nn.Linear(1600, 1)
-        self.ego_path_x_offset = nn.Linear(1600, 1)
-        self.angle_start = nn.Linear(1600, 1)
-        self.angle_end = nn.Linear(1600, 1)
- 
 
-    def forward(self, neck, neck_prev, neck_prev_prev):
 
-        # Calculating feature vector
-        p0 = self.path_layer_0(features)
-        p0 = self.GeLU(p0)
-        p1 = self.path_layer_1(p0)
+    def forward(self, neck, feature_prev, feature_prev_prev):
+
+        # Calculating feature vector from neck
+        p0 = self.pool(neck)
+        p0 = self.pool(p0)
+        p1 = self.neck_reduce_layer_1(p0)
         p1 = self.GeLU(p1)
-        p2 = self.path_layer_2(p1)
+        p2 = self.neck_reduce_layer_2(p1)
         p2 = self.GeLU(p2)
+        p3 = self.neck_reduce_layer_2(p2)
+        feature = self.GeLU(p3)
+
+        # Extract Spatio-Temporal Path Information
+        spatiotemporal_features = torch.cat((feature, feature_prev, feature_prev_prev), 1)
+        spatiotemporal_features = self.decode_layer_1(spatiotemporal_features)
+        spatiotemporal_features = self.GeLU(spatiotemporal_features)
+        spatiotemporal_features = self.decode_layer_2(spatiotemporal_features)
+        spatiotemporal_features = self.GeLU(spatiotemporal_features)
+        spatiotemporal_features = self.decode_layer_3(spatiotemporal_features)
+        spatiotemporal_features = self.GeLU(spatiotemporal_features)
         
-        feature_vector = torch.flatten(p2)
+        # Create feature vector
+        feature_vector = torch.flatten(p3)
 
-        # Extract Path Information
-        driving_corridor = self.driving_corridor_layer_0(feature_vector)
-        driving_corridor = self.GeLU(driving_corridor)
-        driving_corridor = self.driving_corridor_layer_1(driving_corridor)
-        driving_corridor = self.GeLU(driving_corridor)
+        # Extract Spatio-Temporal Path Information
+        steering_angle = self.steering_decode_layer(feature_vector)
+        steering_angle = self.GeLU(steering_angle)
+        steering_angle = self.steering_output(steering_angle)
 
-        # Final Outputs
-
-        # Anchor Points
-        ego_path_x_offset = self.ego_path_x_offset(driving_corridor) + 0.5
-        ego_left_x_offset = 0.3 + self.ego_left_x_offset(driving_corridor) 
-        ego_right_x_offset = 0.7 + self.ego_right_x_offset(driving_corridor)
-        
-        # Start and End angles
-        angle_start = self.angle_start(driving_corridor)
-
-        path_prediction = torch.stack(
-            [
-                ego_left_x_offset, 
-                ego_right_x_offset, 
-                ego_path_x_offset,
-                angle_start
-            ], 
-            dim = 0
-        ).T
-        
-        return path_prediction
+        return steering_angle, feature
