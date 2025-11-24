@@ -103,7 +103,7 @@ def main():
         if args.model_checkpoint_path is not None 
         else ""
     )
-    model = AutoSteerNetworkInfer(
+    model = EgoLanesNetworkInfer(
         checkpoint_path = model_checkpoint_path
     )
     print("AutoSteer model successfully loaded!")
