@@ -6,7 +6,7 @@ from tqdm import tqdm
 from PIL import Image, ImageDraw
 from argparse import ArgumentParser
 sys.path.append('../..')
-from inference.auto_steer_infer import AutoSteerNetworkInfer
+from inference.ego_lanes_infer import EgoLanesNetworkInfer
 from image_visualization import make_visualization
 
 FRAME_INF_SIZE = (640, 320)
@@ -38,7 +38,7 @@ def main():
 
     # Saved model checkpoint path
     model_checkpoint_path = args.model_checkpoint_path
-    model = AutoSteerNetworkInfer(
+    model = EgoLanesNetworkInfer(
         checkpoint_path = model_checkpoint_path
     )
     print("AutoSteer model successfully loaded!")
