@@ -37,7 +37,7 @@ class AutoSteerHead(nn.Module):
         p1 = self.GeLU(p1)
         p2 = self.neck_reduce_layer_2(p1)
         p2 = self.GeLU(p2)
-        p3 = self.neck_reduce_layer_2(p2)
+        p3 = self.neck_reduce_layer_3(p2)
         feature = self.GeLU(p3)
 
         # Extract Spatio-Temporal Path Information
