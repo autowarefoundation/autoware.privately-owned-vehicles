@@ -35,7 +35,7 @@ class LoadDataAutoSteer():
         self.annotations = []
         
         for dataset_root in self.dataset_roots:
-            json_path = os.path.join(dataset_root, 'steering_angles.json')
+            json_path = os.path.join(dataset_root, 'steering_angle_image_timestamp_aligned.json')
             image_dir = os.path.join(dataset_root, 'images')
             
             with open(json_path, 'r') as f:
