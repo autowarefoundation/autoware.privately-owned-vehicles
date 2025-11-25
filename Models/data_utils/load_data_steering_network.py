@@ -34,11 +34,11 @@ class SteeringAngleDataset(Dataset):
     def __init__(
         self,
         dataset_root,
-        image_size=(320, 640),  # (height, width) - same as AutoSteer
-        temporal_length=3,      # Number of frames in temporal sequence
+        image_size=(320, 640),
+        temporal_length=3,
         augment=False,
-        normalize_angles=True,
-        angle_range=(-30.0, 30.0),  # Expected steering angle range in degrees
+        split='train',
+        val_cap=500,
     ):
         """
         Args:
@@ -46,8 +46,8 @@ class SteeringAngleDataset(Dataset):
             image_size: Target image size (height, width)
             temporal_length: Number of consecutive frames (default: 3 for t-2, t-1, t)
             augment: Enable data augmentation
-            normalize_angles: Normalize steering angles to [-1, 1]
-            angle_range: Min/max steering angle for normalization
+            split: 'train' or 'val'
+            val_cap: Maximum validation samples
         """
         self.dataset_root = dataset_root
         self.image_dir = os.path.join(dataset_root, 'images')
@@ -57,6 +57,8 @@ class SteeringAngleDataset(Dataset):
         self.augment = augment
         self.normalize_angles = normalize_angles
         self.angle_range = angle_range
+        self.split = split
+        self.val_ratio = val_ratio
         
         # Load and parse JSON
         self._load_annotations()
@@ -64,9 +66,13 @@ class SteeringAngleDataset(Dataset):
         # Create valid sample indices (skip first temporal_length-1 frames)
         self._create_valid_indices()
         
+        # Apply train/val split
+        self._apply_split()
+        
         # Image preprocessing
         self.transform = self._get_transforms()
         
+        print(f"[SteeringDataset] Split: {split}")
         print(f"[SteeringDataset] Loaded {len(self.valid_indices)} valid samples")
         print(f"[SteeringDataset] Temporal length: {temporal_length}")
         print(f"[SteeringDataset] Image size: {image_size}")
@@ -117,6 +123,32 @@ class SteeringAngleDataset(Dataset):
             
             if all_exist:
                 self.valid_indices.append(i)
+    
+    def _apply_split(self):
+        """
+        Apply train/val split.
+        
+        Every 10th sample (indices 9, 19, 29, ...) goes to validation.
+        Remaining samples go to training.
+        """
+        if self.split == 'all':
+            return  # Keep all samples
+        
+        train_indices = []
+        val_indices = []
+        
+        for i, idx in enumerate(self.valid_indices):
+            if i % 10 == 9:  # Every 10th sample (0-indexed: 9, 19, 29, ...)
+                val_indices.append(idx)
+            else:
+                train_indices.append(idx)
+        
+        if self.split == 'train':
+            self.valid_indices = train_indices
+            print(f"[SteeringDataset] Train split: {len(train_indices)} samples")
+        elif self.split == 'val':
+            self.valid_indices = val_indices
+            print(f"[SteeringDataset] Val split: {len(val_indices)} samples")
     
     def _get_transforms(self):
         """Get image preprocessing transforms."""
@@ -201,10 +233,9 @@ class SteeringAngleDataset(Dataset):
         current_annotation = self.annotations[ann_idx]
         steering_angle = current_annotation['steering_angle']
         
-        # Apply steering zero point calibration if available
-        if 'steering_zero_point' in current_annotation:
-            zero_point = current_annotation['steering_zero_point']
-            steering_angle = steering_angle - zero_point
+        # Apply steering zero point calibration (always present)
+        zero_point = current_annotation.get('steering_zero_point', 0.0)
+        steering_angle = steering_angle - zero_point
         
         # Data augmentation
         if self.augment:
@@ -244,44 +275,50 @@ class SteeringAngleDataset(Dataset):
 
 
 def get_steering_dataloaders(
-    train_root,
-    val_root,
+    dataset_root,
     batch_size=16,
     num_workers=4,
     image_size=(320, 640),
     temporal_length=3,
-    augment_train=True
+    augment_train=True,
+    val_ratio=0.1
 ):
     """
-    Create train and validation dataloaders.
+    Create train and validation dataloaders from single dataset.
+    
+    Automatically splits data: every 10th sample goes to validation.
     
     Args:
-        train_root: Path to training dataset
-        val_root: Path to validation dataset
+        dataset_root: Path to dataset directory (contains images/ and steering_angles.json)
         batch_size: Batch size
         num_workers: Number of data loading workers
         image_size: Target image size (H, W)
         temporal_length: Number of frames in sequence
         augment_train: Enable augmentation for training
+        val_ratio: Validation ratio (default: 0.1 for every 10th sample)
         
     Returns:
         train_loader, val_loader
     """
-    # Create datasets
+    # Create datasets with automatic split
     train_dataset = SteeringAngleDataset(
-        dataset_root=train_root,
+        dataset_root=dataset_root,
         image_size=image_size,
         temporal_length=temporal_length,
         augment=augment_train,
-        normalize_angles=True
+        normalize_angles=True,
+        split='train',
+        val_ratio=val_ratio
     )
     
     val_dataset = SteeringAngleDataset(
-        dataset_root=val_root,
+        dataset_root=dataset_root,
         image_size=image_size,
         temporal_length=temporal_length,
         augment=False,  # No augmentation for validation
-        normalize_angles=True
+        normalize_angles=True,
+        split='val',
+        val_ratio=val_ratio
     )
     
     # Create dataloaders
@@ -319,32 +356,54 @@ if __name__ == '__main__':
     print("Testing SteeringAngleDataset...")
     print(f"Dataset root: {dataset_root}\n")
     
-    # Create dataset
-    dataset = SteeringAngleDataset(
+    # Create datasets with split
+    print("\n=== Testing Train Split ===")
+    train_dataset = SteeringAngleDataset(
         dataset_root=dataset_root,
         temporal_length=3,
-        augment=False
+        augment=False,
+        split='train'
     )
     
-    print(f"\nDataset size: {len(dataset)}")
+    print("\n=== Testing Val Split ===")
+    val_dataset = SteeringAngleDataset(
+        dataset_root=dataset_root,
+        temporal_length=3,
+        augment=False,
+        split='val'
+    )
     
-    # Test first sample
-    if len(dataset) > 0:
-        print("\nTesting first sample:")
-        images, steering = dataset[0]
-        print(f"  Image sequence shape: {images.shape}")  # [3, 3, 320, 640]
-        print(f"  Steering angle: {steering.item():.4f}")
+    print(f"\nTrain size: {len(train_dataset)}")
+    print(f"Val size: {len(val_dataset)}")
+    print(f"Total: {len(train_dataset) + len(val_dataset)}")
+    print(f"Val ratio: {len(val_dataset) / (len(train_dataset) + len(val_dataset)):.2%}")
+    
+    # Test first sample from train
+    if len(train_dataset) > 0:
+        print("\n=== Testing Train Samples ===")
+        images, steering = train_dataset[0]
+        print(f"Image sequence shape: {images.shape}")  # [3, 3, 320, 640]
+        print(f"Steering angle: {steering.item():.4f}")
         
         # Get sample info
-        info = dataset.get_sample_info(0)
-        print(f"  Current timestamp: {info['current_timestamp']}")
-        print(f"  Sequence timestamps: {info['sequence_timestamps']}")
+        info = train_dataset.get_sample_info(0)
+        print(f"Current timestamp: {info['current_timestamp']}")
+        print(f"Sequence timestamps: {info['sequence_timestamps']}")
         
         # Test a few more samples
-        print("\nTesting 5 random samples:")
-        for i in np.random.randint(0, len(dataset), 5):
-            images, steering = dataset[i]
-            info = dataset.get_sample_info(i)
+        print("\nRandom train samples:")
+        for i in np.random.randint(0, min(len(train_dataset), 100), 3):
+            images, steering = train_dataset[i]
+            info = train_dataset.get_sample_info(i)
+            print(f"  Sample {i}: angle={steering.item():.4f}, "
+                  f"timestamp={info['current_timestamp']}")
+    
+    # Test validation samples
+    if len(val_dataset) > 0:
+        print("\n=== Testing Val Samples ===")
+        for i in range(min(3, len(val_dataset))):
+            images, steering = val_dataset[i]
+            info = val_dataset.get_sample_info(i)
             print(f"  Sample {i}: angle={steering.item():.4f}, "
                   f"timestamp={info['current_timestamp']}")
     
