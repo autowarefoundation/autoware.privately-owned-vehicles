@@ -16,7 +16,7 @@ The AutoDrive model aims to utilize a shared backbone architecture with multiple
 
 ![VisionPilot Diagram](../Media/AutoDrive_E2E_Architecture.png)
 
-More information about the specific models as well as examples showing how to try out and train the individual models in AutoDrive can be found in the ![Models](../Models/) folder.
+**More information about the specific models as well as examples showing how to try out and train the individual models in AutoDrive can be found in the [Models](../Models/) folder.**
 
 ### Backbone
 We utilise EfficientNetB0 as a real-time capable, high performance backbone to act as a general purpose feature extractor. EfficientNetB0 provides a very good compromise between performance and accuracy amongst state-of-the art neural network backbones. The feature backbone has 4.07M Trainable Parameters
