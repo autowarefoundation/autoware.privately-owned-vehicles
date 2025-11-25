@@ -118,6 +118,7 @@ class LoadDataAutoSteer():
 
 if __name__ == '__main__':
     import sys
+    from augmentations import Augmentations
     
     if len(sys.argv) < 2:
         print("Usage: python load_data_auto_steer.py <dataset_root>")
@@ -137,17 +138,34 @@ if __name__ == '__main__':
     n_train, n_val = data_loader.getItemCount()
     print(f"\nTrain samples: {n_train}")
     print(f"Val samples: {n_val}")
-
     
-    # Test train sample
+    # Test train sample with augmentations
     if n_train > 0:
         frame_id, images, steering_angle = data_loader.getItem(0, is_train=True)
         print(f"\nTrain sample:")
         print(f"  Frame ID: {frame_id}")
         print(f"  Images: {len(images)} frames")
-        print(f"  Images: {images}")
         print(f"  Image size: {images[0].size}")
         print(f"  Steering angle: {steering_angle:.4f}")
+        
+        # Apply augmentations to all 3 images
+        augmentor = Augmentations(is_train=True, data_type="KEYPOINTS")
+        augmented_images = []
+        
+        for i, img in enumerate(images):
+            # Convert PIL to numpy
+            img_np = np.array(img)
+            
+            # Apply AutoSteer transform (resize + noise)
+            augmented_img = augmentor.applyTransformAutoSteer(img_np)
+            
+            augmented_images.append(augmented_img)
+            
+            # Show augmented image
+            print(f"\nShowing augmented image {i} (t-{2-i})...")
+            Image.fromarray(augmented_img).show()
+        
+        print(f"\nAugmented {len(augmented_images)} images")
     
     # Test val sample
     if n_val > 0:
