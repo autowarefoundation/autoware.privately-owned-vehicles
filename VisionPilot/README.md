@@ -1,8 +1,16 @@
 # Vision Pilot
 
-Vision Pilot is a productionizable and safety certifiable fully open-source Level 2+ autonomous driving system designed for integration with automotive OEMs and Tier-1 suppliers in series production vehicles. It utilizes a single 8MP front-facing RGB camera with a 120 horizontal-degree FoV to enable both long-range and wide-angle sensing. Vision Pilot is designed to run in real-time on embedded edge hardware which can support 250 INT8 TOPs. It enables all standard Level 2+ driver assitance features as well as Highway Autopilot. We support multiple middleware options for Vision Pilot including IceOryx2, IceOryx, ZENOH, ROS2 as well as standalone. Vision Pilot is deployable on both QNX as well as Linux Ubuntu (tested with 22.04).
+Vision Pilot is a productionizable and safety certifiable fully open-source Level 2+ autonomous driving system designed for integration with automotive OEMs and Tier-1 suppliers in series production vehicles. It utilizes a single 8MP front-facing RGB camera with a 120 horizontal-degree FoV to enable both long-range and wide-angle sensing. Vision Pilot is designed to run in real-time on embedded edge hardware which can support 250 INT8 TOPs. It enables all standard Level 2+ driver assitance features as well as Highway Autopilot. 
 
 ![VisionPilot Diagram](../Media/VisionPilot.png)
+
+### Middleware Recipes
+
+VisionPilot supports multiple middleware options for Vision Pilot including IceOryx2, IceOryx, ZENOH, ROS2 as well as standalone. Vision Pilot is deployable on both QNX as well as Linux Ubuntu (tested with 22.04). The Middleware recipes folder contians example implementations of Vision Pilot for different middlewares.
+
+### Production Releases
+
+The Production Releases folder contains specific releases of Vision Pilot that enable production-level self-driving features.
 
 ## Architecture
 
