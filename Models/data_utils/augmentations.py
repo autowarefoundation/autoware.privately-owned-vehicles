@@ -282,10 +282,15 @@ class Augmentations():
 
         return self.augmented_image
 
-    # Apply noise for AutoSteer (steering angle prediction)
-    def applyNoiseAutoSteer(self):
-        if(self.is_train):
-            self.add_noise = self.transform_noise_autosteer(image=self.augmented_image)
-            self.augmented_image = self.add_noise["image"]
-
-        return self.augmented_image
+    # AUTOSTEER - Apply transform for temporal steering angle prediction
+    def applyTransformAutoSteer(self, image):
+        # Resize
+        resized = self.transform_shape_bev(image=image)
+        augmented_image = resized["image"]
+        
+        # Add noise if training
+        if self.is_train and random.random() >= 0.25:
+            noised = self.transform_noise_autosteer(image=augmented_image)
+            augmented_image = noised["image"]
+        
+        return augmented_image
