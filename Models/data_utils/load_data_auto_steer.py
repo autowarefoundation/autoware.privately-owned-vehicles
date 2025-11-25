@@ -9,16 +9,17 @@ from typing import List
 class LoadDataAutoSteer():
     def __init__(
         self,
-        dataset_roots: List[str],
+        dataset_root: str,
         temporal_length: int = 3,
     ):
         """
         Args:
-            dataset_roots: List of dataset directories (e.g., ['60/', '70/', '80/', '100/'])
-                          Each contains images/ and steering_angles.json
+            dataset_root: Root directory containing sub-datasets (60/, 70/, 80/, 100/)
             temporal_length: Number of consecutive frames (default: 3 for t-2, t-1, t)
         """
-        self.dataset_roots = dataset_roots if isinstance(dataset_roots, list) else [dataset_roots]
+        # Define sub-datasets
+        sub_dirs = ['60', '70', '80', '100']
+        self.dataset_roots = [os.path.join(dataset_root, sub) for sub in sub_dirs]
         self.temporal_length = temporal_length
         
         # Load annotations from all datasets
@@ -119,16 +120,16 @@ if __name__ == '__main__':
     import sys
     
     if len(sys.argv) < 2:
-        print("Usage: python load_data_steering_network.py <dataset_root1> [dataset_root2] ...")
-        print("Example: python load_data_steering_network.py 60/ 70/ 80/ 100/")
+        print("Usage: python load_data_auto_steer.py <dataset_root>")
+        print("Example: python load_data_auto_steer.py /path/to/dataset")
         sys.exit(1)
     
-    dataset_roots = sys.argv[1:]
-    print(f"Loading datasets: {dataset_roots}")
+    dataset_root = sys.argv[1]
+    print(f"Loading dataset root: {dataset_root}")
     
     # Create data loader
     data_loader = LoadDataAutoSteer(
-        dataset_roots=dataset_roots,
+        dataset_root=dataset_root,
         temporal_length=3
     )
     
