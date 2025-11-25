@@ -55,100 +55,54 @@ class SteeringAngleDataset(Dataset):
         self.image_size = image_size
         self.temporal_length = temporal_length
         self.augment = augment
-        self.normalize_angles = normalize_angles
-        self.angle_range = angle_range
         self.split = split
-        self.val_ratio = val_ratio
+        self.val_cap = val_cap
         
-        # Load and parse JSON
+        # Load annotations
         self._load_annotations()
         
-        # Create valid sample indices (skip first temporal_length-1 frames)
-        self._create_valid_indices()
-        
-        # Apply train/val split
-        self._apply_split()
+        # Split into train/val
+        self._split_data()
         
         # Image preprocessing
         self.transform = self._get_transforms()
         
-        print(f"[SteeringDataset] Split: {split}")
-        print(f"[SteeringDataset] Loaded {len(self.valid_indices)} valid samples")
-        print(f"[SteeringDataset] Temporal length: {temporal_length}")
-        print(f"[SteeringDataset] Image size: {image_size}")
-        print(f"[SteeringDataset] Augmentation: {augment}")
+        print(f"Dataset loaded with {self.N_trains} trains and {self.N_vals} vals.")
     
     def _load_annotations(self):
         """Load steering angle annotations from JSON file."""
-        if not os.path.exists(self.json_path):
-            raise FileNotFoundError(f"Annotations not found: {self.json_path}")
-        
         with open(self.json_path, 'r') as f:
             self.annotations = json.load(f)
         
-        # Sort by timestamp to ensure temporal order
+        # Sort by timestamp
         self.annotations = sorted(self.annotations, key=lambda x: x['timestamp'])
-        
-        print(f"[SteeringDataset] Loaded {len(self.annotations)} annotations")
-        
-        # Verify all images exist
-        missing_count = 0
-        for ann in self.annotations:
-            img_path = os.path.join(self.image_dir, f"{ann['timestamp']}.jpg")
-            if not os.path.exists(img_path):
-                missing_count += 1
-        
-        if missing_count > 0:
-            print(f"[SteeringDataset] Warning: {missing_count} images not found")
     
-    def _create_valid_indices(self):
-        """
-        Create list of valid sample indices.
+    def _split_data(self):
+        """Split data into train/val following AutoSteer pattern."""
+        self.train_indices = []
+        self.val_indices = []
+        self.N_trains = 0
+        self.N_vals = 0
         
-        A sample at index i is valid if we have frames at [i-2, i-1, i].
-        We skip the first (temporal_length - 1) frames.
-        """
-        self.valid_indices = []
-        
-        for i in range(self.temporal_length - 1, len(self.annotations)):
-            # Check if all required images exist
-            all_exist = True
-            for offset in range(self.temporal_length):
-                idx = i - (self.temporal_length - 1 - offset)
-                timestamp = self.annotations[idx]['timestamp']
-                img_path = os.path.join(self.image_dir, f"{timestamp}.jpg")
-                if not os.path.exists(img_path):
-                    all_exist = False
-                    break
-            
-            if all_exist:
-                self.valid_indices.append(i)
-    
-    def _apply_split(self):
-        """
-        Apply train/val split.
-        
-        Every 10th sample (indices 9, 19, 29, ...) goes to validation.
-        Remaining samples go to training.
-        """
-        if self.split == 'all':
-            return  # Keep all samples
-        
-        train_indices = []
-        val_indices = []
-        
-        for i, idx in enumerate(self.valid_indices):
-            if i % 10 == 9:  # Every 10th sample (0-indexed: 9, 19, 29, ...)
-                val_indices.append(idx)
+        # Start from temporal_length-1 to have enough history
+        for set_idx in range(self.temporal_length - 1, len(self.annotations)):
+            if (
+                (set_idx % 10 == 0) and
+                (self.N_vals < self.val_cap)
+            ):
+                # Slap it to Val
+                self.val_indices.append(set_idx)
+                self.N_vals += 1
             else:
-                train_indices.append(idx)
+                # Slap it to Train
+                self.train_indices.append(set_idx)
+                self.N_trains += 1
         
+        # Set active indices based on split
         if self.split == 'train':
-            self.valid_indices = train_indices
-            print(f"[SteeringDataset] Train split: {len(train_indices)} samples")
-        elif self.split == 'val':
-            self.valid_indices = val_indices
-            print(f"[SteeringDataset] Val split: {len(val_indices)} samples")
+            self.indices = self.train_indices
+        else:
+            self.indices = self.val_indices
     
     def _get_transforms(self):
         """Get image preprocessing transforms."""
@@ -161,20 +115,6 @@ class SteeringAngleDataset(Dataset):
             )
         ]
         return transforms.Compose(transform_list)
-    
-    def _normalize_angle(self, angle):
-        """Normalize steering angle to [-1, 1] range."""
-        if not self.normalize_angles:
-            return angle
-        
-        # Clip to expected range
-        angle = np.clip(angle, self.angle_range[0], self.angle_range[1])
-        
-        # Normalize to [-1, 1]
-        angle_normalized = 2.0 * (angle - self.angle_range[0]) / \
-                          (self.angle_range[1] - self.angle_range[0]) - 1.0
-        
-        return angle_normalized
     
     def _load_image(self, timestamp):
         """Load and preprocess image by timestamp."""
@@ -208,20 +148,13 @@ class SteeringAngleDataset(Dataset):
         return images, steering_angle
     
     def __len__(self):
-        return len(self.valid_indices)
+        return len(self.indices)
     
     def __getitem__(self, idx):
-        """
-        Get a sample: temporal image sequence + steering angle.
+        """Get a sample: temporal image sequence + steering angle."""
+        ann_idx = self.indices[idx]
         
-        Returns:
-            images: Tensor of shape [temporal_length, 3, H, W]
-            steering_angle: Tensor of shape [1]
-        """
-        # Get actual annotation index
-        ann_idx = self.valid_indices[idx]
-        
-        # Load temporal sequence of images [t-2, t-1, t]
+        # Load temporal sequence [t-2, t-1, t]
         images = []
         for offset in range(self.temporal_length):
             frame_idx = ann_idx - (self.temporal_length - 1 - offset)
@@ -229,48 +162,34 @@ class SteeringAngleDataset(Dataset):
             img = self._load_image(timestamp)
             images.append(img)
         
-        # Get current steering angle (at time t)
+        # Get steering angle
         current_annotation = self.annotations[ann_idx]
         steering_angle = current_annotation['steering_angle']
-        
-        # Apply steering zero point calibration (always present)
-        zero_point = current_annotation.get('steering_zero_point', 0.0)
+        zero_point = current_annotation['steering_zero_point']
         steering_angle = steering_angle - zero_point
         
-        # Data augmentation
+        # Augmentation
         if self.augment:
             images, steering_angle = self._apply_augmentation(images, steering_angle)
         
-        # Normalize steering angle
-        steering_angle = self._normalize_angle(steering_angle)
-        
-        # Transform images to tensors
+        # Transform to tensors
         image_tensors = [self.transform(img) for img in images]
-        
-        # Stack to [temporal_length, 3, H, W]
         image_sequence = torch.stack(image_tensors, dim=0)
-        
-        # Convert steering angle to tensor
         steering_tensor = torch.tensor([steering_angle], dtype=torch.float32)
         
         return image_sequence, steering_tensor
     
     def get_sample_info(self, idx):
-        """Get metadata for a sample (useful for debugging)."""
-        ann_idx = self.valid_indices[idx]
-        
+        """Get metadata for a sample."""
+        ann_idx = self.indices[idx]
         info = {
             'current_timestamp': self.annotations[ann_idx]['timestamp'],
             'current_angle': self.annotations[ann_idx]['steering_angle'],
             'sequence_timestamps': []
         }
-        
         for offset in range(self.temporal_length):
             frame_idx = ann_idx - (self.temporal_length - 1 - offset)
-            info['sequence_timestamps'].append(
-                self.annotations[frame_idx]['timestamp']
-            )
-        
+            info['sequence_timestamps'].append(self.annotations[frame_idx]['timestamp'])
         return info
 
 
@@ -281,44 +200,25 @@ def get_steering_dataloaders(
     image_size=(320, 640),
     temporal_length=3,
     augment_train=True,
-    val_ratio=0.1
+    val_cap=500
 ):
-    """
-    Create train and validation dataloaders from single dataset.
-    
-    Automatically splits data: every 10th sample goes to validation.
-    
-    Args:
-        dataset_root: Path to dataset directory (contains images/ and steering_angles.json)
-        batch_size: Batch size
-        num_workers: Number of data loading workers
-        image_size: Target image size (H, W)
-        temporal_length: Number of frames in sequence
-        augment_train: Enable augmentation for training
-        val_ratio: Validation ratio (default: 0.1 for every 10th sample)
-        
-    Returns:
-        train_loader, val_loader
-    """
-    # Create datasets with automatic split
+    """Create train and validation dataloaders."""
     train_dataset = SteeringAngleDataset(
         dataset_root=dataset_root,
         image_size=image_size,
         temporal_length=temporal_length,
         augment=augment_train,
-        normalize_angles=True,
         split='train',
-        val_ratio=val_ratio
+        val_cap=val_cap
     )
     
     val_dataset = SteeringAngleDataset(
         dataset_root=dataset_root,
         image_size=image_size,
         temporal_length=temporal_length,
-        augment=False,  # No augmentation for validation
-        normalize_angles=True,
+        augment=False,
         split='val',
-        val_ratio=val_ratio
+        val_cap=val_cap
     )
     
     # Create dataloaders
@@ -343,21 +243,15 @@ def get_steering_dataloaders(
 
 
 if __name__ == '__main__':
-    """Test the data loader."""
     import sys
     
     if len(sys.argv) < 2:
         print("Usage: python load_data_steering_network.py <dataset_root>")
-        print("Example: python load_data_steering_network.py /path/to/dataset")
         sys.exit(1)
     
     dataset_root = sys.argv[1]
     
-    print("Testing SteeringAngleDataset...")
-    print(f"Dataset root: {dataset_root}\n")
-    
-    # Create datasets with split
-    print("\n=== Testing Train Split ===")
+    # Create datasets
     train_dataset = SteeringAngleDataset(
         dataset_root=dataset_root,
         temporal_length=3,
@@ -365,7 +259,6 @@ if __name__ == '__main__':
         split='train'
     )
     
-    print("\n=== Testing Val Split ===")
     val_dataset = SteeringAngleDataset(
         dataset_root=dataset_root,
         temporal_length=3,
@@ -373,39 +266,14 @@ if __name__ == '__main__':
         split='val'
     )
     
-    print(f"\nTrain size: {len(train_dataset)}")
-    print(f"Val size: {len(val_dataset)}")
-    print(f"Total: {len(train_dataset) + len(val_dataset)}")
-    print(f"Val ratio: {len(val_dataset) / (len(train_dataset) + len(val_dataset)):.2%}")
-    
-    # Test first sample from train
+    # Test samples
     if len(train_dataset) > 0:
-        print("\n=== Testing Train Samples ===")
         images, steering = train_dataset[0]
-        print(f"Image sequence shape: {images.shape}")  # [3, 3, 320, 640]
-        print(f"Steering angle: {steering.item():.4f}")
-        
-        # Get sample info
+        print(f"\nTrain sample: {images.shape}, angle={steering.item():.4f}")
         info = train_dataset.get_sample_info(0)
-        print(f"Current timestamp: {info['current_timestamp']}")
-        print(f"Sequence timestamps: {info['sequence_timestamps']}")
-        
-        # Test a few more samples
-        print("\nRandom train samples:")
-        for i in np.random.randint(0, min(len(train_dataset), 100), 3):
-            images, steering = train_dataset[i]
-            info = train_dataset.get_sample_info(i)
-            print(f"  Sample {i}: angle={steering.item():.4f}, "
-                  f"timestamp={info['current_timestamp']}")
+        print(f"Timestamps: {info['sequence_timestamps']}")
     
-    # Test validation samples
     if len(val_dataset) > 0:
-        print("\n=== Testing Val Samples ===")
-        for i in range(min(3, len(val_dataset))):
-            images, steering = val_dataset[i]
-            info = val_dataset.get_sample_info(i)
-            print(f"  Sample {i}: angle={steering.item():.4f}, "
-                  f"timestamp={info['current_timestamp']}")
-    
-    print("\nDataset test complete!")
+        images, steering = val_dataset[0]
+        print(f"\nVal sample: {images.shape}, angle={steering.item():.4f}")
 
