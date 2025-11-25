@@ -137,6 +137,7 @@ if __name__ == '__main__':
     n_train, n_val = data_loader.getItemCount()
     print(f"\nTrain samples: {n_train}")
     print(f"Val samples: {n_val}")
+
     
     # Test train sample
     if n_train > 0:
@@ -144,6 +145,7 @@ if __name__ == '__main__':
         print(f"\nTrain sample:")
         print(f"  Frame ID: {frame_id}")
         print(f"  Images: {len(images)} frames")
+        print(f"  Images: {images}")
         print(f"  Image size: {images[0].size}")
         print(f"  Steering angle: {steering_angle:.4f}")
     
