@@ -179,7 +179,7 @@ void inferenceThread(
 
     // Init lane filter
     LaneFilter lane_filter(0.5f);
-    
+
     while (running.load()) {
         TimestampedFrame tf = input_queue.pop();
         if (tf.frame.empty()) continue;
@@ -187,7 +187,10 @@ void inferenceThread(
         auto t_inference_start = steady_clock::now();
 
         // Run inference
-        LaneSegmentation lanes = engine.inference(tf.frame, threshold);
+        LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
+
+        // Post-processing with lane filter
+        LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
 
         auto t_inference_end = steady_clock::now();
 
@@ -199,7 +202,7 @@ void inferenceThread(
         // Package result
         InferenceResult result;
         result.frame = tf.frame;
-        result.lanes = lanes;
+        result.lanes = filtered_lanes;
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
