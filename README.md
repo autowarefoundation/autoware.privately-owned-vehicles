@@ -1,8 +1,6 @@
 
 # Autoware - Autonomous Highway Pilot
 
-<img src="/Media/hero_GIF.gif" width="100%">
-
 <div align="center">
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -18,8 +16,12 @@
 [![Website](https://img.shields.io/badge/website-000000?style=for-the-badge&logo=About.me&logoColor=white)](https://autoware.org/)
 </div>
 
+<img src="/Media/hero_GIF.gif" width="100%">
+
+⭐ Star us on GitHub — your support motivates us a lot! 🙏😊
+
 ## Open-source highway autonomy system
-This codebase contains productionizable and safety certifiable code for an open-source highway autonomy system that can power safe, SAE Level-4, autonomous driving around the world. It is designed to be integrated with automotive OEMs and Tier-1 suppliers in series production privately owned passenger vehicles.
+This codebase contains **productionizable and safety certifiable code for an open-source highway autonomy** system that can power safe, SAE Level-4+, autonomous driving around the world. It is designed to be integrated with automotive OEMs and Tier-1 suppliers in series production privately owned passenger vehicles.
 
 To learn more about how to participate in this project, please read the [onboarding guide](/ONBOARDING.md)
 
@@ -30,11 +32,11 @@ We utilize an **End-to-End AI Architecture** in which each component technology 
 **We do not require 3D high definition  maps**. Our stack can operate in a 'mapless' mode or use existing 2D navigational (sat-nav style) maps, also called ADAS maps. Human beings can drive without prior knowledge of the detailed 3D geometry of roadways by relying on real-time scene perception, and our system mimics this process.
 
 ## Technology Roadmap
-We are developing true hands-off, eyes-off autonomous driving which is enabled on highways across the world, this will be classified as SAE Level-4+ autonomy, where no human supervision is required of the vehicle. Rather than going for a single moonshot, we are sequentially building the core software stack of the highway pilot system in a modular manner, and releasing versions of the autonomous highway pilot system that serve a core customer need, where each new release expands upon the operational-design-domain, technology prowess and safety envelope of the prior release.
+We are developing true hands-off, eyes-off autonomous driving which is enabled on highways across the world where no human supervision is required of the vehicle. Rather than going for a single moonshot, we are sequentially building the core software stack of the highway pilot system in a modular manner, and releasing versions of the autonomous highway pilot system that serve a core customer need, where each new release expands upon the operational-design-domain, technology prowess and safety envelope of the prior release.
 
 As part of our technology roadmap, we will sequentially develop three versions of the Autoware Autonomous Highway Pilot System, called:
 - ***Vision Pilot - Level 2+ highway autopilot through component-based End-to-End AI***
-- ***Vision Pilot - PRO - Level 2+ highway and urban autopilot through monolithic End-to-End AI***
+- ***Vision Pilot PRO - Level 2+ highway and urban autopilot through monolithic End-to-End AI***
 - ***Vision Drive - Level 4+ all road autonomy using hybrid End-to-End AI***
 
 ## Models
