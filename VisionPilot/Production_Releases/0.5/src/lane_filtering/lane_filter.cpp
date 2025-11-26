@@ -153,4 +153,17 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     return clean_output;
 }
 
+// Step 1: find starting points in ROI
+void LaneFilter::findStartingPoints(
+    const LaneSegmentation& raw,
+    std::vector<int>& start_left,
+    std::vector<int>& start_right
+)
+{
+    // Clear outputs
+    start_left.clear();
+    start_right.clear();
+
+    int mid_x = raw.width / 2; // 80
+
 }
