@@ -26,3 +26,11 @@ public:
 
     void reset();
 
+private:
+    const int roi_y_min = 50;   // Start scanning from this of 80px mask height
+    const int roi_y_max = 79;  // End scanning at bottom of mask
+    const int sliding_window_height = 5;
+    const int sliding_window_width = 16;
+    const int min_pixels_for_fit = 5;
+
+    
