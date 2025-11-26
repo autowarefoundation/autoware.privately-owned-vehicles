@@ -164,6 +164,27 @@ void LaneFilter::findStartingPoints(
     start_left.clear();
     start_right.clear();
 
+    // Mid boundary
     int mid_x = raw.width / 2; // 80
+
+    // Search left side to determine egoleft start
+    for (int x = mid_x - 1; x >= 0; x--) {
+        float sum = 0.0f;
+        // Check vertical strip in ROI
+        for (int y = roi_y_min; y <= roi_y_max; y++) {
+            // Priority to ego_left, but robustly we check for any signal if we assume
+            // the geometric position defines the class. 
+            // However, sticking to the specific channel is safer for start points.
+            sum += raw.ego_left.at<float>(y, x);
+        }
+        
+        // Threshold for "finding a line start"
+        if (sum > 2.0f) { 
+            // Found it! Calculate centroid Y
+            start_left.push_back(x);
+            start_left.push_back((roi_y_min + roi_y_max) / 2);
+            break; // Stop at first line found (closest to center)
+        }
+    }
 
 }
