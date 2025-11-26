@@ -311,3 +311,58 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
 
     return lane_points;
 }
+
+// Step 3: cubic polynomial fit
+LanePolyFit LaneFilter::fitPoly(const std::vector<cv::Point>& points) {
+    
+    LanePolyFit result;
+    result.valid = false;
+    
+    if (points.size() < static_cast<size_t>(min_pixels_for_fit)) {
+        return result;
+    }
+
+    // Design Matrix for Cubic: X = [y^3, y^2, y, 1]
+    cv::Mat A(
+        points.size(), 
+        4, 
+        CV_64F
+    );
+    cv::Mat B(
+        points.size(), 
+        1, 
+        CV_64F
+    );
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        double y = static_cast<double>(points[i].y);
+        double x = static_cast<double>(points[i].x);
+
+        A.at<double>(i, 0) = y * y * y;
+        A.at<double>(i, 1) = y * y;
+        A.at<double>(i, 2) = y;
+        A.at<double>(i, 3) = 1.0;
+
+        B.at<double>(i, 0) = x;
+    }
+
+    cv::Mat coeffs;
+    // SVD is robust against singular matrices
+    if (
+        cv::solve(
+            A, 
+            B, 
+            coeffs, 
+            cv::DECOMP_SVD
+        )
+    ) {
+        result.coeffs.resize(4);
+        result.coeffs[0] = coeffs.at<double>(0); // a
+        result.coeffs[1] = coeffs.at<double>(1); // b
+        result.coeffs[2] = coeffs.at<double>(2); // c
+        result.coeffs[3] = coeffs.at<double>(3); // d
+        result.valid = true;
+    }
+
+    return result;
+}
