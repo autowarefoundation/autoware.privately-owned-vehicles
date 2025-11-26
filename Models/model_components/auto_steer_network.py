@@ -14,7 +14,7 @@ class AutoSteerNetwork(nn.Module):
         self.AutoSteerHead = AutoSteerHead()
     
 
-    def forward(self, image, feature_prev, feature_prev_prev):
+    def forward(self, image, feature_prev):
         ego_lanes, neck, context = self.AutoSteerUpstream(image)
-        steering_angle, feature = self.AutoSteerHead(context, neck, feature_prev, feature_prev_prev)
+        steering_angle, feature = self.AutoSteerHead(context, neck, feature_prev)
         return ego_lanes, steering_angle, feature

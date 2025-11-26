@@ -28,7 +28,7 @@ class AutoSteerHead(nn.Module):
 
 
 
-    def forward(self, context, neck, feature_prev, feature_prev_prev):
+    def forward(self, context, neck, feature_prev):
 
         # Calculating feature vector
 
@@ -49,7 +49,7 @@ class AutoSteerHead(nn.Module):
 
 
         # Extract Spatio-Temporal Path Information
-        spatiotemporal_features = torch.cat((feature, feature_prev, feature_prev_prev), 3)
+        spatiotemporal_features = torch.cat((feature, feature_prev), 3)
         spatiotemporal_features = self.decode_layer_1(spatiotemporal_features)
         spatiotemporal_features = self.GeLU(spatiotemporal_features)
         spatiotemporal_features = self.decode_layer_2(spatiotemporal_features)
