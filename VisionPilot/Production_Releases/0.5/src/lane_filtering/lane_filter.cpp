@@ -81,3 +81,40 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         start_left_vec, 
         start_right_vec
     );
+
+    // Process left line
+    if (!start_left_vec.empty()) {
+        cv::Point start_pt(
+            start_left_vec[0], 
+            start_left_vec[1]
+        );
+        
+        // Step 2: sliding window search
+        auto left_points = slidingWindowSearch(
+            raw_input, 
+            start_pt, 
+            true
+        );
+        
+        // Step 3: polyfit (cubic)
+        LanePolyFit left_fit = fitPoly(left_points);
+        
+        // Temporal smoothing
+        if (left_fit.valid) {
+            if (prev_left_fit.valid) {
+                for (size_t i = 0; i < 4; i++) {
+                    left_fit.coeffs[i] = smoothing_factor * left_fit.coeffs[i] + 
+                                       (1.0f - smoothing_factor) * prev_left_fit.coeffs[i];
+                }
+            }
+            prev_left_fit = left_fit;
+            drawPolyOnMask(
+                clean_output.ego_left, 
+                left_fit.coeffs
+            );
+        }
+    } else {
+        // If detection lost, maybe keep previous for a few frames? 
+        // For now, invalidating.
+        prev_left_fit.valid = false;
+    }
