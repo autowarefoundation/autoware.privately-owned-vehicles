@@ -176,6 +176,10 @@ void inferenceThread(
     std::atomic<bool>& running,
     float threshold)
 {
+
+    // Init lane filter
+    LaneFilter lane_filter(0.5f);
+    
     while (running.load()) {
         TimestampedFrame tf = input_queue.pop();
         if (tf.frame.empty()) continue;
