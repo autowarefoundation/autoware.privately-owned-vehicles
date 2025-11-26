@@ -53,3 +53,22 @@ void LaneFilter::reset() {
     prev_left_fit.valid = false;
     prev_right_fit.valid = false;
 }
+
+// Master update func
+LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
+    LaneSegmentation clean_output;
+    clean_output.width = raw_input.width;   // 160
+    clean_output.height = raw_input.height; // 80
+    
+    // Initialize blank masks
+    clean_output.ego_left = cv::Mat::zeros(
+        clean_output.height, 
+        clean_output.width, 
+        CV_32FC1
+    );
+    clean_output.ego_right = cv::Mat::zeros(
+        clean_output.height, 
+        clean_output.width, 
+        CV_32FC1
+    );
+    clean_output.other_lanes = raw_input.other_lanes.clone(); // Pass through others for now
