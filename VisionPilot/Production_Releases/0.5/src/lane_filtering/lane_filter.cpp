@@ -366,3 +366,5 @@ LanePolyFit LaneFilter::fitPoly(const std::vector<cv::Point>& points) {
 
     return result;
 }
+
+}  // namespace autoware_pov::vision::autosteer
