@@ -33,4 +33,11 @@ private:
     const int sliding_window_width = 16;
     const int min_pixels_for_fit = 5;
 
-    
+    // Helper funcs
+
+    // Step 1: ROI for starting points
+    void findStartingPoints(
+        const LaneSegmentation& raw,
+        std::vector<int>& start_left,
+        std::vector<int>& start_right
+    );
