@@ -104,6 +104,14 @@ class Augmentations():
             ]
         )
 
+        self.transform_noise_autosteer = A.Compose(
+            [
+                A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.5),
+                A.GaussNoise(noise_scale_factor=0.2, p=0.3),
+                A.ToGray(num_output_channels=3, method='weighted_average', p=0.1)
+            ]
+        )
+
     # ========================== Data type specific transform functions ========================== #
 
     # Set ground truth and image data
@@ -273,3 +281,16 @@ class Augmentations():
             self.augmented_image = self.add_noise["image"]
 
         return self.augmented_image
+
+    # AUTOSTEER - Apply transform for temporal steering angle prediction
+    def applyTransformAutoSteer(self, image):
+        # Resize
+        resized = self.transform_shape_bev(image=image)
+        augmented_image = resized["image"]
+        
+        # Add noise if training
+        if self.is_train and random.random() >= 0.25:
+            noised = self.transform_noise_autosteer(image=augmented_image)
+            augmented_image = noised["image"]
+        
+        return augmented_image

@@ -1,172 +1,42 @@
-# VisionPilot - Middleware-Agnostic Vision Framework
+# Vision Pilot
 
-A modular, hardware and middleware-independent vision processing framework designed for autonomous vehicle perception tasks. VisionPilot provides a unified API for AI inference and visualization that can be deployed across different middleware systems.
+Vision Pilot is a productionizable and safety certifiable fully open-source Level 2+ autonomous driving system designed for integration with automotive OEMs and Tier-1 suppliers in series production vehicles. It utilizes a single 8MP front-facing RGB camera with a 120 horizontal-degree FoV to enable both long-range and wide-angle sensing. Vision Pilot is designed to run in real-time on embedded edge hardware which can support 250 INT8 TOPs. It enables all standard Level 2+ driver assitance features as well as Highway Autopilot. 
 
-## Architecture Philosophy
+![VisionPilot Diagram](../Media/VisionPilot.png)
 
-VisionPilot separates core AI processing from middleware-specific implementations, enabling seamless deployment across different robotic frameworks:
+### Middleware Recipes
 
-```raw
-┌─────────────────────────────────────────────────────────┐
-│                    MIDDLEWARE LAYER                     │
-├─────────────────────┬───────────────────┬───────────────┤
-│       ROS2          │      Zenoh        │    Future     │
-│   Implementation    │  Implementation   │ Middlewares   │
-│                     │                   │               │
-│   ┌─────────────┐   │  ┌─────────────┐  │               │
-│   │ ROS2 Nodes  │   │  │ Zenoh Nodes │  │      ...      │
-│   │ & Topics    │   │  │ & Messages  │  │               │
-│   └─────────────┘   │  └─────────────┘  │               │
-└─────────────────────┴───────────────────┴───────────────┘
-                       │                   
-┌─────────────────────────────────────────────────────────┐
-│                    COMMON LAYER                         │
-│              (Framework Independent)                    │
-├─────────────────────┬───────────────────┬───────────────┤
-│  Inference Backends │ Visualization     │ Sensor Input  │
-│                     │ Engines           │ Processing    │
-│  • ONNX Runtime     │                   │               │
-│  • TensorRT         │ • Segmentation    │ • Video       │
-│  • Custom Backends  │ • Depth Maps      │ • Camera      │
-│                     │ • Point Clouds    │ • Streaming   │
-└─────────────────────┴───────────────────┴───────────────┘
-```
+VisionPilot supports multiple middleware options for Vision Pilot including IceOryx2, IceOryx, ZENOH, ROS2 as well as standalone. Vision Pilot is deployable on both QNX as well as Linux Ubuntu (tested with 22.04). The Middleware recipes folder contians example implementations of Vision Pilot for different middlewares.
 
-## Key Benefits
+### Production Releases
 
-### Middleware Independence
+The Production Releases folder contains specific releases of Vision Pilot that enable production-level self-driving features.
 
-- **Write Once, Deploy Everywhere**: Core AI logic works across ROS2, Zenoh, and future middleware
-- **No Vendor Lock-in**: Switch between middleware systems without changing AI code
-- **Future Proof**: Add new middleware implementations without touching core engines
+## Architecture
 
-### Modular Design
+Vision Pilot utilizes a component-based End-to-End autonomous driving architecture, wherein the entire autonomous driving stack is learnable. Vision Pilot also supports safety-perception neural networks which act as safety guardrails for the primary End-to-End stack. The overall End-to-End autonomous driving model which powers Vision Pilot is called AutoDrive, which is comprised of two End-to-End networks called AutoSteer for autonomous steering, AutoSpeed for autonomous acceleration/braking and Safety Perception models to address long-tail edge-case scenarios.
 
-- **Pluggable Backends**: Support for ONNX Runtime, TensorRT, and custom inference engines
-- **Configurable Pipelines**: YAML-driven configuration for models, topics, and parameters
-- **Independent Components**: Sensors, inference, and visualization can run independently
-- **Performance Monitoring**: Built-in latency and FPS measurements
-- **Concurrent Execution**: Multiple AI pipelines running simultaneously
-- **Resource Efficient**: Shared common engines reduce memory footprint
+![VisionPilot Diagram](../Media/AutoDrive_E2E_Model.png)
 
-## Current Implementations
+## AutoDrive Model
 
-### ROS2 (`/ROS2/`)
+The AutoDrive model aims to utilize a shared backbone architecture with multiple stems and heads relying upon the same network weights. This helps improve model efficiency and forces the model to learn generalizable image features.
 
-Production-ready ROS2 nodes providing:
+![VisionPilot Diagram](../Media/AutoDrive_E2E_Architecture.png)
 
-- Native ROS2 topics and parameters
-- Launch file orchestration
-- Standard ROS2 message types
-- Component-based node architecture
+**More information about the specific models as well as examples showing how to try out and train the individual models in AutoDrive can be found in the [Models](../Models/) folder.**
 
-### Zenoh (`/Zenoh/`)
+### Backbone
+We utilise EfficientNetB0 as a real-time capable, high performance backbone to act as a general purpose feature extractor. EfficientNetB0 provides a very good compromise between performance and accuracy amongst state-of-the art neural network backbones. The feature backbone has 4.07M Trainable Parameters
 
-The Zenoh implementation providing:
+### Context
+Convolutional neural networks are very good feature extractors, however, they have limited ability to capture the inter-relationships and shared context of image features. Transformers on the other hand, have limited capacity at capturing fine grained image features, but excell at capture overall scene context through multi-head self attention mechanisms. The context block aims to bridge the CNN/Transformer gap by capturing channel-wise feature relationships and creating a pesudo-attention matrix which is element-wise multiplied with the input features, accompanied by a residual skip connection. The context block has 9.20M Trainable Parameters
 
-- Edge computing deployments
-- Low-latency communication
-- Distributed AI processing
-- Cloud-edge hybrid architectures
+### Neck
+The purpose of the neck is to aggregate and fuse multi-scale neural network features into a rich representation. The neck is the most critical neural network block in AutoSeg since all downstream tasks are derived from a single neck block. The neck block therefore needs to be able to capture salient and generalisable feature relationships to serve downstream tasks. A Link-Net style architecture is used to upsample lower-level neural network features and skip connections are added to the neck through 1D convolutions. 
 
-### Common Core (`/common/`)
+## Shared Features
+The Backbone, Context Block, and Neck are shared by the various output heads.
 
-Framework-agnostic engines providing:
-
-- AI inference backends (ONNX Runtime, TensorRT)
-- Visualization rendering (segmentation masks, depth maps)
-- Sensor input processing (video streams, camera feeds)
-
-## Supported Pipelines
-
-### Segmentation
-
-- **Scene Segmentation**: Binary foreground/background separation
-- **Domain Segmentation**: Road/off-road classification  
-
-### Depth Estimation
-
-- **Scene 3D**: Monocular depth estimation
-
-## Quick Start
-
-### Download models
-
-You need to create a folder for models and video first.
-
-- Models: Download the models from [the Models folder](/Models).
-- Video: You can get any dash cam video from YouTube.
-
-```bash
-cd VisionPilot/ROS2
-# Create folder
-mkdir -p data && cd data
-# Put your video into data, assuming its name is video.mp4
-# Download the models
-## Tool to download from Google Drive
-pipx install gdown
-## SceneSeg
-gdown -O models/ 'https://docs.google.com/uc?export=download&id=1l-dniunvYyFKvLD7k16Png3AsVTuMl9f'
-## Scene3D
-gdown -O models/ 'https://docs.google.com/uc?export=download&id=19gMPt_1z4eujo4jm5XKuH-8eafh-wJC6'
-## DomainSeg
-gdown -O models/ 'https://docs.google.com/uc?export=download&id=1zCworKw4aQ9_hDBkHfj1-sXitAAebl5Y'
-```
-
-### ROS2 Implementation
-
-- Install the dependencies in [ROS2](ROS2/README.md) first
-
-```bash
-cd VisionPilot/ROS2
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install --packages-select sensors models visualization \
-  --cmake-args \
-  -DONNXRUNTIME_ROOTDIR=/path/to/onnxruntime \
-  -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 \
-  -DCMAKE_BUILD_TYPE=Release
-source install/setup.bash
-
-# Run complete pipeline
-ros2 launch models run_pipeline.launch.py \
-  pipeline:=scene_seg \
-  video_path:="../data/video.mp4"
-```
-
-### Zenoh Implementation
-
-- Install the dependencies in [Zenoh](Zenoh/README.md) first
-
-```bash
-cd VisionPilot/Zenoh
-# Set the environment variable
-export LIBTORCH_INSTALL_ROOT=/path/to/libtorch/
-export ONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0
-just all
-
-# Run SceneSeg
-just run_sceneseg
-```
-
-### Custom Middleware Integration
-
-To add a new middleware implementation:
-
-1. Create `/YourMiddleware/` directory
-2. Implement thin wrapper nodes around common engines
-3. Handle middleware-specific message passing
-4. Leverage existing common backends and visualizers
-
-## Repository Structure
-
-```raw
-VisionPilot/
-├── common/         # Framework-agnostic core engines
-├── ROS2/           # ROS2-specific implementation  
-├── Zenoh/          # Zenoh-specific implementation
-└── README.md       # This file
-```
-
-For technical details on core engines, see `common/README.md`
-For ROS2-specific usage, see `ROS2/README.md`
-For Zenoh-specific usage, see `Zenoh/README.md`
+## Head
+The head is designed to process rich contextual and scene features from the neck block and process them to create a useful output based on a specific downstream task such as semantic segmenation, depth estimation, or parameter estimation.

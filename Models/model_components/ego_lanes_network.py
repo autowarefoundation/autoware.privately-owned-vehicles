@@ -1,26 +1,37 @@
-from .pre_trained_backbone import PreTrainedBackbone
-from .bev_path_context import BEVPathContext
+from .backbone import Backbone
+from .backbone_feature_fusion import BackboneFeatureFusion
+from .auto_steer_context import AutoSteerContext
+from .ego_path_neck import EgoPathNeck
 from .ego_lanes_head import EgoLanesHead
+
 
 import torch.nn as nn
 
 class EgoLanesNetwork(nn.Module):
-    def __init__(self, pretrained):
+    def __init__(self):
         super(EgoLanesNetwork, self).__init__()
 
         # Upstream blocks
-        self.PreTrainedBackbone = PreTrainedBackbone(pretrained)
+        self.BEVBackbone = Backbone()
 
-        # Path Context
-        self.PathContext = BEVPathContext()
+        # Feature Fusion
+        self.BackboneFeatureFusion = BackboneFeatureFusion()
 
-        # EgoLanes Head
+        # BEV Path Context
+        self.AutoSteerContext = AutoSteerContext()
+
+        # EgoPath Neck
+        self.EgopathNeck = EgoPathNeck()
+
+        # EgoPath Head
         self.EgoLanesHead = EgoLanesHead()
     
 
     def forward(self, image):
-        features = self.PreTrainedBackbone(image)
-        deep_features = features[4]
-        context = self.PathContext(deep_features)
-        ego_left_lane, ego_right_lane = self.EgoLanesHead(context)
-        return ego_left_lane, ego_right_lane
+        features = self.BEVBackbone(image)
+        fused_features = self.BackboneFeatureFusion(features)
+        context = self.AutoSteerContext(fused_features)
+        neck = self.EgopathNeck(context, features)
+        ego_lanes = self.EgoLanesHead(neck)
+
+        return ego_lanes

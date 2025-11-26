@@ -1,5 +1,0 @@
-numpy==2.2.5
-opencv_contrib_python==4.10.0.84
-opencv_python==4.10.0.84
-opencv_python_headless==4.11.0.86
-Pillow==11.3.0
