@@ -31,7 +31,7 @@ class AutoSteerUpstream(nn.Module):
         features = self.BEVBackbone(image)
         fused_features = self.BackboneFeatureFusion(features)
         context = self.AutoSteerContext(fused_features)
-        neck = self.EgopathNeck(context, features)
+        neck, context = self.EgopathNeck(context, features)
         ego_lanes = self.EgoLanesHead(neck)
 
-        return ego_lanes, neck
+        return ego_lanes, neck, context
