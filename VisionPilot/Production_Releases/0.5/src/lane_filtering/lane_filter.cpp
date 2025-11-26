@@ -200,5 +200,19 @@ void LaneFilter::findStartingPoints(
             break;
         }
     }
-
 }
+
+// Step 2: sliding window search
+std::vector<cv::Point> LaneFilter::slidingWindowSearch(
+    const LaneSegmentation& raw,
+    cv::Point start_point,
+    bool is_left_lane)
+{
+    std::vector<cv::Point> lane_points;
+    cv::Point current_pos = start_point;
+    
+    // Initial direction: Straight Up
+    float dir_x = 0.0f; 
+    float dir_y = -1.0f; 
+
+    int num_windows = raw.height / sliding_window_height;
