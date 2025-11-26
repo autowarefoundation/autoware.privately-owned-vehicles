@@ -51,3 +51,11 @@ private:
 
     // Step 3: cubic polynomial fit
     LanePolyFit fitPoly(const std::vector<cv::Point>& points);
+
+    // State for temporal smoothing
+    LanePolyFit prev_left_fit;
+    LanePolyFit prev_right_fit;
+    float smoothing_factor;
+};
+
+}  // namespace autoware_pov::vision::autosteer
