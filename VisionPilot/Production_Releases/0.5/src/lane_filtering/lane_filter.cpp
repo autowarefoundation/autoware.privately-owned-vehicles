@@ -187,4 +187,18 @@ void LaneFilter::findStartingPoints(
         }
     }
 
+    // Search right side for egoright start
+    for (int x = mid_x; x < raw.width; x++) {
+        float sum = 0.0f;
+        for (int y = roi_y_min; y <= roi_y_max; y++) {
+            sum += raw.ego_right.at<float>(y, x);
+        }
+        
+        if (sum > 2.0f) {
+            start_right.push_back(x);
+            start_right.push_back((roi_y_min + roi_y_max) / 2);
+            break;
+        }
+    }
+
 }
