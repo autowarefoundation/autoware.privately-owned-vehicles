@@ -33,7 +33,7 @@ We utilize an **End-to-End AI Architecture** in which each component technology 
 We are developing true hands-off, eyes-off autonomous driving which is enabled on highways across the world, this will be classified as SAE Level-4+ autonomy, where no human supervision is required of the vehicle. Rather than going for a single moonshot, we are sequentially building the core software stack of the highway pilot system in a modular manner, and releasing versions of the autonomous highway pilot system that serve a core customer need, where each new release expands upon the operational-design-domain, technology prowess and safety envelope of the prior release.
 
 As part of our technology roadmap, we will sequentially develop three versions of the Autoware Autonomous Highway Pilot System, called:
-- ***Vision Pilot - Q1 2026 - Level 2+ highway autopilot through component-based End-to-End AI***
+- ***Vision Pilot - Level 2+ highway autopilot through component-based End-to-End AI***
 - ***Vision Pilot - PRO - Level 2+ highway and urban autopilot through monolithic End-to-End AI***
 - ***Vision Drive - Level 4+ all road autonomy using hybrid End-to-End AI***
 
