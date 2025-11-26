@@ -216,3 +216,30 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     float dir_y = -1.0f; 
 
     int num_windows = raw.height / sliding_window_height;
+
+    for (int w = 0; w < num_windows; w++) {
+        // Safety bounds
+        if (
+            current_pos.y < 0 || 
+            current_pos.x < 0 || 
+            current_pos.x >= raw.width
+        ) break;
+
+        // Define window boundaries around current_pos
+        int win_y_low = std::max(
+            0, 
+            current_pos.y - sliding_window_height
+        );
+        int win_y_high = current_pos.y;
+        int win_x_low = std::max(
+            0, 
+            current_pos.x - sliding_window_width
+        );
+        int win_x_high = std::min(
+            raw.width, 
+            current_pos.x + sliding_window_width
+        );
+
+        std::vector<cv::Point> window_pixels;
+        float sum_x = 0.0f;
+        float sum_y = 0.0f;
