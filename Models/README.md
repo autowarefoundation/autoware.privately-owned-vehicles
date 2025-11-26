@@ -346,6 +346,7 @@ EgoLanes is a neural network that processes raw image frames and performs real-t
 
 ## EgoLanes model weights
 ### [Link to Download Pytorch Model Weights *.pth](https://drive.google.com/file/d/1Njo9EEc2tdU1ffo8AUQ9mjwuQ9CzSRPX/view?usp=sharing)
+### [Link to Download ONNX FP32 Weights *.onnx](https://drive.google.com/file/d/1b4jAoH6363ggTgVU0b6URbFfcOL3-r1Q/view?usp=sharing)
 
 ---
 
