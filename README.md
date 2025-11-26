@@ -13,9 +13,14 @@
 [![Website](https://img.shields.io/badge/website-000000?style=for-the-badge&logo=About.me&logoColor=white)](https://autoware.org/)
 </div>
 
+<div align="center">
 # Autoware - Autonomous Highway Pilot
+</div>
 
-The goal for this effort in Autoware is to build an open-source highway autonomy system that can power safe, SAE Level-4, autonomous driving around the world. To learn more about how to participate in this project, please read the [onboarding guide](/ONBOARDING.md)
+## Open-source highway autonomy system
+This codebase contains productionizable and safety certifiable code for an open-source highway autonomy system that can power safe, SAE Level-4, autonomous driving around the world. It is designed to be integrated with automotive OEMs and Tier-1 suppliers in series production privately owned passenger vehicles.
+
+ To learn more about how to participate in this project, please read the [onboarding guide](/ONBOARDING.md)
 
 ![Autoware PoV](Media/Autoware_PoV.jpg) 
 
