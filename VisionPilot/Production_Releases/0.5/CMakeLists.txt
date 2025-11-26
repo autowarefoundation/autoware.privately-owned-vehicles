@@ -32,6 +32,7 @@ endif()
 
 # Include directories
 include_directories(
+    include
     ${OpenCV_INCLUDE_DIRS}
     ${ONNXRUNTIME_INCLUDE_DIR}
 )

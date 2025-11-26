@@ -8,8 +8,8 @@
  * - Display Thread: Optionally visualizes and saves results
  */
 
-#include "include/inference/onnxruntime_engine.hpp"
-#include "include/visualization/draw_lanes.hpp"
+#include "inference/onnxruntime_engine.hpp"
+#include "visualization/draw_lanes.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
