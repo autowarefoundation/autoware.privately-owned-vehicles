@@ -48,3 +48,6 @@ private:
         cv::Point start_point,
         bool is_left_lane
     );
+
+    // Step 3: cubic polynomial fit
+    LanePolyFit fitPoly(const std::vector<cv::Point>& points);
