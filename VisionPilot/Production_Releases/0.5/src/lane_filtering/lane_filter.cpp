@@ -48,3 +48,8 @@ LaneFilter::LaneFilter(float smoothing_factor)
 {
     reset();
 }
+
+void LaneFilter::reset() {
+    prev_left_fit.valid = false;
+    prev_right_fit.valid = false;
+}
