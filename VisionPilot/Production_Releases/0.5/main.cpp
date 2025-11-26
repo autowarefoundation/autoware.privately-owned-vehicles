@@ -10,6 +10,7 @@
 
 #include "inference/onnxruntime_engine.hpp"
 #include "visualization/draw_lanes.hpp"
+#include "lane_filtering/lane_filter.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
