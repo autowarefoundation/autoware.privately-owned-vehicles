@@ -42,3 +42,9 @@ static void drawPolyOnMask(
         );
     }
 }
+
+LaneFilter::LaneFilter(float smoothing_factor) 
+    : smoothing_factor(smoothing_factor) 
+{
+    reset();
+}
