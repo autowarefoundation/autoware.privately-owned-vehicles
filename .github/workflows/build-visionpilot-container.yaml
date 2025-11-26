@@ -34,8 +34,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./SDV/OpenADKit/Docker/Dockerfile
+          file: ./Modules/SDV/OpenADKit/Docker/Dockerfile
           tags: visionpilot:${{ steps.docker_tag.outputs.tag }}
-          push: false
+          push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
