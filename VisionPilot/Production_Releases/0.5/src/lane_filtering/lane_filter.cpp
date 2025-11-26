@@ -243,3 +243,26 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         std::vector<cv::Point> window_pixels;
         float sum_x = 0.0f;
         float sum_y = 0.0f;
+
+        // Scan inside window
+        for (int y = win_y_low; y < win_y_high; y++) {
+            for (int x = win_x_low; x < win_x_high; x++) {
+                
+                // --- MIXING LOGIC ---
+                // "Regardless of the line type... include those markings"
+                float val_l = raw.ego_left.at<float>(y, x);
+                float val_r = raw.ego_right.at<float>(y, x);
+                float val_o = raw.other_lanes.at<float>(y, x);
+                
+                // If ANY channel shows a lane here, take it
+                if (
+                    val_l > 0.5f || 
+                    val_r > 0.5f || 
+                    val_o > 0.5f
+                ) {
+                    window_pixels.push_back(cv::Point(x, y));
+                    sum_x += x;
+                    sum_y += y;
+                }
+            }
+        }
