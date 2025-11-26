@@ -39,6 +39,16 @@ void drawLanesInPlace(
   int radius = 2
 );
 
+/**
+ * @brief In-place visualization of filtered lanes
+ * 
+ * @param image Image to annotate (modified in-place)
+ * @param lanes Filtered lane segmentation masks
+ */
+void drawFilteredLanesInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes);
+
 }  // namespace autoware_pov::vision::autosteer
 
 #endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
