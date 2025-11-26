@@ -37,4 +37,10 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         CV_32FC1
     );
 
-    
+    // Step 1: ROI for starting points
+    cv::Point start_left(-1, -1), start_right(-1, -1);
+    findStartingPoints(
+        raw_input, 
+        start_left, 
+        start_right
+    );
