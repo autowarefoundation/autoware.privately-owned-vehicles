@@ -78,6 +78,7 @@ target_compile_definitions(autosteer_pipeline PRIVATE LOG_TYPE=0)  # Use non-ROS
 target_link_libraries(autosteer_pipeline
     autosteer_inference
     autosteer_visualization
+    autosteer_lane_filtering
     ${OpenCV_LIBS}
     pthread
 )
