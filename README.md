@@ -1,3 +1,10 @@
+
+<div align="center">
+# Autoware - Autonomous Highway Pilot
+</div>
+
+<img src="/Media/hero_GIF.gif" width="100%">
+
 <div align="center">
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -13,16 +20,10 @@
 [![Website](https://img.shields.io/badge/website-000000?style=for-the-badge&logo=About.me&logoColor=white)](https://autoware.org/)
 </div>
 
-<div align="center">
-# Autoware - Autonomous Highway Pilot
-</div>
-
 ## Open-source highway autonomy system
 This codebase contains productionizable and safety certifiable code for an open-source highway autonomy system that can power safe, SAE Level-4, autonomous driving around the world. It is designed to be integrated with automotive OEMs and Tier-1 suppliers in series production privately owned passenger vehicles.
 
  To learn more about how to participate in this project, please read the [onboarding guide](/ONBOARDING.md)
-
-![Autoware PoV](Media/Autoware_PoV.jpg) 
 
 
 ## Value Proposition
