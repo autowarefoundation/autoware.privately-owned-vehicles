@@ -266,3 +266,48 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                 }
             }
         }
+
+        // If we found pixels in this window
+        if (!window_pixels.empty()) {
+            lane_points.insert(
+                lane_points.end(), 
+                window_pixels.begin(), 
+                window_pixels.end()
+            );
+            
+            // Calculate new centroid
+            float centroid_x = sum_x / window_pixels.size();
+            float centroid_y = sum_y / window_pixels.size();
+
+            // ANGLE CALCULATION
+            // Update search direction based on vector [Old -> New]
+            float dx = centroid_x - current_pos.x;
+            float dy = centroid_y - current_pos.y;
+            
+            float len = std::sqrt(dx*dx + dy*dy);
+            if (len > 0.1f) { // Avoid normalization of zero vector
+                dir_x = dx / len;
+                dir_y = dy / len;
+            }
+
+            // Move window to new centroid
+            current_pos = cv::Point(
+                static_cast<int>(std::round(centroid_x)), 
+                static_cast<int>(std::round(centroid_y))
+            );
+        } else {
+            // --- OCCLUSION HANDLING ---
+            // "Keep sliding window in the current direction"
+            // Multiply by height to jump the gap
+            current_pos.x += static_cast<int>(dir_x * sliding_window_height * 2.0f);
+            current_pos.y += static_cast<int>(dir_y * sliding_window_height * 2.0f);
+        }
+
+        // Force upward movement if we got stuck horizontally to prevent infinite loops
+        if (current_pos.y >= win_y_high - 1) {
+            current_pos.y -= sliding_window_height;
+        }
+    }
+
+    return lane_points;
+}
