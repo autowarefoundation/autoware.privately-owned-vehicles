@@ -72,3 +72,12 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         CV_32FC1
     );
     clean_output.other_lanes = raw_input.other_lanes.clone(); // Pass through others for now
+
+    // Step 1: ROI for starting points
+    std::vector<int> start_left_vec;
+    std::vector<int> start_right_vec;
+    findStartingPoints(
+        raw_input, 
+        start_left_vec, 
+        start_right_vec
+    );
