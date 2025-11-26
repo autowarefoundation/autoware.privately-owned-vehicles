@@ -1,7 +1,5 @@
 
-<div align="center">
 # Autoware - Autonomous Highway Pilot
-</div>
 
 <img src="/Media/hero_GIF.gif" width="100%">
 
