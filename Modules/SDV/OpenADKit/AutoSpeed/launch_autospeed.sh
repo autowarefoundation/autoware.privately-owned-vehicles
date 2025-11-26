@@ -8,7 +8,7 @@ xhost +
 docker run -it --rm \
     -e DISPLAY="$DISPLAY" \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v "$(pwd)/model-weights:/visionpilot/model-weights" \
-    -v "$(pwd)/test:/visionpilot/test" \
+    -v "$(pwd)/model-weights:/autoware/model-weights" \
+    -v "$(pwd)/test:/autoware/test" \
     visionpilot:latest \
-    /visionpilot/test/run_objectFinder.sh
+    /autoware/test/run_objectFinder.sh
