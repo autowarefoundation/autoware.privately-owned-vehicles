@@ -41,3 +41,10 @@ private:
         std::vector<int>& start_left,
         std::vector<int>& start_right
     );
+
+    // Step 2: sliding window search
+    std::vector<cv::Point> slidingWindowSearch(
+        const LaneSegmentation& raw,
+        cv::Point start_point,
+        bool is_left_lane
+    );
