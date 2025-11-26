@@ -1,6 +1,6 @@
-<div align="center">
+# Autoware - Open Source Autonomous Highway Pilot
 
-#Autoware - Open Source Autonomous Highway Pilot
+<div align="center">
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Discord](https://img.shields.io/discord/953808765935816715?label=Autoware%20Discord)](https://discord.com/invite/Q94UsPvReQ)
