@@ -118,3 +118,39 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         // For now, invalidating.
         prev_left_fit.valid = false;
     }
+
+    // Process right line
+    if (!start_right_vec.empty()) {
+        cv::Point start_pt(
+            start_right_vec[0], 
+            start_right_vec[1]
+        );
+        
+        auto right_points = slidingWindowSearch(
+            raw_input, 
+            start_pt, 
+            false
+        );
+        LanePolyFit right_fit = fitPoly(right_points);
+
+        if (right_fit.valid) {
+            if (prev_right_fit.valid) {
+                for (size_t i = 0; i < 4; i++) {
+                    right_fit.coeffs[i] = smoothing_factor * right_fit.coeffs[i] + 
+                                        (1.0f - smoothing_factor) * prev_right_fit.coeffs[i];
+                }
+            }
+            prev_right_fit = right_fit;
+            drawPolyOnMask(
+                clean_output.ego_right, 
+                right_fit.coeffs
+            );
+        }
+    } else {
+        prev_right_fit.valid = false;
+    }
+
+    return clean_output;
+}
+
+}
