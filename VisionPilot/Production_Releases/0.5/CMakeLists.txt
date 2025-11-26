@@ -62,6 +62,14 @@ target_link_libraries(autosteer_visualization
     ${OpenCV_LIBS}
 )
 
+# Lane filtering module
+add_library(autosteer_lane_filtering
+    src/lane_filtering/lane_filter.cpp
+)
+target_link_libraries(autosteer_lane_filtering
+    autosteer_inference
+)
+
 # Main executable
 add_executable(autosteer_pipeline
     main.cpp
