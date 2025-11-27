@@ -65,5 +65,16 @@ void drawLanesInPlace(
   }
 }
 
+void drawFilteredLanesInPlace(
+  cv::Mat& image, 
+  const LaneSegmentation& lanes
+)
+{
+    // 1. Prep blank canvas
+    cv::Mat overlay = cv::Mat::zeros(
+      image.size(), 
+      image.type()
+    );
+
 }  // namespace autoware_pov::vision::autosteer
 
