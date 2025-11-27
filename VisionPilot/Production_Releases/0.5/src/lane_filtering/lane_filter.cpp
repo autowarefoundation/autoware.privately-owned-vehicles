@@ -243,10 +243,10 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         // 2. Define window
 
         // Dynamic window width based on Y-position (which I call "perspective-aware")
-        // At bottom (y = mask.height = 80): full width (100%) ~ 16 pixels
+        // At bottom (y = mask.height = 80): full width (100%) ~ 8 pixels
         // At top (y = 0): narrow width to infinitesimal ~ 0 pixels
         int min_window_width = 0;
-        int max_window_width = 16;
+        int max_window_width = 8;
         float width_factor = static_cast<float>(current_pos.y) / raw.height;
         int dynamic_width = static_cast<int>(
             min_window_width + 
@@ -310,14 +310,22 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
 
         // 1. Primary: Do we have strong EGO signal? (>= 3 pixels)
         if (ego_pixels.size() >= 3) {
-            lane_points.insert(lane_points.end(), ego_pixels.begin(), ego_pixels.end());
+            lane_points.insert(
+                lane_points.end(), 
+                ego_pixels.begin(), 
+                ego_pixels.end()
+            );
             centroid_x = static_cast<float>(sum_x_ego) / ego_pixels.size();
             centroid_y = static_cast<float>(sum_y_ego) / ego_pixels.size();
             found_valid = true;
         } 
         // 2. Secondary: If Ego is missing, do we have OTHER signal?
         else if (other_pixels.size() >= 3) {
-            lane_points.insert(lane_points.end(), other_pixels.begin(), other_pixels.end());
+            lane_points.insert(
+                lane_points.end(), 
+                other_pixels.begin(), 
+                other_pixels.end()
+            );
             centroid_x = static_cast<float>(sum_x_other) / other_pixels.size();
             centroid_y = static_cast<float>(sum_y_other) / other_pixels.size();
             found_valid = true;
@@ -339,7 +347,7 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             current_pos = cv::Point(static_cast<int>(std::round(centroid_x)), 
                                     static_cast<int>(std::round(centroid_y)));
         } else {
-            // Horizon Cutoff
+            // Horizon cutoff
             if (current_pos.y < raw.height * 0.25) break; 
 
             consecutive_empty++;
