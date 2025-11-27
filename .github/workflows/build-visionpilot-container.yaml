@@ -42,7 +42,7 @@ jobs:
         with:
           context: .
           file: ./Modules/SDV/OpenADKit/Docker/Dockerfile
-          tags: visionpilot:${{ steps.docker_tag.outputs.tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/visionpilot:${{ steps.docker_tag.outputs.tag }}
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
