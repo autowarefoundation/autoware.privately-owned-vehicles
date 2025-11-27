@@ -1,9 +1,7 @@
 #include "lane_filtering/lane_filter.hpp"
 #include "inference/onnxruntime_engine.hpp"
-#include <iostream>
 #include <cmath>
 #include <algorithm>
-#include <numeric>
 
 namespace autoware_pov::vision::autosteer
 {
@@ -108,6 +106,7 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
                 }
             }
             prev_left_fit = left_fit;
+            clean_output.left_coeffs = prev_left_fit.coeffs; 
             drawPolyOnMask(
                 clean_output.ego_left, 
                 left_fit.coeffs
@@ -141,6 +140,7 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
                 }
             }
             prev_right_fit = right_fit;
+            clean_output.right_coeffs = prev_right_fit.coeffs;
             drawPolyOnMask(
                 clean_output.ego_right, 
                 right_fit.coeffs

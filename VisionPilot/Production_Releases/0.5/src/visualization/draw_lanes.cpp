@@ -65,6 +65,57 @@ void drawLanesInPlace(
   }
 }
 
+// Helper func to gen points from polynimial with scaling
+static std::vector<cv::Point> generateSmoothCurve(
+    const std::vector<double>& coeffs, 
+    int img_width, 
+    int img_height, 
+    int model_width, 
+    int model_height
+)
+{
+    std::vector<cv::Point> points;
+    if (coeffs.size() < 4) return points;
+
+    double a = coeffs[0];
+    double b = coeffs[1];
+    double c = coeffs[2];
+    double d = coeffs[3];
+
+    // Scaling factors
+    // Polyfit coeffs are calculated in model space (160x80)
+    // But gotta bring em into image space (640x360 or smth)
+    double scale_y = static_cast<double>(model_height) / img_height;
+    double scale_x = static_cast<double>(img_width) / model_width;
+
+    // Iterate over every single Y pixel in the FINAL image for maximum smoothness
+    for (int y_img = 0; y_img < img_height; ++y_img) {
+        
+        // 1. Image Y -> model Y
+        double y_model = y_img * scale_y;
+
+        // 2. Calc X in model space via poly
+        double x_model = a * std::pow(y_model, 3) + 
+                         b * std::pow(y_model, 2) + 
+                         c * y_model + 
+                         d;
+
+        // 3. Model X -> image X
+        double x_img = x_model * scale_x;
+
+        // 4. Store valid points
+        if (x_img >= 0 && x_img < img_width) {
+            points.push_back(
+              cv::Point(
+                static_cast<int>(x_img), 
+                y_img
+              )
+            );
+        }
+    }
+    return points;
+}
+
 void drawFilteredLanesInPlace(
   cv::Mat& image, 
   const LaneSegmentation& lanes
