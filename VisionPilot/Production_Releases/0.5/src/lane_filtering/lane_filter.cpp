@@ -200,7 +200,7 @@ void LaneFilter::findStartingPoints(
     }
 }
 
-// Step 2: sliding window search
+// Step 2: sliding window search (now with perspective-aware window size)
 std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     const LaneSegmentation& raw,
     cv::Point start_point,
@@ -240,6 +240,12 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         }
 
         // 2. Define window
+
+        // Dynamic window width based on Y-position (which I call "perspective-aware")
+        // At bottom (y = mask.height = 80): full width (100%) ~ 16 pixels
+        // At top (y = 0): narrow width (30%) ~ 5 pixels
+        
+
         int win_y_low = std::max(
             0, 
             current_pos.y - sliding_window_height
