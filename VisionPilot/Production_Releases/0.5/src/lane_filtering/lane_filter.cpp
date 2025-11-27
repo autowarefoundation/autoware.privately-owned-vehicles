@@ -336,7 +336,7 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     return lane_points;
 }
 
-// Step 3: cubic polynomial fit
+// Step 3: cubic polynomial fit (now with range limits)
 LanePolyFit LaneFilter::fitPoly(const std::vector<cv::Point>& points) {
     
     LanePolyFit result;
@@ -346,7 +346,14 @@ LanePolyFit LaneFilter::fitPoly(const std::vector<cv::Point>& points) {
         return result;
     }
 
-    // Design Matrix for Cubic: X = [y^3, y^2, y, 1]
+    // Calc Y-range for packed coeffs later
+    double min_y = 1000.0, max_y = -1.0;
+    for (const auto& p : points) {
+        if (p.y < min_y) min_y = p.y;
+        if (p.y > max_y) max_y = p.y;
+    }
+
+    // Design matrix for cubic fit: y^3, y^2, y, 1
     cv::Mat A(
         points.size(), 
         4, 
@@ -380,11 +387,13 @@ LanePolyFit LaneFilter::fitPoly(const std::vector<cv::Point>& points) {
             cv::DECOMP_SVD
         )
     ) {
-        result.coeffs.resize(4);
-        result.coeffs[0] = coeffs.at<double>(0); // a
-        result.coeffs[1] = coeffs.at<double>(1); // b
-        result.coeffs[2] = coeffs.at<double>(2); // c
-        result.coeffs[3] = coeffs.at<double>(3); // d
+        result.coeffs.resize(6);
+        result.coeffs[0] = coeffs.at<double>(0);    // a
+        result.coeffs[1] = coeffs.at<double>(1);    // b
+        result.coeffs[2] = coeffs.at<double>(2);    // c
+        result.coeffs[3] = coeffs.at<double>(3);    // d
+        result.coeffs[4] = min_y;   // Top lim
+        result.coeffs[5] = max_y;   // Bottom lim
         result.valid = true;
     }
 
