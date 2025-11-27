@@ -83,7 +83,11 @@ void drawFilteredLanesInPlace(
     );
 
     // 2. Process per channel
-    auto processChannel = [&](const cv::Mat& small_mask, const cv::Scalar& color) {
+    auto processChannel = [&](
+      const cv::Mat& small_mask, 
+      const cv::Scalar& color
+    ) {
+
         // Threshold first to ensure binary (clean up the 160x80 mask)
         cv::Mat bin_mask;
         cv::threshold(small_mask, bin_mask, 0.5, 1.0, cv::THRESH_BINARY);
@@ -102,6 +106,21 @@ void drawFilteredLanesInPlace(
         // Copy the color only where the mask is active onto the overlay
         color_layer.copyTo(overlay, full_mask_8u);
     };
+
+    // 3. Process each lane type
+    processChannel(lanes.ego_left, color_ego_left); 
+    processChannel(lanes.ego_right, color_ego_right);
+    processChannel(lanes.other_lanes, color_other);
+
+    // 3. Alpha blend
+    double alpha = 0.6;
+    cv::addWeighted(
+      overlay, alpha, 
+      image, 1 - alpha, 
+      0, image
+    );
+
+}
 
 }  // namespace autoware_pov::vision::autosteer
 
