@@ -199,6 +199,25 @@ void drawFilteredLanesInPlace(
         );
     }
 
+    // 3. EgoRight
+    if (!lanes.right_coeffs.empty()) {
+        auto right_points = genSmoothCurve(
+            lanes.right_coeffs, 
+            image.cols, 
+            image.rows, 
+            lanes.width, 
+            lanes.height
+        );
+        // Polyline
+        cv::polylines(
+          image, 
+          right_points, 
+          false, 
+          color_ego_right, 
+          5, 
+          cv::LINE_AA
+        );
+      }
 }
 
 }  // namespace autoware_pov::vision::autosteer
