@@ -23,18 +23,9 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     clean_output.width = raw_input.width;   // 160
     clean_output.height = raw_input.height; // 80
     
-    // Initialize blank masks
-    clean_output.ego_left = cv::Mat::zeros(
-        clean_output.height, 
-        clean_output.width, 
-        CV_32FC1
-    );
-    clean_output.ego_right = cv::Mat::zeros(
-        clean_output.height, 
-        clean_output.width, 
-        CV_32FC1
-    );
-    clean_output.other_lanes = raw_input.other_lanes.clone(); // Pass through others for now
+    clean_output.ego_left = raw_input.ego_left.clone();
+    clean_output.ego_right = raw_input.ego_right.clone();
+    clean_output.other_lanes = raw_input.other_lanes.clone();
 
     // Step 1: ROI for starting points
     std::vector<int> start_left_vec;
@@ -71,7 +62,7 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
                 }
             }
             prev_left_fit = left_fit;
-            clean_output.left_coeffs = prev_left_fit.coeffs; 
+            clean_output.left_coeffs = left_fit.coeffs; 
         }
     } else {
         // If detection lost, maybe keep previous for a few frames? 
@@ -101,7 +92,7 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
                 }
             }
             prev_right_fit = right_fit;
-            clean_output.right_coeffs = prev_right_fit.coeffs;
+            clean_output.right_coeffs = right_fit.coeffs;
         }
     } else {
         prev_right_fit.valid = false;
