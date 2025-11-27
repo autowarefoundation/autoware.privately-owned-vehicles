@@ -253,7 +253,8 @@ void displayThread(
 
         // Visualization
         if (enable_viz) {
-            drawLanesInPlace(result.frame, result.lanes, 2);
+            // drawLanesInPlace(result.frame, result.lanes, 2);
+            drawFilteredLanesInPlace(result.frame, result.lanes);
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
