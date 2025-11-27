@@ -25,6 +25,10 @@ struct LaneSegmentation
   
   int height;
   int width;
+
+  // Coeffs for polyfit upscaling
+  std::vector<double> left_coeffs;
+  std::vector<double> right_coeffs;
 };
 
 /**
