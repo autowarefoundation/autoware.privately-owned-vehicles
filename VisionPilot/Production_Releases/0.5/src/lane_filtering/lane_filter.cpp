@@ -191,19 +191,20 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         // 2. Define window
 
         // Dynamic window width based on Y-position (which I call "perspective-aware")
-        // At bottom (y = mask.height = 80): full width (100%) ~ 8 pixels
-        // At top (y = 0): narrow width to infinitesimal ~ 0 pixels
-        int min_window_width = 0;
+        // Near bottom (y >= 60%) : forgiving, width = 8 pixels
+        // Rest (y < 60%) : surgically precise, width = 2 pixels
+        int min_window_width = 2;
         int max_window_width = 8;
-        float width_factor = static_cast<float>(current_pos.y) / raw.height;
-        int dynamic_width = static_cast<int>(
-            min_window_width + 
-            width_factor * (max_window_width - min_window_width)
-        );
-        int current_width  = std::max(
-            1, 
-            dynamic_width
-        );
+        float threshold = 0.6f;
+
+        float height_thresold = raw.height * threshold;
+        int current_width;
+
+        if (current_pos.y < height_thresold) {
+            current_width = min_window_width;
+        } else {
+            current_width = max_window_width;
+        }
 
         int win_y_low = std::max(
             0, 
