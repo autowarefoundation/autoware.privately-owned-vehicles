@@ -209,9 +209,15 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     std::vector<cv::Point> lane_points;
     cv::Point current_pos = start_point;
     
-    // Initial direction: Straight Up
-    float dir_x = 0.0f; 
-    float dir_y = -1.0f; 
+    // Initial direction:
+    // - Left lane: upwards-left
+    // - Right lane: upwards-right
+    float dir_x = (
+        is_left_lane ? 
+        0.2f : 
+        -0.2f
+    );
+    float dir_y = -1.0f;
 
     int num_windows = raw.height / sliding_window_height;
 
