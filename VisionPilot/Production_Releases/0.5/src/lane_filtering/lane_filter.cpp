@@ -219,22 +219,35 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     );
     float dir_y = -1.0f;
 
-    int num_windows = raw.height / sliding_window_height;
+    // Normalize initial dir
+    float len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+    dir_x /= len; dir_y /= len;
 
-    for (int w = 0; w < num_windows; w++) {
-        // Safety bounds
+    // Step by a percentage of the window height to ensure overlap
+    float step_size = sliding_window_height * 0.8f; 
+
+    int max_steps = (raw.height / step_size) * 1.5; // Safety limit
+
+    for (int i = 0; i < max_steps; i++) {
+        // 1. Boundary checks
         if (
             current_pos.y < 0 || 
+            current_pos.y >= raw.height || 
             current_pos.x < 0 || 
             current_pos.x >= raw.width
-        ) break;
+        ) {
+            break;
+        }
 
-        // Define window boundaries around current_pos
+        // 2. Define window
         int win_y_low = std::max(
             0, 
             current_pos.y - sliding_window_height
         );
-        int win_y_high = current_pos.y;
+        int win_y_high = std::min(
+            raw.height, 
+            current_pos.y + sliding_window_height
+        );
         int win_x_low = std::max(
             0, 
             current_pos.x - sliding_window_width
@@ -248,22 +261,18 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         float sum_x = 0.0f;
         float sum_y = 0.0f;
 
-        // Scan inside window
+        // 3. Collect pixels via class-agnostic search
         for (int y = win_y_low; y < win_y_high; y++) {
+
             for (int x = win_x_low; x < win_x_high; x++) {
-                
-                // --- MIXING LOGIC ---
-                // "Regardless of the line type... include those markings"
-                float val_l = raw.ego_left.at<float>(y, x);
-                float val_r = raw.ego_right.at<float>(y, x);
-                float val_o = raw.other_lanes.at<float>(y, x);
-                
-                // If ANY channel shows a lane here, take it
+
+                // Check all channels (yeah this is class-agnostic search I mentioned)
                 if (
-                    val_l > 0.5f || 
-                    val_r > 0.5f || 
-                    val_o > 0.5f
+                    raw.ego_left.at<float>(y, x) > 0.5f || 
+                    raw.ego_right.at<float>(y, x) > 0.5f || 
+                    raw.other_lanes.at<float>(y, x) > 0.5f
                 ) {
+                    
                     window_pixels.push_back(cv::Point(x, y));
                     sum_x += x;
                     sum_y += y;
@@ -271,46 +280,57 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             }
         }
 
-        // If we found pixels in this window
+        // 4. Update state
         if (!window_pixels.empty()) {
+
             lane_points.insert(
                 lane_points.end(), 
                 window_pixels.begin(), 
                 window_pixels.end()
             );
             
-            // Calculate new centroid
             float centroid_x = sum_x / window_pixels.size();
             float centroid_y = sum_y / window_pixels.size();
 
-            // ANGLE CALCULATION
-            // Update search direction based on vector [Old -> New]
-            float dx = centroid_x - current_pos.x;
-            float dy = centroid_y - current_pos.y;
+            // Calc new dir based on [current -> centroid]
+            // Kinda blend the new direction with the old one for smoothness (momentum)
+            float new_dx = centroid_x - current_pos.x;
+            float new_dy = centroid_y - current_pos.y;
             
-            float len = std::sqrt(dx*dx + dy*dy);
-            if (len > 0.1f) { // Avoid normalization of zero vector
-                dir_x = dx / len;
-                dir_y = dy / len;
+            // Normalize
+            float n_len = std::sqrt(new_dx * new_dx + new_dy * new_dy);
+            if (n_len > 0.1f) {
+
+                new_dx /= n_len; 
+                new_dy /= n_len;
+                
+                // Momentum update: 0.7 * old + 0.3 * new
+                dir_x = 0.7f * dir_x + 0.3f * new_dx;
+                dir_y = 0.7f * dir_y + 0.3f * new_dy;
+                
+                // Re-normalize after blending
+                float blend_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                dir_x /= blend_len;
+                dir_y /= blend_len;
             }
 
-            // Move window to new centroid
-            current_pos = cv::Point(
-                static_cast<int>(std::round(centroid_x)), 
-                static_cast<int>(std::round(centroid_y))
-            );
-        } else {
-            // --- OCCLUSION HANDLING ---
-            // "Keep sliding window in the current direction"
-            // Multiply by height to jump the gap
-            current_pos.x += static_cast<int>(dir_x * sliding_window_height * 2.0f);
-            current_pos.y += static_cast<int>(dir_y * sliding_window_height * 2.0f);
-        }
+            // Move to centroid first...
+            current_pos.x = static_cast<int>(centroid_x);
+            current_pos.y = static_cast<int>(centroid_y);
+            
+            // ...THEN ADVANCE in the direction of the line
+            current_pos.x += static_cast<int>(dir_x * step_size);
+            current_pos.y += static_cast<int>(dir_y * step_size);
 
-        // Force upward movement if we got stuck horizontally to prevent infinite loops
-        if (current_pos.y >= win_y_high - 1) {
-            current_pos.y -= sliding_window_height;
+        } else {
+            // Occlusion / gap => just step forward in previous direction
+            current_pos.x += static_cast<int>(dir_x * step_size);
+            current_pos.y += static_cast<int>(dir_y * step_size);
         }
+        
+        // Break if we are going down (should move up, y decreases)
+        // or if we reached the top of image
+        if (dir_y > 0.1f) break; // Line turned downwards? The f is this? Abort!
     }
 
     return lane_points;
