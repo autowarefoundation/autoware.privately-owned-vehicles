@@ -77,16 +77,30 @@ static std::vector<cv::Point> genSmoothCurve(
     std::vector<cv::Point> points;
     if (coeffs.size() < 4) return points;
 
-    double a = coeffs[0];
-    double b = coeffs[1];
-    double c = coeffs[2];
-    double d = coeffs[3];
+    double a         = coeffs[0];
+    double b         = coeffs[1];
+    double c         = coeffs[2];
+    double d         = coeffs[3];
+    double min_y_lim = coeffs[4];
+    double max_y_lim = coeffs[5];
 
     // Scaling factors
     // Polyfit coeffs are calculated in model space (160x80)
     // But gotta bring em into image space (640x360 or smth)
     double scale_y = static_cast<double>(model_height) / img_height;
     double scale_x = static_cast<double>(img_width) / model_width;
+
+    // Lims in image space
+    int img_y_start = static_cast<int>(min_y_lim / scale_y);
+    int img_y_end   = static_cast<int>(max_y_lim / scale_y);
+    img_y_start = std::max(
+      0, 
+      img_y_start
+    );
+    img_y_end   = std::min(
+      img_height - 1, 
+      img_y_end
+    );
 
     // Iterate over every single Y pixel in the FINAL image for maximum smoothness
     for (int y_img = 0; y_img < img_height; ++y_img) {
