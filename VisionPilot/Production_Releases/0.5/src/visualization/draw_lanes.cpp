@@ -141,7 +141,7 @@ void drawFilteredLanesInPlace(
     cv::Scalar color_ego_right(255, 0, 200);   // Magenta
     cv::Scalar color_other(0, 153, 0);         // Green
 
-    // 1. Other lines
+    // 1a. Raw mask of other lines
     if (!lanes.other_lanes.empty()) {
         cv::Mat other_mask_resized;
         // Nearest neighbor resize to keep it binary-ish before smoothing
@@ -191,6 +191,70 @@ void drawFilteredLanesInPlace(
           0, 
           image
         );
+    }
+
+    // 1b. Raw mask of ego left line
+    if (!lanes.ego_left.empty()) {
+        cv::Mat ego_left_resized;
+        cv::resize(
+          lanes.ego_left,
+          ego_left_resized,
+          image.size(),
+          0, 0,
+          cv::INTER_NEAREST
+        );
+
+        cv::Mat mask_left_8u;
+        ego_left_resized.convertTo(
+          mask_left_8u,
+          CV_8U,
+          255.0
+        );
+
+        cv::threshold(
+          mask_left_8u,
+          mask_left_8u,
+          127,
+          255,
+          cv::THRESH_BINARY
+        );
+
+        cv::Mat blue_layer(image.size(), image.type(), color_ego_left);
+        cv::Mat overlay_left;
+        blue_layer.copyTo(overlay_left, mask_left_8u);
+        cv::addWeighted(image, 1.0, overlay_left, 0.35, 0, image);
+    }
+
+    // 1c. Raw mask of ego right line
+    if (!lanes.ego_right.empty()) {
+        cv::Mat ego_right_resized;
+        cv::resize(
+          lanes.ego_right,
+          ego_right_resized,
+          image.size(),
+          0, 0,
+          cv::INTER_NEAREST
+        );
+
+        cv::Mat mask_right_8u;
+        ego_right_resized.convertTo(
+          mask_right_8u,
+          CV_8U,
+          255.0
+        );
+
+        cv::threshold(
+          mask_right_8u,
+          mask_right_8u,
+          127,
+          255,
+          cv::THRESH_BINARY
+        );
+
+        cv::Mat magenta_layer(image.size(), image.type(), color_ego_right);
+        cv::Mat overlay_right;
+        magenta_layer.copyTo(overlay_right, mask_right_8u);
+        cv::addWeighted(image, 1.0, overlay_right, 0.35, 0, image);
     }
 
     // 2. EgoLeft
