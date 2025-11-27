@@ -102,8 +102,8 @@ static std::vector<cv::Point> genSmoothCurve(
       img_y_end
     );
 
-    // Iterate over every single Y pixel in the FINAL image for maximum smoothness
-    for (int y_img = 0; y_img < img_height; ++y_img) {
+    // Iterate ONLY within valid Y-range
+    for (int y_img = img_y_start; y_img <= img_y_end; ++y_img) {
         
         // 1. Image Y -> model Y
         double y_model = y_img * scale_y;
