@@ -70,11 +70,19 @@ void drawFilteredLanesInPlace(
   const LaneSegmentation& lanes
 )
 {
+
+    // Define colors (BGR format for OpenCV)
+    cv::Scalar color_ego_left(255, 0, 0);      // Blue
+    cv::Scalar color_ego_right(255, 0, 200);   // Magenta
+    cv::Scalar color_other(0, 153, 0);         // Green
+    
     // 1. Prep blank canvas
     cv::Mat overlay = cv::Mat::zeros(
       image.size(), 
       image.type()
     );
+
+
 
 }  // namespace autoware_pov::vision::autosteer
 
