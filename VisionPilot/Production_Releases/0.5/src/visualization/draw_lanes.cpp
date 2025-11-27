@@ -66,7 +66,7 @@ void drawLanesInPlace(
 }
 
 // Helper func to gen points from polynimial with scaling
-static std::vector<cv::Point> generateSmoothCurve(
+static std::vector<cv::Point> genSmoothCurve(
     const std::vector<double>& coeffs, 
     int img_width, 
     int img_height, 
@@ -127,49 +127,57 @@ void drawFilteredLanesInPlace(
     cv::Scalar color_ego_right(255, 0, 200);   // Magenta
     cv::Scalar color_other(0, 153, 0);         // Green
 
-    // 1. Prep blank canvas
-    cv::Mat overlay = cv::Mat::zeros(
-      image.size(), 
-      image.type()
-    );
-
-    // 2. Process per channel
-    auto processChannel = [&](
-      const cv::Mat& small_mask, 
-      const cv::Scalar& color
-    ) {
-
-        // Threshold first to ensure binary (clean up the 160x80 mask)
-        cv::Mat bin_mask;
-        cv::threshold(small_mask, bin_mask, 0.5, 1.0, cv::THRESH_BINARY);
-
-        // Resize to full image size (Linear interpolation smooths the jagged edges!)
-        cv::Mat full_mask;
-        cv::resize(bin_mask, full_mask, image.size(), 0, 0, cv::INTER_LINEAR);
-
-        // Create a solid color layer
-        cv::Mat color_layer(image.size(), image.type(), color);
+    // 1. Other lines
+    if (!lanes.other_lanes.empty()) {
+        cv::Mat other_mask_resized;
+        // Nearest neighbor resize to keep it binary-ish before smoothing
+        cv::resize(
+          lanes.other_lanes, 
+          other_mask_resized, 
+          image.size(), 
+          0, 0, 
+          cv::INTER_NEAREST
+        );
         
-        // Convert mask to 8-bit for copy operation
-        cv::Mat full_mask_8u;
-        full_mask.convertTo(full_mask_8u, CV_8U, 255.0);
+        // Create green overlay
+        cv::Mat green_layer(
+          image.size(), 
+          image.type(), 
+          color_other
+        );
         
-        // Copy the color only where the mask is active onto the overlay
-        color_layer.copyTo(overlay, full_mask_8u);
-    };
+        cv::Mat mask_8u;
+        other_mask_resized.convertTo(
+          mask_8u, 
+          CV_8U, 
+          255.0
+        );
+        
+        // Apply simple threshold to clean up
+        cv::threshold(
+          mask_8u, 
+          mask_8u, 
+          127, 
+          255, 
+          cv::THRESH_BINARY
+        );
 
-    // 3. Process each lane type
-    processChannel(lanes.ego_left, color_ego_left); 
-    processChannel(lanes.ego_right, color_ego_right);
-    processChannel(lanes.other_lanes, color_other);
-
-    // 3. Alpha blend
-    double alpha = 0.6;
-    cv::addWeighted(
-      overlay, alpha, 
-      image, 1 - alpha, 
-      0, image
-    );
+        cv::Mat overlay;
+        green_layer.copyTo(
+          overlay, 
+          mask_8u
+        );
+        
+        // Add faint green glow
+        cv::addWeighted(
+          image, 
+          1.0, 
+          overlay, 
+          0.4, 
+          0, 
+          image
+        );
+    }
 
 }
 
