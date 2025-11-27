@@ -6,41 +6,6 @@
 namespace autoware_pov::vision::autosteer
 {
 
-// Helper func: drawing polynomial curve on mask
-static void drawPolyOnMask(
-    cv::Mat& mask, 
-    const std::vector<double>& coeffs
-) {
-    if (coeffs.size() < 4) return;
-    
-    std::vector<cv::Point> curve_points;
-    // Iterate from top to bottom of the mask
-    for (int y = 0; y < mask.rows; y++) {
-        // x = ay^3 + by^2 + cy + d
-        double y_d = static_cast<double>(y);
-        double x_d = coeffs[0] * pow(y_d, 3) + 
-                     coeffs[1] * pow(y_d, 2) + 
-                     coeffs[2] * y_d + 
-                     coeffs[3];
-        
-        int x = static_cast<int>(std::round(x_d));
-        if (x >= 0 && x < mask.cols) {
-            curve_points.push_back(cv::Point(x, y));
-        }
-    }
-
-    if (curve_points.size() > 1) {
-        cv::polylines(
-            mask, 
-            curve_points, 
-            false, 
-            cv::Scalar(1.0f), 
-            2, 
-            cv::LINE_AA
-        );
-    }
-}
-
 LaneFilter::LaneFilter(float smoothing_factor) 
     : smoothing_factor(smoothing_factor) 
 {
@@ -107,10 +72,6 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
             }
             prev_left_fit = left_fit;
             clean_output.left_coeffs = prev_left_fit.coeffs; 
-            drawPolyOnMask(
-                clean_output.ego_left, 
-                left_fit.coeffs
-            );
         }
     } else {
         // If detection lost, maybe keep previous for a few frames? 
@@ -141,10 +102,6 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
             }
             prev_right_fit = right_fit;
             clean_output.right_coeffs = prev_right_fit.coeffs;
-            drawPolyOnMask(
-                clean_output.ego_right, 
-                right_fit.coeffs
-            );
         }
     } else {
         prev_right_fit.valid = false;
