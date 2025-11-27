@@ -214,10 +214,11 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     // - Right lane: upwards-right
     float dir_x = (
         is_left_lane ? 
-        0.2f : 
-        -0.2f
+        0.1f : 
+        -0.1f
     );
     float dir_y = -1.0f;
+    int consecutive_empty = 0; 
 
     // Normalize initial dir
     float len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
@@ -242,10 +243,10 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         // 2. Define window
 
         // Dynamic window width based on Y-position (which I call "perspective-aware")
-        // At bottom (y = mask.height = 80): full width (100%) ~ 10 pixels
+        // At bottom (y = mask.height = 80): full width (100%) ~ 16 pixels
         // At top (y = 0): narrow width to infinitesimal ~ 0 pixels
         int min_window_width = 0;
-        int max_window_width = 10;
+        int max_window_width = 16;
         float width_factor = static_cast<float>(current_pos.y) / raw.height;
         int dynamic_width = static_cast<int>(
             min_window_width + 
@@ -270,80 +271,88 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             current_pos.x + current_width
         );
 
-        std::vector<cv::Point> window_pixels;
-        float sum_x = 0.0f;
-        float sum_y = 0.0f;
+        // Buckets for priority logic
+        std::vector<cv::Point> ego_pixels;
+        std::vector<cv::Point> other_pixels;
+        
+        long sum_x_ego = 0, sum_y_ego = 0;
+        long sum_x_other = 0, sum_y_other = 0;
 
         // 3. Collect pixels via class-agnostic search
         for (int y = win_y_low; y < win_y_high; y++) {
 
             for (int x = win_x_low; x < win_x_high; x++) {
 
-                // Check all channels (yeah this is class-agnostic search I mentioned)
-                if (
-                    raw.ego_left.at<float>(y, x) > 0.5f || 
-                    raw.ego_right.at<float>(y, x) > 0.5f || 
-                    raw.other_lanes.at<float>(y, x) > 0.5f
-                ) {
-                    
-                    window_pixels.push_back(cv::Point(x, y));
-                    sum_x += x;
-                    sum_y += y;
+                float val_ego = (
+                    is_left_lane ? 
+                    raw.ego_left.at<float>(y, x) : 
+                    raw.ego_right.at<float>(y, x)
+                );
+                float val_other = raw.other_lanes.at<float>(y, x);
+                
+                // Sort pixels into buckets
+                if (val_ego > 0.5f) {
+                    ego_pixels.push_back(cv::Point(x, y));
+                    sum_x_ego += x;
+                    sum_y_ego += y;
+                }
+                if (val_other > 0.5f) {
+                    other_pixels.push_back(cv::Point(x, y));
+                    sum_x_other += x;
+                    sum_y_other += y;
                 }
             }
         }
 
-        // 4. Update state
-        if (!window_pixels.empty()) {
+        // PRIORITY DECISION
+        float centroid_x, centroid_y;
+        bool found_valid = false;
 
-            lane_points.insert(
-                lane_points.end(), 
-                window_pixels.begin(), 
-                window_pixels.end()
-            );
-            
-            float centroid_x = sum_x / window_pixels.size();
-            float centroid_y = sum_y / window_pixels.size();
-
-            // Calc new dir based on [current -> centroid]
-            // Kinda blend the new direction with the old one for smoothness (momentum)
-            float new_dx = centroid_x - current_pos.x;
-            float new_dy = centroid_y - current_pos.y;
-            
-            // Normalize
-            float n_len = std::sqrt(new_dx * new_dx + new_dy * new_dy);
-            if (n_len > 0.1f) {
-
-                new_dx /= n_len; 
-                new_dy /= n_len;
-                
-                // Momentum update: 0.7 * old + 0.3 * new
-                dir_x = 0.7f * dir_x + 0.3f * new_dx;
-                dir_y = 0.7f * dir_y + 0.3f * new_dy;
-                
-                // Re-normalize after blending
-                float blend_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-                dir_x /= blend_len;
-                dir_y /= blend_len;
-            }
-
-            // Move to centroid first...
-            current_pos.x = static_cast<int>(centroid_x);
-            current_pos.y = static_cast<int>(centroid_y);
-            
-            // ...THEN ADVANCE in the direction of the line
-            current_pos.x += static_cast<int>(dir_x * step_size);
-            current_pos.y += static_cast<int>(dir_y * step_size);
-
-        } else {
-            // Occlusion / gap => just step forward in previous direction
-            current_pos.x += static_cast<int>(dir_x * step_size);
-            current_pos.y += static_cast<int>(dir_y * step_size);
+        // 1. Primary: Do we have strong EGO signal? (>= 3 pixels)
+        if (ego_pixels.size() >= 3) {
+            lane_points.insert(lane_points.end(), ego_pixels.begin(), ego_pixels.end());
+            centroid_x = static_cast<float>(sum_x_ego) / ego_pixels.size();
+            centroid_y = static_cast<float>(sum_y_ego) / ego_pixels.size();
+            found_valid = true;
+        } 
+        // 2. Secondary: If Ego is missing, do we have OTHER signal?
+        else if (other_pixels.size() >= 3) {
+            lane_points.insert(lane_points.end(), other_pixels.begin(), other_pixels.end());
+            centroid_x = static_cast<float>(sum_x_other) / other_pixels.size();
+            centroid_y = static_cast<float>(sum_y_other) / other_pixels.size();
+            found_valid = true;
         }
-        
-        // Break if we are going down (should move up, y decreases)
-        // or if we reached the top of image
-        if (dir_y > 0.1f) break; // Line turned downwards? The f is this? Abort!
+
+        // 4. Update state
+        if (found_valid) {
+            consecutive_empty = 0;
+            
+            // Update Momentum
+            float dx = centroid_x - current_pos.x;
+            float dy = centroid_y - current_pos.y;
+            
+            float len = std::sqrt(dx*dx + dy*dy);
+            if (len > 0.1f) {
+                dir_x = dx / len;
+                dir_y = dy / len;
+            }
+            current_pos = cv::Point(static_cast<int>(std::round(centroid_x)), 
+                                    static_cast<int>(std::round(centroid_y)));
+        } else {
+            // Horizon Cutoff
+            if (current_pos.y < raw.height * 0.25) break; 
+
+            consecutive_empty++;
+            if (consecutive_empty >= 3) break; 
+
+            // Advance blindly
+            current_pos.x += static_cast<int>(dir_x * sliding_window_height);
+            current_pos.y += static_cast<int>(dir_y * sliding_window_height);
+        }
+
+        if (current_pos.y >= win_y_high - 1) {
+            current_pos.y -= sliding_window_height;
+        }
     }
 
     return lane_points;
