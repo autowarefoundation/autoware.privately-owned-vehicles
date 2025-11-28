@@ -148,7 +148,7 @@ void LaneFilter::findStartingPoints(
     }
 }
 
-// Step 2: sliding window search (now with perspective-aware window size)
+// Step 2: sliding window search (now with perspective-aware window size and priority logic)
 std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     const LaneSegmentation& raw,
     cv::Point start_point,
@@ -160,11 +160,7 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     // Initial direction:
     // - Left lane: upwards-left
     // - Right lane: upwards-right
-    float dir_x = (
-        is_left_lane ? 
-        0.1f : 
-        -0.1f
-    );
+    float dir_x = 0.0f;
     float dir_y = -1.0f;
     int consecutive_empty = 0; 
 
@@ -226,6 +222,11 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         
         long sum_x_ego = 0, sum_y_ego = 0;
         long sum_x_other = 0, sum_y_other = 0;
+
+        // Y-coord-based priority strategy switch
+        // If we are above y=60 (pixels 0-59), we enter stricter ego-prioritized mode
+        // In this mode, we completely ignore "other_lanes" masks to avoid false positives
+        bool strict_ego_mode = (current_pos.y < 60);
 
         // 3. Collect pixels via class-agnostic search
         for (int y = win_y_low; y < win_y_high; y++) {
