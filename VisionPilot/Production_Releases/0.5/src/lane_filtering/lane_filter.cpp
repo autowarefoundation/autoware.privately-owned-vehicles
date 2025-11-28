@@ -246,7 +246,8 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                     sum_x_ego += x;
                     sum_y_ego += y;
                 }
-                if (val_other > 0.5f) {
+                // Only consider other_lanes if NOT in strict mode
+                if (!strict_ego_mode && val_other > 0.5f) {
                     other_pixels.push_back(cv::Point(x, y));
                     sum_x_other += x;
                     sum_y_other += y;
@@ -270,6 +271,7 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             found_valid = true;
         } 
         // 2. Secondary: If Ego is missing, do we have OTHER signal?
+        // Other_lanes will be empty if strict_ego_mode is true, effectively disabling this branch
         else if (other_pixels.size() >= 3) {
             lane_points.insert(
                 lane_points.end(), 
@@ -301,7 +303,7 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             if (current_pos.y < raw.height * 0.25) break; 
 
             consecutive_empty++;
-            if (consecutive_empty >= 3) break; 
+            if (consecutive_empty >= 4) break; 
 
             // Advance blindly
             current_pos.x += static_cast<int>(dir_x * sliding_window_height);
