@@ -20,6 +20,8 @@ void LaneFilter::reset() {
     prev_right_fit.valid = false;
 }
 
+// ============================== RANSAC-RELATED STUFFS ============================== //
+
 // RANSAC helper func: calc X-error
 double LaneFilter::getError(
     const std::vector<double>& c, 
@@ -202,6 +204,11 @@ LanePolyFit LaneFilter::fitPoly(
             result.valid = true;
         }
     }
+
+    return result;
+}
+
+// ============================================================================= //
 
 // Master update func
 LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
