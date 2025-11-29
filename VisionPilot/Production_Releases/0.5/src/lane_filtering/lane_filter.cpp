@@ -91,7 +91,21 @@ std::vector<double> LaneFilter::fitPolySimple(
         B.at<double>(i, 0) = x;
     }
 
+    cv::Mat coeffs;
+    if (cv::solve(
+        A, 
+        B, 
+        coeffs, 
+        cv::DECOMP_SVD
+    )) {
+        std::vector<double> res;
+        for(int i = 0; i < coeffs.rows; i++) {
+            res.push_back(coeffs.at<double>(i));
+        }
+        return res;
+    }
     
+    return {};
 }
 
 // Master update func
