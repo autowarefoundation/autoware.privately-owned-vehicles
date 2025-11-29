@@ -104,9 +104,20 @@ std::vector<double> LaneFilter::fitPolySimple(
         }
         return res;
     }
-    
+
     return {};
 }
+
+// RANSAC helper func: main fit logic
+LanePolyFit LaneFilter::fitPoly(
+    const std::vector<cv::Point>& points
+) {
+    
+    LanePolyFit result;
+    result.valid = false;
+    
+    int n = points.size();
+    if (n < min_pixels_for_fit) return result;
 
 // Master update func
 LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
