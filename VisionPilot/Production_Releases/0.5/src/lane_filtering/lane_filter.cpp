@@ -126,6 +126,11 @@ LanePolyFit LaneFilter::fitPoly(
         if (p.y > max_y) max_y = p.y;
     }
 
+    // 2. Dynamic order selection
+    int order = 3; 
+    if (n < 30) order = 1; 
+    else if (n < 60) order = 2;
+
     
 
 // Master update func
