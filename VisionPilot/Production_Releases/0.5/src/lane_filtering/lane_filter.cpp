@@ -40,12 +40,58 @@ double LaneFilter::getError(
         x_pred =    c[0]*pow(y,2) + \
                     c[1]*y + \
                     c[2];
-                    
+
     } else if (c.size() == 2) {     // Linear
         x_pred =    c[0]*y + c[1];
     }
     
     return std::abs(x_pred - p.x);
+}
+
+// RANSAC helper func: least squares polyfit on subset
+std::vector<double> LaneFilter::fitPolySimple(
+    const std::vector<cv::Point>& subset, 
+    int order
+) {
+    int n = subset.size();
+    if (n <= order) return {}; 
+
+    cv::Mat A(
+        n, 
+        order + 1, 
+        CV_64F
+    );
+    cv::Mat B(
+        n, 
+        1, 
+        CV_64F
+    );
+
+    for (int i = 0; i < n; ++i) {
+
+        double y = static_cast<double>(subset[i].y);
+        double x = static_cast<double>(subset[i].x);
+
+        if (order == 1) {           // Linear: x = ay + b
+            A.at<double>(i, 0) = y;
+            A.at<double>(i, 1) = 1.0;
+
+        } else if (order == 2) {    // Quad: x = ay^2 + by + c
+            A.at<double>(i, 0) = y * y;
+            A.at<double>(i, 1) = y;
+            A.at<double>(i, 2) = 1.0;
+
+        } else {                    // Cubic: x = ay^3 + by^2 + cy + d
+            A.at<double>(i, 0) = y * y * y;
+            A.at<double>(i, 1) = y * y;
+            A.at<double>(i, 2) = y;
+            A.at<double>(i, 3) = 1.0;
+        }
+
+        B.at<double>(i, 0) = x;
+    }
+
+    
 }
 
 // Master update func
