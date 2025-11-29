@@ -32,6 +32,10 @@ private:
     const int sliding_window_width = 8;
     const int min_pixels_for_fit = 5;
 
+    // RANSAC polyfit params
+    const int ransac_iterations = 50;       // Combi of iterations
+    const double ransac_threshold = 2.0;    // Max reproj error
+
     // Helper funcs
 
     // Step 1: ROI for starting points
