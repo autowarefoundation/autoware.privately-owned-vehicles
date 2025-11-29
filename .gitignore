@@ -1,0 +1,13 @@
+.cache
+.vscode
+trt_cache/
+assets/
+
+/Models/training/runs/
+/Models/saves/
+.python-version
+pyproject.toml
+uv.lock
+
+/VisionPilot/Production_Releases/0.5/build/
+/VisionPilot/Production_Releases/0.5/3rdparty/
