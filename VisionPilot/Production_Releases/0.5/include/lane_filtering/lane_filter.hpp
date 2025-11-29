@@ -1,6 +1,7 @@
 #include "inference/onnxruntime_engine.hpp"
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <random>
 
 namespace autoware_pov::vision::autosteer
 {
@@ -35,6 +36,19 @@ private:
     // RANSAC polyfit params
     const int ransac_iterations = 50;       // Combi of iterations
     const double ransac_threshold = 2.0;    // Max reproj error
+    std::mt19937 rng;                       // Random number generator
+
+    // RANSAC helper func
+    std::vector<double> fitPolySimple(
+        const std::vector<cv::Point>& subset, 
+        int order
+    );
+
+    // Error calc func
+    double getError(
+        const std::vector<double>& coeffs, 
+        const cv::Point& p
+    );
 
     // Helper funcs
 
