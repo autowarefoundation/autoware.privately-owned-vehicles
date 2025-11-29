@@ -173,6 +173,36 @@ LanePolyFit LaneFilter::fitPoly(
         }
     }
 
+    // 4. Least squares refit on inliers
+    // This rejects the outliers (noise) that RANSAC identified
+    if (best_inliers.size() >= static_cast<size_t>(order + 1)) {
+        std::vector<double> final_coeffs = fitPolySimple(best_inliers, order);
+        
+        if (!final_coeffs.empty()) {
+            // Norm output to always size 6 (cubic + lims)
+            result.coeffs.assign(6, 0.0);
+            
+            if (order == 1) {           // Linear: [a, b] -> [0, 0, a, b]
+                result.coeffs[2] = final_coeffs[0];
+                result.coeffs[3] = final_coeffs[1];
+            } else if (order == 2) {    // Quadratic: [a, b, c] -> [0, a, b, c]
+                result.coeffs[1] = final_coeffs[0];
+                result.coeffs[2] = final_coeffs[1];
+                result.coeffs[3] = final_coeffs[2];
+            } else {                    // Cubic: [a, b, c, d]
+                result.coeffs[0] = final_coeffs[0];
+                result.coeffs[1] = final_coeffs[1];
+                result.coeffs[2] = final_coeffs[2];
+                result.coeffs[3] = final_coeffs[3];
+            }
+
+            // Pack limits
+            result.coeffs[4] = min_y;
+            result.coeffs[5] = max_y;
+            result.valid = true;
+        }
+    }
+
 // Master update func
 LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     LaneSegmentation clean_output;
