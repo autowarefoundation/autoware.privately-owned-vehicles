@@ -20,6 +20,34 @@ void LaneFilter::reset() {
     prev_right_fit.valid = false;
 }
 
+// RANSAC helper func: calc X-error
+double LaneFilter::getError(
+    const std::vector<double>& c, 
+    const cv::Point& p
+) {
+    double y = static_cast<double>(p.y);
+    double x_pred = 0.0;
+    
+    // Evaluate based on model order
+    // This is so that I can freely test different fit orders later
+    if (c.size() == 4) {            // Cubic
+        x_pred =    c[0]*pow(y,3) + \
+                    c[1]*pow(y,2) + \
+                    c[2]*y + \
+                    c[3];
+
+    } else if (c.size() == 3) {     // Quadratic
+        x_pred =    c[0]*pow(y,2) + \
+                    c[1]*y + \
+                    c[2];
+                    
+    } else if (c.size() == 2) {     // Linear
+        x_pred =    c[0]*y + c[1];
+    }
+    
+    return std::abs(x_pred - p.x);
+}
+
 // Master update func
 LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     LaneSegmentation clean_output;
