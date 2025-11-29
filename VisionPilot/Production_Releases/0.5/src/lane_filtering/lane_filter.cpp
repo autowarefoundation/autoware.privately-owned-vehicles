@@ -2,6 +2,7 @@
 #include "inference/onnxruntime_engine.hpp"
 #include <cmath>
 #include <algorithm>
+#include <random>
 
 namespace autoware_pov::vision::autosteer
 {
@@ -9,6 +10,8 @@ namespace autoware_pov::vision::autosteer
 LaneFilter::LaneFilter(float smoothing_factor) 
     : smoothing_factor(smoothing_factor) 
 {
+    std::random_device rd;
+    rng = std::mt19937(rd());   // Seed RNG
     reset();
 }
 
