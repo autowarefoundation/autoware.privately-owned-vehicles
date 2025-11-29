@@ -119,6 +119,15 @@ LanePolyFit LaneFilter::fitPoly(
     int n = points.size();
     if (n < min_pixels_for_fit) return result;
 
+    // 1. Declare Y-range
+    double min_y = 1000.0, max_y = -1.0;
+    for (const auto& p : points) {
+        if (p.y < min_y) min_y = p.y;
+        if (p.y > max_y) max_y = p.y;
+    }
+
+    
+
 // Master update func
 LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     LaneSegmentation clean_output;
