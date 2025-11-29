@@ -131,7 +131,47 @@ LanePolyFit LaneFilter::fitPoly(
     if (n < 30) order = 1; 
     else if (n < 60) order = 2;
 
-    
+    // 3. RANSAC loop
+    std::vector<double> best_model;
+    std::vector<cv::Point> best_inliers;
+    best_inliers = points; // Default to all points if RANSAC finds nothing better
+
+    // Only run RANSAC if we have enough points to spare
+    if (n > 12) {
+        int points_needed = order + 1;
+        std::vector<cv::Point> sample_pool = points;
+        
+        for (int i = 0; i < ransac_iterations; ++i) {
+            // Shuffle and pick small sample
+            std::shuffle(
+                sample_pool.begin(), 
+                sample_pool.end(), 
+                rng
+            );
+            std::vector<cv::Point> sample(
+                sample_pool.begin(), 
+                sample_pool.begin() + points_needed
+            );
+            
+            // Fit temporary model
+            std::vector<double> model = fitPolySimple(sample, order);
+            if (model.empty()) continue;
+
+            // Count inliers
+            std::vector<cv::Point> current_inliers;
+            for (const auto& p : points) {
+                if (getError(model, p) < ransac_threshold) {
+                    current_inliers.push_back(p);
+                }
+            }
+
+            // Keep if better
+            if (current_inliers.size() > best_inliers.size()) {
+                best_inliers = current_inliers;
+                best_model = model;
+            }
+        }
+    }
 
 // Master update func
 LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
