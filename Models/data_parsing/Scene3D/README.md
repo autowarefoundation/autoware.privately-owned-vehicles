@@ -116,7 +116,7 @@ To train the Scene3D metric depth network, a custom dataset was created using a 
 
 The Scene3D Metric Depth Dataset comprises RGB images with associated ground truth depth maps and validity masks indicating pixels where valid depth measurements are present.
 
-![Scene3D_Metric_Data](../../Diagrams/Scene3D_Metric_Data.jpg)
+![Scene3D_Metric_Data](../../../Media/Scene3D_Metric_Data.jpg)
 
 The datasets used to train SuperDepth include:
 

@@ -28,11 +28,18 @@ class AutoSteerHead(nn.Module):
 
 
 
-    def forward(self, neck, feature_prev, feature_prev_prev):
+    def forward(self, context, neck, feature_prev):
 
-        # Calculating feature vector from neck
+        # Calculating feature vector
+
+        # Reducing size of neck to match context
         p0 = self.pool(neck)
         p0 = self.pool(p0)
+
+        # Pseudo-attention
+        p0 = p0*context + context
+
+        # Reduction
         p1 = self.neck_reduce_layer_1(p0)
         p1 = self.GeLU(p1)
         p2 = self.neck_reduce_layer_2(p1)
@@ -40,8 +47,9 @@ class AutoSteerHead(nn.Module):
         p3 = self.neck_reduce_layer_3(p2)
         feature = self.GeLU(p3)
 
+
         # Extract Spatio-Temporal Path Information
-        spatiotemporal_features = torch.cat((feature, feature_prev, feature_prev_prev), 3)
+        spatiotemporal_features = torch.cat((feature, feature_prev), 3)
         spatiotemporal_features = self.decode_layer_1(spatiotemporal_features)
         spatiotemporal_features = self.GeLU(spatiotemporal_features)
         spatiotemporal_features = self.decode_layer_2(spatiotemporal_features)
