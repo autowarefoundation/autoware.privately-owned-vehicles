@@ -27,11 +27,12 @@ public:
     void reset();
 
 private:
-    const int roi_y_min = 50;   // Start scanning from this of 80px mask height
+    const int roi_y_min = 40;   // Start scanning from this of 80px mask height
     const int roi_y_max = 79;  // End scanning at bottom of mask
     const int sliding_window_height = 4;
     const int sliding_window_width = 8;
     const int min_pixels_for_fit = 5;
+    const int consecutive_empty_threshold = 12;
 
     // RANSAC polyfit params
     const int ransac_iterations = 50;       // Combi of iterations

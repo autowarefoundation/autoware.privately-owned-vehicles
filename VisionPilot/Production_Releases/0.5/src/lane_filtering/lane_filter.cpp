@@ -367,11 +367,12 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         int consecutive_empty = 0; 
 
         // Normalize initial dir
-        float len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-        dir_x /= len; dir_y /= len;
+        // float len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+        // dir_x /= len; dir_y /= len;
 
         // Step by a percentage of the window height to ensure overlap
-        float step_size = sliding_window_height * 0.8f; 
+        // float step_size = sliding_window_height * 0.8f; 
+        float step_size = sliding_window_height;
 
         int max_steps = (raw.height / step_size); // Safety limit
 
@@ -396,7 +397,7 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             // Near bottom (y >= 60%) : forgiving, width = 8 pixels
             // Rest (y < 60%) : surgically precise, width = 2 pixels
             int min_window_width = 1;
-            int max_window_width = 8;
+            int max_window_width = 12;
             float threshold = 0.6f;
 
             float height_thresold = raw.height * threshold;
@@ -526,7 +527,7 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                 ) break; 
 
                 consecutive_empty++;
-                if (consecutive_empty >= 4) break; 
+                if (consecutive_empty >= consecutive_empty_threshold) break; 
 
                 // Advance blindly
                 current_pos.x += static_cast<int>(dir_x * sliding_window_height);
