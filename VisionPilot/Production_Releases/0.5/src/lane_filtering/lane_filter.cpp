@@ -408,11 +408,25 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                 current_width = max_window_width;
             }
 
-            int win_y_low = std::max(
-                0, 
-                current_pos.y - sliding_window_height
-            );
-            int win_y_high = current_pos.y;
+            int win_y_low, win_y_high;
+            if (step_y < 0) {           // UP
+
+                win_y_low = std::max(
+                    0, 
+                    current_pos.y - sliding_window_height
+                );
+                win_y_high = current_pos.y;
+
+            } else {                    // DOWN
+
+                win_y_low = current_pos.y;
+                win_y_high = std::min(
+                    raw.height, 
+                    current_pos.y + sliding_window_height
+                );
+
+            }
+            
             int win_x_low = std::max(
                 0, 
                 current_pos.x - current_width
