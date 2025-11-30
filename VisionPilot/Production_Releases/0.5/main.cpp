@@ -128,7 +128,7 @@ void captureThread(
 
     int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
     int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
-    double fps = cap.get(cv::CAP_PROP_FPS);
+    double fps = 10.0;
     int total_frames = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_COUNT));
 
     std::cout << "Video opened: " << frame_width << "x" << frame_height 
@@ -245,19 +245,20 @@ void displayThread(
 
         // Visualization
         if (enable_viz) {
-            drawLanesInPlace(result.frame, result.lanes, 2);
+            drawLanesInPlace(result.frame, result.lanes);
+            int video_fps = 10.0;   // TODO: Make this dynamic
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
                 // Use H.264 for better performance and smaller file size
                 // XVID is slower and creates larger files
                 int fourcc = cv::VideoWriter::fourcc('a', 'v', 'c', '1');  // H.264
-                video_writer.open(output_video_path, fourcc, 30.0,
+                video_writer.open(output_video_path, fourcc, video_fps,
                                 cv::Size(result.frame.cols, result.frame.rows), true);
 
                 if (video_writer.isOpened()) {
                     std::cout << "Video writer initialized (H.264): " << result.frame.cols 
-                              << "x" << result.frame.rows << " @ 30 fps" << std::endl;
+                              << "x" << result.frame.rows << " @ " << video_fps << " fps" << std::endl;
                     video_writer_initialized = true;
                 } else {
                     std::cerr << "Warning: Failed to initialize video writer" << std::endl;
