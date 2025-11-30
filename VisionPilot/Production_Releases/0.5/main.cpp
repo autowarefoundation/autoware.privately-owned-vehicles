@@ -262,8 +262,22 @@ void displayThread(
             cv::Mat view_final = result.frame.clone();
 
             // 2. Draw 2 views
-            drawRawMasksInPlace(view_debug, result.lanes);
-            drawPolyFitLanesInPlace(view_final, result.lanes);
+            drawRawMasksInPlace(
+                view_debug, 
+                result.lanes
+            );
+            drawPolyFitLanesInPlace(
+                view_final, 
+                result.lanes
+            );
+
+            // 3. Stack vertically
+            cv::Mat stacked_view;
+            cv::vconcat(
+                view_debug, 
+                view_final, 
+                stacked_view
+            );
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
