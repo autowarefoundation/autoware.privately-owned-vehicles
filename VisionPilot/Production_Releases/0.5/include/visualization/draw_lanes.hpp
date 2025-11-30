@@ -67,3 +67,7 @@ void drawRawMasksInPlace(
  * @brief Draws ONLY the smooth polynomial fitted lines.
  * This represents the final product output Insha'Allah.
  */
+void drawPolyFitLanesInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes
+);
