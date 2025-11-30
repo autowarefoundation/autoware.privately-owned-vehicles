@@ -390,5 +390,48 @@ void drawRawMasksInPlace(
     );
 }
 
+// Helper func: draw smooth polyfit lines only (final prod view)
+void drawPolyFitLanesInPlace(
+  cv::Mat& image, 
+  const LaneSegmentation& lanes
+)
+{
+    cv::Scalar color_ego_left(255, 0, 0);     // Blue
+    cv::Scalar color_ego_right(255, 0, 200);  // Magenta
+    
+    // Draw vectors
+
+    // Egoleft
+    if (!lanes.left_coeffs.empty()) {
+        auto left_points = genSmoothCurve(
+          lanes.left_coeffs, 
+          image.cols, 
+          image.rows, 
+          lanes.width, 
+          lanes.height
+        );
+        if (left_points.size() > 1) {
+            cv::polylines(
+              image, 
+              left_points, 
+              false, 
+              color_ego_left, 
+              5, 
+              cv::LINE_AA
+            );
+            cv::polylines(
+              image, 
+              left_points, 
+              false, 
+              cv::Scalar(255, 200, 0), 
+              2, 
+              cv::LINE_AA
+            );
+        }
+    }
+
+    
+}
+
 }  // namespace autoware_pov::vision::autosteer
 
