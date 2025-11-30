@@ -533,8 +533,19 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                 current_pos.y += static_cast<int>(dir_y * sliding_window_height);
             }
 
-            if (current_pos.y >= win_y_high - 1) {
+            // Force movements to ensure loop termination
+            if (
+                step_y < 0 && 
+                current_pos.y >= win_y_high - 1
+            ) {
                 current_pos.y -= sliding_window_height;
+            }
+
+            if (
+                step_y > 0 && 
+                current_pos.y <= win_y_low + 1
+            ) {
+                current_pos.y += sliding_window_height;
             }
         }
     };
