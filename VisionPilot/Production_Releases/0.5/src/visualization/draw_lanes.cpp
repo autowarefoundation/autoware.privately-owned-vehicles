@@ -5,23 +5,25 @@ namespace autoware_pov::vision::autosteer
 
 cv::Mat drawLanes(
   const cv::Mat& input_image,
-  const LaneSegmentation& lanes,
-  int radius)
+  const LaneSegmentation& lanes)
 {
   // Clone input for visualization
   cv::Mat vis_image = input_image.clone();
-  drawLanesInPlace(vis_image, lanes, radius);
+  drawLanesInPlace(vis_image, lanes);
   return vis_image;
 }
 
 void drawLanesInPlace(
   cv::Mat& image,
-  const LaneSegmentation& lanes,
-  int radius)
+  const LaneSegmentation& lanes)
 {
   // Calculate scale from lane mask to input image
   float scale_x = static_cast<float>(image.cols) / lanes.width;
   float scale_y = static_cast<float>(image.rows) / lanes.height;
+  
+  // Choose radius based on scale
+  float base_scale = std::min(scale_x, scale_y);
+  int radius_ = std::max(1, static_cast<int>(std::round(base_scale * 0.5f)));
   
   // Define colors (BGR format for OpenCV)
   cv::Scalar color_ego_left(255, 0, 0);      // Blue
@@ -35,7 +37,7 @@ void drawLanesInPlace(
         int scaled_x = static_cast<int>(x * scale_x);
         int scaled_y = static_cast<int>(y * scale_y);
         cv::circle(image, cv::Point(scaled_x, scaled_y), 
-                   radius, color_ego_left, -1, cv::LINE_AA);
+                   radius_, color_ego_left, -1, cv::LINE_AA);
       }
     }
   }
@@ -47,7 +49,7 @@ void drawLanesInPlace(
         int scaled_x = static_cast<int>(x * scale_x);
         int scaled_y = static_cast<int>(y * scale_y);
         cv::circle(image, cv::Point(scaled_x, scaled_y), 
-                   radius, color_ego_right, -1, cv::LINE_AA);
+                   radius_, color_ego_right, -1, cv::LINE_AA);
       }
     }
   }
@@ -59,7 +61,7 @@ void drawLanesInPlace(
         int scaled_x = static_cast<int>(x * scale_x);
         int scaled_y = static_cast<int>(y * scale_y);
         cv::circle(image, cv::Point(scaled_x, scaled_y), 
-                   radius, color_other, -1, cv::LINE_AA);
+                   radius_, color_other, -1, cv::LINE_AA);
       }
     }
   }
