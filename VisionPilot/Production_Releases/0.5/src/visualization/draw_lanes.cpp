@@ -300,6 +300,7 @@ void drawFilteredLanesInPlace(
 
 // ========================== NEW VIS VIEWS - DEBUGGING + FINAL OUTPUTS ========================== //
 
+// Helper func: draw mask overlay only
 static void drawMaskOverlay(
   cv::Mat& image, 
   const cv::Mat& mask, 
@@ -349,6 +350,43 @@ static void drawMaskOverlay(
       0.4, 
       0, 
       image
+    );
+}
+
+// Helper func: draw raw masks (debug view)
+void drawRawMasksInPlace(
+  cv::Mat& image, 
+  const LaneSegmentation& lanes
+)
+{
+    cv::Scalar color_ego_left(255, 0, 0);      // Blue
+    cv::Scalar color_ego_right(255, 0, 200);   // Magenta
+    cv::Scalar color_other(0, 153, 0);         // Green
+
+    drawMaskOverlay(
+      image, 
+      lanes.other_lanes, 
+      color_other
+    );
+    drawMaskOverlay(
+      image, 
+      lanes.ego_left, 
+      color_ego_left
+    );
+    drawMaskOverlay(
+      image, 
+      lanes.ego_right, 
+      color_ego_right
+    );
+    
+    cv::putText(
+      image, 
+      "DEBUG: Raw masks", 
+      cv::Point(20, 40), 
+      cv::FONT_HERSHEY_SIMPLEX, 
+      1.0, 
+      cv::Scalar(0, 255, 255), 
+      2
     );
 }
 
