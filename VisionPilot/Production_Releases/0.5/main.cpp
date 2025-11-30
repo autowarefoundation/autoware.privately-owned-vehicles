@@ -128,7 +128,7 @@ void captureThread(
 
     int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
     int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
-    double fps = cap.get(cv::CAP_PROP_FPS);
+    double fps = 10.0;
     int total_frames = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_COUNT));
 
     std::cout << "Video opened: " << frame_width << "x" << frame_height 
@@ -245,7 +245,7 @@ void displayThread(
 
         // Visualization
         if (enable_viz) {
-            drawLanesInPlace(result.frame, result.lanes, 2);
+            drawLanesInPlace(result.frame, result.lanes);
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
