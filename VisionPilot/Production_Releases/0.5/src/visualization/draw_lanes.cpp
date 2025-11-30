@@ -416,7 +416,7 @@ void drawPolyFitLanesInPlace(
               left_points, 
               false, 
               color_ego_left, 
-              5, 
+              15, 
               cv::LINE_AA
             );
             cv::polylines(
@@ -424,7 +424,7 @@ void drawPolyFitLanesInPlace(
               left_points, 
               false, 
               cv::Scalar(255, 200, 0), 
-              2, 
+              5, 
               cv::LINE_AA
             );
         }
@@ -445,7 +445,7 @@ void drawPolyFitLanesInPlace(
               right_points, 
               false, 
               color_ego_right, 
-              5, 
+              15, 
               cv::LINE_AA
             );
             cv::polylines(
@@ -453,7 +453,7 @@ void drawPolyFitLanesInPlace(
               right_points, 
               false, 
               cv::Scalar(255, 150, 255), 
-              2, 
+              5, 
               cv::LINE_AA
             );
         }
