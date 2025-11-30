@@ -519,8 +519,11 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                 current_pos = cv::Point(static_cast<int>(std::round(centroid_x)), 
                                         static_cast<int>(std::round(centroid_y)));
             } else {
-                // Horizon cutoff
-                if (current_pos.y < raw.height * 0.25) break; 
+                // Horizon cutoff (only applies when going UP)
+                if (
+                    step_y < 0 && 
+                    current_pos.y < raw.height * 0.25
+                ) break; 
 
                 consecutive_empty++;
                 if (consecutive_empty >= 4) break; 
