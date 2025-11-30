@@ -255,7 +255,11 @@ void displayThread(
         // Visualization
         if (enable_viz) {
             // drawLanesInPlace(result.frame, result.lanes, 2);
-            drawFilteredLanesInPlace(result.frame, result.lanes);
+            // drawFilteredLanesInPlace(result.frame, result.lanes);
+
+            // 1. Init 2 views, raw masks (debugging) + polyfit lanes (final prod)
+            cv::Mat view_debug = result.frame.clone();
+            cv::Mat view_final = result.frame.clone();
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
