@@ -221,12 +221,13 @@ void displayThread(
     std::atomic<bool>& running,
     bool enable_viz,
     bool save_video,
-    const std::string& output_video_path)
+    const std::string& output_video_path
+)
 {
     // Visualization setup
     if (enable_viz) {
         cv::namedWindow("AutoSteer Inference", cv::WINDOW_NORMAL);
-        cv::resizeWindow("AutoSteer Inference", 960, 540);
+        cv::resizeWindow("AutoSteer Inference", 960, 1080);
     }
 
     // Video writer setup
