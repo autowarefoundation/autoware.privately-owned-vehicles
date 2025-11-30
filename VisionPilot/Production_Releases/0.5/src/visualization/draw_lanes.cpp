@@ -75,7 +75,7 @@ static std::vector<cv::Point> genSmoothCurve(
 )
 {
     std::vector<cv::Point> points;
-    if (coeffs.size() < 4) return points;
+    if (coeffs.size() < 6) return points;
 
     double a         = coeffs[0];
     double b         = coeffs[1];
@@ -296,6 +296,60 @@ void drawFilteredLanesInPlace(
           cv::LINE_AA
         );
       }
+}
+
+// ========================== NEW VIS VIEWS - DEBUGGING + FINAL OUTPUTS ========================== //
+
+static void drawMaskOverlay(
+  cv::Mat& image, 
+  const cv::Mat& mask, 
+  const cv::Scalar& color
+) 
+{
+    if (mask.empty()) return;
+
+    cv::Mat mask_resized;
+    cv::resize(
+      mask, 
+      mask_resized, 
+      image.size(), 
+      0, 
+      0, 
+      cv::INTER_NEAREST
+    ); 
+    
+    cv::Mat color_layer(
+      image.size(), 
+      image.type(), 
+      color
+    );
+    cv::Mat mask_8u;
+    mask_resized.convertTo(
+      mask_8u, 
+      CV_8U, 
+      255.0
+    );
+    cv::threshold(
+      mask_8u, 
+      mask_8u, 
+      127, 
+      255, 
+      cv::THRESH_BINARY
+    );
+
+    cv::Mat overlay;
+    color_layer.copyTo(
+      overlay, 
+      mask_8u
+    );
+    cv::addWeighted(
+      image, 
+      1.0, 
+      overlay, 
+      0.4, 
+      0, 
+      image
+    );
 }
 
 }  // namespace autoware_pov::vision::autosteer
