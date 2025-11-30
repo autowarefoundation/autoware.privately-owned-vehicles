@@ -459,7 +459,15 @@ void drawPolyFitLanesInPlace(
         }
     }
     
-    
+    cv::putText(
+      image, 
+      "FINAL: RANSAC polyfit", 
+      cv::Point(20, 40), 
+      cv::FONT_HERSHEY_SIMPLEX, 
+      1.0, 
+      cv::Scalar(0, 255, 0), 
+      2
+    );
 }
 
 }  // namespace autoware_pov::vision::autosteer
