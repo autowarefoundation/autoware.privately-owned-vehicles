@@ -430,6 +430,35 @@ void drawPolyFitLanesInPlace(
         }
     }
 
+    // Egoright
+    if (!lanes.right_coeffs.empty()) {
+        auto right_points = genSmoothCurve(
+          lanes.right_coeffs, 
+          image.cols, 
+          image.rows, 
+          lanes.width, 
+          lanes.height
+        );
+        if (right_points.size() > 1) {
+            cv::polylines(
+              image, 
+              right_points, 
+              false, 
+              color_ego_right, 
+              5, 
+              cv::LINE_AA
+            );
+            cv::polylines(
+              image, 
+              right_points, 
+              false, 
+              cv::Scalar(255, 150, 255), 
+              2, 
+              cv::LINE_AA
+            );
+        }
+    }
+    
     
 }
 
