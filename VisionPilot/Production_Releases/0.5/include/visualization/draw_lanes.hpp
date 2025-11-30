@@ -57,3 +57,7 @@ void drawFilteredLanesInPlace(
  * @brief Draws ONLY the raw 160x80 pixel masks overlay.
  * Useful for debugging the Neural Network output and RANSAC inputs.
  */
+void drawRawMasksInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes
+);
