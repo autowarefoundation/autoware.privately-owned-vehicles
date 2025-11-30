@@ -550,6 +550,12 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         }
     };
 
+    // Run upwards search
+    runSearch(-1);
+
+    // Run downwards search
+    runSearch(1);
+
     return lane_points;
 }
 
