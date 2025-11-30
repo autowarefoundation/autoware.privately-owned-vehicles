@@ -49,10 +49,6 @@ void drawFilteredLanesInPlace(
   cv::Mat& image,
   const LaneSegmentation& lanes);
 
-}  // namespace autoware_pov::vision::autosteer
-
-#endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
-
 /**
  * @brief Draws ONLY the raw 160x80 pixel masks overlay.
  * Useful for debugging the model output and RANSAC inputs.
@@ -71,3 +67,7 @@ void drawPolyFitLanesInPlace(
   cv::Mat& image,
   const LaneSegmentation& lanes
 );
+
+}  // namespace autoware_pov::vision::autosteer
+
+#endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
