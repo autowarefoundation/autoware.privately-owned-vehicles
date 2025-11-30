@@ -284,12 +284,17 @@ void displayThread(
                 // Use H.264 for better performance and smaller file size
                 // XVID is slower and creates larger files
                 int fourcc = cv::VideoWriter::fourcc('a', 'v', 'c', '1');  // H.264
-                video_writer.open(output_video_path, fourcc, 30.0,
-                                cv::Size(result.frame.cols, result.frame.rows), true);
+                video_writer.open(
+                    output_video_path, 
+                    fourcc, 
+                    30.0,
+                    stacked_view.size(),
+                    true
+                );
 
                 if (video_writer.isOpened()) {
-                    std::cout << "Video writer initialized (H.264): " << result.frame.cols 
-                              << "x" << result.frame.rows << " @ 30 fps" << std::endl;
+                    std::cout << "Video writer initialized (H.264): " << stacked_view.cols 
+                              << "x" << stacked_view.rows << " @ 30 fps" << std::endl;
                     video_writer_initialized = true;
                 } else {
                     std::cerr << "Warning: Failed to initialize video writer" << std::endl;
@@ -298,13 +303,11 @@ void displayThread(
 
             // Write to video
             if (save_video && video_writer_initialized && video_writer.isOpened()) {
-                video_writer.write(result.frame);
+                video_writer.write(stacked_view);
             }
 
             // Display
-            cv::Mat display_frame;
-            cv::resize(result.frame, display_frame, cv::Size(960, 540));
-            cv::imshow("AutoSteer Inference", display_frame);
+            cv::imshow("AutoSteer Inference", stacked_view);
 
             if (cv::waitKey(1) == 'q') {
                 running.store(false);
