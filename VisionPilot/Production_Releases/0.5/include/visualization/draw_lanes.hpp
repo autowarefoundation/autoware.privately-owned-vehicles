@@ -53,3 +53,7 @@ void drawFilteredLanesInPlace(
 
 #endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
 
+/**
+ * @brief Draws ONLY the raw 160x80 pixel masks overlay.
+ * Useful for debugging the Neural Network output and RANSAC inputs.
+ */
