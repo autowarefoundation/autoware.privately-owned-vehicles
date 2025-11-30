@@ -341,172 +341,182 @@ void LaneFilter::findStartingPoints(
     }
 }
 
-// Step 2: sliding window search (now with perspective-aware window size and priority logic)
+// Step 2: sliding window search, now with:
+// - Perspective-aware window size
+// - Priority logic
+// - Bi-directional search
 std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     const LaneSegmentation& raw,
     cv::Point start_point,
     bool is_left_lane)
 {
     std::vector<cv::Point> lane_points;
-    cv::Point current_pos = start_point;
     
-    // Initial direction:
-    // - Left lane: upwards-left
-    // - Right lane: upwards-right
-    float dir_x = 0.0f;
-    float dir_y = -1.0f;
-    int consecutive_empty = 0; 
+    // Here a helper lambda func to allow bi-directional search
+    // step_y = -1 for upwards, +1 for downwards 
+    // (yeah basically here for my downward search)
+    auto runSearch = [&](int step_y) {
 
-    // Normalize initial dir
-    float len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-    dir_x /= len; dir_y /= len;
-
-    // Step by a percentage of the window height to ensure overlap
-    float step_size = sliding_window_height * 0.8f; 
-
-    int max_steps = (raw.height / step_size) * 1.5; // Safety limit
-
-    for (int i = 0; i < max_steps; i++) {
-        // 1. Boundary checks
-        if (
-            current_pos.y < 0 || 
-            current_pos.y >= raw.height || 
-            current_pos.x < 0 || 
-            current_pos.x >= raw.width
-        ) {
-            break;
-        }
-
-        // 2. Define window
-
-        // Dynamic window width based on Y-position (which I call "perspective-aware")
-        // Near bottom (y >= 60%) : forgiving, width = 8 pixels
-        // Rest (y < 60%) : surgically precise, width = 2 pixels
-        int min_window_width = 1;
-        int max_window_width = 8;
-        float threshold = 0.6f;
-
-        float height_thresold = raw.height * threshold;
-        int current_width;
-
-        if (current_pos.y < height_thresold) {
-            current_width = min_window_width;
-        } else {
-            current_width = max_window_width;
-        }
-
-        int win_y_low = std::max(
-            0, 
-            current_pos.y - sliding_window_height
-        );
-        int win_y_high = current_pos.y;
-        int win_x_low = std::max(
-            0, 
-            current_pos.x - current_width
-        );
-        int win_x_high = std::min(
-            raw.width, 
-            current_pos.x + current_width
-        );
-
-        // Buckets for priority logic
-        std::vector<cv::Point> ego_pixels;
-        std::vector<cv::Point> other_pixels;
+        cv::Point current_pos = start_point;
         
-        long sum_x_ego = 0, sum_y_ego = 0;
-        long sum_x_other = 0, sum_y_other = 0;
+        // If going DOWN, start one step below the start point to avoid duplication
+        if (step_y > 0) current_pos.y += sliding_window_height;
 
-        // Y-coord-based priority strategy switch
-        // If we are above y=60 (pixels 0-59), we enter stricter ego-prioritized mode
-        // In this mode, we completely ignore "other_lanes" masks to avoid false positives
-        bool strict_ego_mode = (current_pos.y < 60);
+        float dir_x = 0.0f;
+        float dir_y = -1.0f;
+        int consecutive_empty = 0; 
 
-        // 3. Collect pixels via class-agnostic search
-        for (int y = win_y_low; y < win_y_high; y++) {
+        // Normalize initial dir
+        float len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+        dir_x /= len; dir_y /= len;
 
-            for (int x = win_x_low; x < win_x_high; x++) {
+        // Step by a percentage of the window height to ensure overlap
+        float step_size = sliding_window_height * 0.8f; 
 
-                float val_ego = (
-                    is_left_lane ? 
-                    raw.ego_left.at<float>(y, x) : 
-                    raw.ego_right.at<float>(y, x)
+        int max_steps = (raw.height / step_size) * 1.5; // Safety limit
+
+        for (int i = 0; i < max_steps; i++) {
+            // 1. Boundary checks
+            if (
+                current_pos.y < 0 || 
+                current_pos.y >= raw.height || 
+                current_pos.x < 0 || 
+                current_pos.x >= raw.width
+            ) {
+                break;
+            }
+
+            // 2. Define window
+
+            // Dynamic window width based on Y-position (which I call "perspective-aware")
+            // Near bottom (y >= 60%) : forgiving, width = 8 pixels
+            // Rest (y < 60%) : surgically precise, width = 2 pixels
+            int min_window_width = 1;
+            int max_window_width = 8;
+            float threshold = 0.6f;
+
+            float height_thresold = raw.height * threshold;
+            int current_width;
+
+            if (current_pos.y < height_thresold) {
+                current_width = min_window_width;
+            } else {
+                current_width = max_window_width;
+            }
+
+            int win_y_low = std::max(
+                0, 
+                current_pos.y - sliding_window_height
+            );
+            int win_y_high = current_pos.y;
+            int win_x_low = std::max(
+                0, 
+                current_pos.x - current_width
+            );
+            int win_x_high = std::min(
+                raw.width, 
+                current_pos.x + current_width
+            );
+
+            // Buckets for priority logic
+            std::vector<cv::Point> ego_pixels;
+            std::vector<cv::Point> other_pixels;
+            
+            long sum_x_ego = 0, sum_y_ego = 0;
+            long sum_x_other = 0, sum_y_other = 0;
+
+            // Y-coord-based priority strategy switch
+            // If we are above y=60 (pixels 0-59), we enter stricter ego-prioritized mode
+            // In this mode, we completely ignore "other_lanes" masks to avoid false positives
+            bool strict_ego_mode = (current_pos.y < 60);
+
+            // 3. Collect pixels via class-agnostic search
+            for (int y = win_y_low; y < win_y_high; y++) {
+
+                for (int x = win_x_low; x < win_x_high; x++) {
+
+                    float val_ego = (
+                        is_left_lane ? 
+                        raw.ego_left.at<float>(y, x) : 
+                        raw.ego_right.at<float>(y, x)
+                    );
+                    float val_other = raw.other_lanes.at<float>(y, x);
+                    
+                    // Sort pixels into buckets
+                    if (val_ego > 0.5f) {
+                        ego_pixels.push_back(cv::Point(x, y));
+                        sum_x_ego += x;
+                        sum_y_ego += y;
+                    }
+                    // Only consider other_lanes if NOT in strict mode
+                    if (!strict_ego_mode && val_other > 0.5f) {
+                        other_pixels.push_back(cv::Point(x, y));
+                        sum_x_other += x;
+                        sum_y_other += y;
+                    }
+                }
+            }
+
+            // PRIORITY DECISION
+            float centroid_x, centroid_y;
+            bool found_valid = false;
+
+            // 1. Primary: Do we have strong EGO signal? (>= 3 pixels)
+            if (ego_pixels.size() >= 3) {
+                lane_points.insert(
+                    lane_points.end(), 
+                    ego_pixels.begin(), 
+                    ego_pixels.end()
                 );
-                float val_other = raw.other_lanes.at<float>(y, x);
+                centroid_x = static_cast<float>(sum_x_ego) / ego_pixels.size();
+                centroid_y = static_cast<float>(sum_y_ego) / ego_pixels.size();
+                found_valid = true;
+            } 
+            // 2. Secondary: If Ego is missing, do we have OTHER signal?
+            // Other_lanes will be empty if strict_ego_mode is true, effectively disabling this branch
+            else if (other_pixels.size() >= 3) {
+                lane_points.insert(
+                    lane_points.end(), 
+                    other_pixels.begin(), 
+                    other_pixels.end()
+                );
+                centroid_x = static_cast<float>(sum_x_other) / other_pixels.size();
+                centroid_y = static_cast<float>(sum_y_other) / other_pixels.size();
+                found_valid = true;
+            }
+
+            // 4. Update state
+            if (found_valid) {
+                consecutive_empty = 0;
                 
-                // Sort pixels into buckets
-                if (val_ego > 0.5f) {
-                    ego_pixels.push_back(cv::Point(x, y));
-                    sum_x_ego += x;
-                    sum_y_ego += y;
+                // Update Momentum
+                float dx = centroid_x - current_pos.x;
+                float dy = centroid_y - current_pos.y;
+                
+                float len = std::sqrt(dx*dx + dy*dy);
+                if (len > 0.1f) {
+                    dir_x = dx / len;
+                    dir_y = dy / len;
                 }
-                // Only consider other_lanes if NOT in strict mode
-                if (!strict_ego_mode && val_other > 0.5f) {
-                    other_pixels.push_back(cv::Point(x, y));
-                    sum_x_other += x;
-                    sum_y_other += y;
-                }
+                current_pos = cv::Point(static_cast<int>(std::round(centroid_x)), 
+                                        static_cast<int>(std::round(centroid_y)));
+            } else {
+                // Horizon cutoff
+                if (current_pos.y < raw.height * 0.25) break; 
+
+                consecutive_empty++;
+                if (consecutive_empty >= 4) break; 
+
+                // Advance blindly
+                current_pos.x += static_cast<int>(dir_x * sliding_window_height);
+                current_pos.y += static_cast<int>(dir_y * sliding_window_height);
+            }
+
+            if (current_pos.y >= win_y_high - 1) {
+                current_pos.y -= sliding_window_height;
             }
         }
-
-        // PRIORITY DECISION
-        float centroid_x, centroid_y;
-        bool found_valid = false;
-
-        // 1. Primary: Do we have strong EGO signal? (>= 3 pixels)
-        if (ego_pixels.size() >= 3) {
-            lane_points.insert(
-                lane_points.end(), 
-                ego_pixels.begin(), 
-                ego_pixels.end()
-            );
-            centroid_x = static_cast<float>(sum_x_ego) / ego_pixels.size();
-            centroid_y = static_cast<float>(sum_y_ego) / ego_pixels.size();
-            found_valid = true;
-        } 
-        // 2. Secondary: If Ego is missing, do we have OTHER signal?
-        // Other_lanes will be empty if strict_ego_mode is true, effectively disabling this branch
-        else if (other_pixels.size() >= 3) {
-            lane_points.insert(
-                lane_points.end(), 
-                other_pixels.begin(), 
-                other_pixels.end()
-            );
-            centroid_x = static_cast<float>(sum_x_other) / other_pixels.size();
-            centroid_y = static_cast<float>(sum_y_other) / other_pixels.size();
-            found_valid = true;
-        }
-
-        // 4. Update state
-        if (found_valid) {
-            consecutive_empty = 0;
-            
-            // Update Momentum
-            float dx = centroid_x - current_pos.x;
-            float dy = centroid_y - current_pos.y;
-            
-            float len = std::sqrt(dx*dx + dy*dy);
-            if (len > 0.1f) {
-                dir_x = dx / len;
-                dir_y = dy / len;
-            }
-            current_pos = cv::Point(static_cast<int>(std::round(centroid_x)), 
-                                    static_cast<int>(std::round(centroid_y)));
-        } else {
-            // Horizon cutoff
-            if (current_pos.y < raw.height * 0.25) break; 
-
-            consecutive_empty++;
-            if (consecutive_empty >= 4) break; 
-
-            // Advance blindly
-            current_pos.x += static_cast<int>(dir_x * sliding_window_height);
-            current_pos.y += static_cast<int>(dir_y * sliding_window_height);
-        }
-
-        if (current_pos.y >= win_y_high - 1) {
-            current_pos.y -= sliding_window_height;
-        }
-    }
+    };
 
     return lane_points;
 }
