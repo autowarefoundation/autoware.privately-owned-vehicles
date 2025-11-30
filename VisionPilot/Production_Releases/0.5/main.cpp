@@ -261,6 +261,10 @@ void displayThread(
             cv::Mat view_debug = result.frame.clone();
             cv::Mat view_final = result.frame.clone();
 
+            // 2. Draw 2 views
+            drawRawMasksInPlace(view_debug, result.lanes);
+            drawPolyFitLanesInPlace(view_final, result.lanes);
+
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
                 // Use H.264 for better performance and smaller file size
