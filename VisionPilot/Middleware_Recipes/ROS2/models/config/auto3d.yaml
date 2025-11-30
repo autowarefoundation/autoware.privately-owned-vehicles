@@ -1,0 +1,8 @@
+scene3d_model:
+  ros__parameters:
+    model_path: "../data/models/Scene3D_FP32.onnx"
+    backend: "tensorrt"
+    precision: "fp16"
+    model_type: "depth"
+    input_topic: "/sensors/video/image_raw"
+    output_topic: "/auto3d/scene_3d/depth_map"
