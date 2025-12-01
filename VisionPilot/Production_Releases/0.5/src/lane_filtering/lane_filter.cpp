@@ -319,6 +319,11 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
 
     // RECOVERY STRATEGY (basically my little superimpose logic)
 
+    // Helper: calc vertical span (max_y - min_y) from coeffs indices [4, 5]
+    auto getSpan = [](const std::vector<double>& c) { 
+        return (c.size() >= 6) ? (c[5] - c[4]) : 0.0; 
+    };
+
     // 1. Save "good state" when both lanes are strong
     if (
         !clean_output.left_coeffs.empty() && 
