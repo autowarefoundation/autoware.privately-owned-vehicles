@@ -6,9 +6,9 @@ on:
     branches:
       - main
     paths:
-      - 'VisionPilot/**'
-      - 'SDV/OpenADKit/Docker/**'
       - 'Models/**'
+      - 'Modules/**'
+      - 'VisionPilot/**'
 
 jobs:
   build:
@@ -17,15 +17,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Set Docker tag
-        id: docker_tag
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "tag=$(date +%Y-%m-%d)-dispatch" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+        shell: bash
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -42,7 +38,10 @@ jobs:
         with:
           context: .
           file: ./Modules/SDV/OpenADKit/Docker/Dockerfile
-          tags: ghcr.io/${{ github.repository_owner }}/visionpilot:${{ steps.docker_tag.outputs.tag }}
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/visionpilot:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/visionpilot:${{ steps.date.outputs.date }}
+            ghcr.io/${{ github.repository_owner }}/visionpilot:latest

@@ -9,7 +9,7 @@ VIDEO_PATH="/autoware/test/traffic-driving.mp4"
 MODEL_PATH="/autoware/model-weights/autospeed.onnx"
 PROVIDER="cpu"       # Execution provider: 'cpu' or 'tensorrt'
 PRECISION="fp32"          # Precision: 'fp32' or 'fp16' (for TensorRT)
-HOMOGRAPHY_YAML="/autoware/VisionPilot/Standalone/AutoSpeed/homography.yaml"
+HOMOGRAPHY_YAML="/autoware/VisionPilot/Middleware_Recipes/Standalone/AutoSpeed/homography.yaml"
 
 # ===== ONNX Runtime Options =====
 DEVICE_ID="0"             # GPU device ID (TensorRT only)
