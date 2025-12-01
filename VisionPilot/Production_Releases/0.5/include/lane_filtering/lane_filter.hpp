@@ -76,6 +76,9 @@ private:
     // Step 3: cubic polynomial fit
     LanePolyFit fitPoly(const std::vector<cv::Point>& points);
 
+    // Evaluate polyfitted line helper
+    double evalPoly(const std::vector<double>& coeffs, double y);
+
     // State for temporal smoothing
     LanePolyFit prev_left_fit;
     LanePolyFit prev_right_fit;
