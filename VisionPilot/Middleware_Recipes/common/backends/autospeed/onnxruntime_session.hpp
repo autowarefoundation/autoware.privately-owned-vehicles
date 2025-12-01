@@ -36,7 +36,16 @@ public:
     const std::string& cache_dir = "./trt_cache"
   );
 
+  /**
+   * @brief Set number of threads for CPU execution
+   * 
+   * @param num_threads Number of threads (0 = auto/default)
+   */
+  static void setNumThreads(int num_threads);
+
 private:
+  static int num_threads_;
+
   /**
    * @brief Create CPU session with default options
    */
