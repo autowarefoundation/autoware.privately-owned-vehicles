@@ -248,17 +248,17 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
             start_left_vec[1]
         );
         
-        // Step 2: sliding window search
+        // Step 1: sliding window search
         auto left_points = slidingWindowSearch(
             raw_input, 
             start_pt, 
             true
         );
         
-        // Step 3: polyfit (cubic)
+        // Step 2: polyfit (cubic)
         LanePolyFit left_fit = fitPoly(left_points);
         
-        // Temporal smoothing
+        // Step 3: temporal smoothing
         if (left_fit.valid) {
             if (prev_left_fit.valid) {
                 for (size_t i = 0; i < 4; i++) {
@@ -301,6 +301,34 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         }
     } else {
         prev_right_fit.valid = false;
+    }
+
+    // RECOVERY STRATEGY (basically my little superimpose logic)
+
+    // 1. Save "good state" when both lanes are strong
+    if (
+        !clean_output.left_coeffs.empty() && 
+        !clean_output.right_coeffs.empty()
+    ) {
+        last_strong_left.coeffs = clean_output.left_coeffs;
+        last_strong_left.valid = true;
+        
+        last_strong_right.coeffs = clean_output.right_coeffs;
+        last_strong_right.valid = true;
+        
+        // Lane width at bottom (in other words, anchor point at y = 80)
+        double y_bottom = static_cast<double>(clean_output.height); 
+        double x_left = evalPoly(
+            clean_output.left_coeffs, 
+            y_bottom
+        );
+        double x_right = evalPoly(
+            clean_output.right_coeffs, 
+            y_bottom
+        );
+        
+        last_lane_width_bottom = x_right - x_left;
+        has_strong_history = true;
     }
 
     return clean_output;
