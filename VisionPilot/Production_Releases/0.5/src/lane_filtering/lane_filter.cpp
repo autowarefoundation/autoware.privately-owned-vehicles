@@ -324,10 +324,21 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         return (c.size() >= 6) ? (c[5] - c[4]) : 0.0; 
     };
 
+    // Check good state criteria:
+    // 1. Line must cover at least X% of image height
+    // 2. Line must have at least X raw pixels (totally intuitive pls don't ask me how)
+    bool left_is_good = current_left_fit.valid && 
+                        (left_points.size() >= min_history_pixels) && 
+                        (getSpan(current_left_fit.coeffs) >= raw_input.height * min_history_span_ratio);
+
+    bool right_is_good = current_right_fit.valid && 
+                         (right_points.size() >= min_history_pixels) && 
+                         (getSpan(current_right_fit.coeffs) >= raw_input.height * min_history_span_ratio);
+
     // 1. Save "good state" when both lanes are strong
     if (
-        !clean_output.left_coeffs.empty() && 
-        !clean_output.right_coeffs.empty()
+        left_is_good && 
+        right_is_good
     ) {
         last_strong_left.coeffs = clean_output.left_coeffs;
         last_strong_left.valid = true;
@@ -354,10 +365,10 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     else if (has_strong_history) {
         double y_bottom = static_cast<double>(clean_output.height);
 
-        // Case A : missing LEFT, but have RIGHT
+        // Case A : missing LEFT, but have RIGHT - use right to recover left
         if (
-            clean_output.left_coeffs.empty() && 
-            !clean_output.right_coeffs.empty()
+            !left_is_good && 
+            right_is_good
         ) {
             // a. Current right lane X at bottom
             double current_right_x = evalPoly(
@@ -388,10 +399,10 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
             prev_left_fit.valid = true; 
         }
 
-        // CASE B : missing RIGHT, but have LEFT (for now this ain't happen cuz we always turn left in demo run)
+        // CASE B : missing RIGHT, but have LEFT - use left to recover right
         else if (
-            clean_output.right_coeffs.empty() && 
-            !clean_output.left_coeffs.empty()
+            !right_is_good && 
+            left_is_good
         ) {
             // a. Current left lane X at bottom
             double current_left_x = evalPoly(
