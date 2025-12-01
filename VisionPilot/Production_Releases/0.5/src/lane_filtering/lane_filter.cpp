@@ -484,7 +484,6 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
         // dir_x /= len; dir_y /= len;
 
         // Step by a percentage of the window height to ensure overlap
-        // float step_size = sliding_window_height * 0.8f; 
         float step_size = sliding_window_height;
 
         int max_steps = (raw.height / step_size); // Safety limit
@@ -509,9 +508,6 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             // Dynamic window width based on Y-position (which I call "perspective-aware")
             // Near bottom (y >= 60%) : forgiving, width = 8 pixels
             // Rest (y < 60%) : surgically precise, width = 2 pixels
-            int min_window_width = 1;
-            int max_window_width = 12;
-            float threshold = 0.6f;
 
             float height_thresold = raw.height * threshold;
             int current_width;
