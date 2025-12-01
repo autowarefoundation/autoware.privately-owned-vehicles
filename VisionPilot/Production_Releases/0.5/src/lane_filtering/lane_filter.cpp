@@ -331,6 +331,44 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         has_strong_history = true;
     }
 
+    // 2. If one lane is missing, try to recover using last strong state
+    else if (has_strong_history) {
+        double y_bottom = static_cast<double>(clean_output.height);
+
+        // Case A : missing LEFT, but have RIGHT
+        if (
+            clean_output.left_coeffs.empty() && 
+            !clean_output.right_coeffs.empty()
+        ) {
+            // a. Current right lane X at bottom
+            double current_right_x = evalPoly(
+                clean_output.right_coeffs, 
+                y_bottom
+            );
+            
+            // b. Target for left lane = current right - last_best_width
+            double target_left_x = current_right_x - last_lane_width_bottom;
+            
+            // c. Old left lane X at bottom
+            double old_left_x = evalPoly(
+                last_strong_left.coeffs, 
+                y_bottom
+            );
+            
+            // d. Shift needed
+            double shift = target_left_x - old_left_x;
+            
+            // e. Superimpose: copy old shape, apply lateral shift
+            std::vector<double> recovered_coeffs = last_strong_left.coeffs;
+            recovered_coeffs[3] += shift; 
+            
+            clean_output.left_coeffs = recovered_coeffs;
+            
+            // f. Update prev so smoothing continues from this recovered state
+            prev_left_fit.coeffs = recovered_coeffs;
+            prev_left_fit.valid = true; 
+        }
+
     return clean_output;
 }
 
