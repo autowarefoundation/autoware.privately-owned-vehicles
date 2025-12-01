@@ -39,6 +39,12 @@ private:
     const double ransac_threshold = 2.0;    // Max reproj error
     std::mt19937 rng;                       // Random number generator
 
+    // History holder for lane recovery strategy
+    LanePolyFit last_strong_left;
+    LanePolyFit last_strong_right;
+    double last_lane_width_bottom = -1.0;
+    bool has_strong_history = false;
+
     // RANSAC helper func
     std::vector<double> fitPolySimple(
         const std::vector<cv::Point>& subset, 
