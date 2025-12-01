@@ -18,6 +18,8 @@ LaneFilter::LaneFilter(float smoothing_factor)
 void LaneFilter::reset() {
     prev_left_fit.valid = false;
     prev_right_fit.valid = false;
+    has_strong_history = false;
+    last_lane_width_bottom = -1.0;
 }
 
 // ============================== RANSAC-RELATED STUFFS ============================== //
@@ -209,6 +211,16 @@ LanePolyFit LaneFilter::fitPoly(
 }
 
 // ============================================================================= //
+
+// Helper for evaluating polyfitted line
+double LaneFilter::evalPoly(
+    const std::vector<double>& c, 
+    double y
+) {
+    if (c.size() < 4) return 0.0;
+    // x = a*y^3 + b*y^2 + c*y + d
+    return c[0]*pow(y,3) + c[1]*pow(y,2) + c[2]*y + c[3];
+}
 
 // Master update func
 LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
