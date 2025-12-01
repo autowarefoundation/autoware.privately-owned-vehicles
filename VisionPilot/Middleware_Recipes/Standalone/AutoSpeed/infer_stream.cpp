@@ -22,8 +22,15 @@ using namespace std::chrono;
 template<typename T>
 class ThreadSafeQueue {
 public:
+    explicit ThreadSafeQueue(size_t max_size = 0) : max_size_(max_size) {}
+
     void push(const T& item) {
         std::unique_lock<std::mutex> lock(mutex_);
+        if (max_size_ > 0) {
+            while (queue_.size() >= max_size_) {
+                queue_.pop();
+            }
+        }
         queue_.push(item);
         cond_.notify_one();
     }
@@ -64,6 +71,7 @@ private:
     std::mutex mutex_;
     std::condition_variable cond_;
     std::atomic<bool> active_{true};
+    size_t max_size_;
 };
 
 // Timestamped frame for tracking latency
@@ -89,9 +97,11 @@ struct PerformanceMetrics {
     std::atomic<long> total_capture_us{0};      // GStreamer decode + convert to cv::Mat
     std::atomic<long> total_inference_us{0};    // Preprocess + Inference + Post-process
     std::atomic<long> total_display_us{0};      // Draw boxes + resize + imshow
+    std::atomic<long> total_wait_us{0};         // Queue wait time
     std::atomic<long> total_end_to_end_us{0};   // Total: capture → display
     std::atomic<int> frame_count{0};
     bool measure_latency{true};                // Flag to enable metrics printing
+    std::chrono::steady_clock::time_point start_time;
 };
 
 
@@ -137,6 +147,10 @@ void inferenceThread(autospeed::AutoSpeedOnnxEngine& backend,
         if (tf.frame.empty()) continue;
 
         auto t_inference_start = std::chrono::steady_clock::now();
+        
+        long wait_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t_inference_start - tf.timestamp).count();
+        metrics.total_wait_us.fetch_add(wait_us);
         
         // Backend does: preprocess + inference + postprocess all in one call
         std::vector<Detection> detections = backend.inference(tf.frame, conf_thresh, iou_thresh);
@@ -214,6 +228,10 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 
         auto t_display_start = std::chrono::steady_clock::now();
         
+        long wait_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t_display_start - result.inference_time).count();
+        metrics.total_wait_us.fetch_add(wait_us);
+
         // ===== CORE: Always output main_CIPO info (for pub/sub, logging, etc.) =====
         int count = metrics.frame_count.fetch_add(1) + 1;
         
@@ -309,23 +327,31 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
         metrics.total_display_us.fetch_add(display_us);
         metrics.total_end_to_end_us.fetch_add(end_to_end_us);
         
-        // Print metrics every 100 frames (only if measure_latency is enabled)
+        // Print metrics every 30 frames (only if measure_latency is enabled)
         if (metrics.measure_latency && count % 30 == 0) {
             long avg_capture = metrics.total_capture_us.load() / count;
             long avg_inference = metrics.total_inference_us.load() / count;
             long avg_display = metrics.total_display_us.load() / count;
+            long avg_wait = metrics.total_wait_us.load() / count;
             long avg_e2e = metrics.total_end_to_end_us.load() / count;
+            
+            auto now = std::chrono::steady_clock::now();
+            double total_time_sec = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - metrics.start_time).count() / 1000.0;
+            double throughput_fps = count / total_time_sec;
             
             std::cout << "\n========================================\n";
             std::cout << "Frames processed: " << count << "\n";
-            std::cout << "Pipeline Latencies:\n";
-            std::cout << "  1. Capture (GStreamer→cv::Mat):  " << std::fixed << std::setprecision(2) 
+            std::cout << "Pipeline Latencies (avg per frame):\n";
+            std::cout << "  1. Capture (GStreamer->cv::Mat):  " << std::fixed << std::setprecision(2) 
                      << (avg_capture / 1000.0) << " ms\n";
-            std::cout << "  2. Inference (prep+infer+post):  " << (avg_inference / 1000.0) 
+            std::cout << "  2. Inference (prep+infer+post):   " << (avg_inference / 1000.0) 
                      << " ms (" << (1000000.0 / avg_inference) << " FPS capable)\n";
-            std::cout << "  3. Display (draw+resize+show):   " << (avg_display / 1000.0) << " ms\n";
-            std::cout << "  4. End-to-End (total):           " << (avg_e2e / 1000.0) << " ms\n";
-            std::cout << "Throughput: " << (count / (avg_e2e * count / 1000000.0)) << " FPS\n";
+            std::cout << "  3. Display (draw+resize+show):    " << (avg_display / 1000.0) << " ms\n";
+            std::cout << "  4. Pipeline Overhead (Queue Wait): " << (avg_wait / 1000.0) << " ms\n";
+            std::cout << "  5. End-to-End (Frame Ready->Disp): " << (avg_e2e / 1000.0) << " ms\n";
+            std::cout << "     (Note: End-to-End = Inference + Display + Overhead)\n";
+            std::cout << "Throughput: " << throughput_fps << " FPS\n";
             std::cout << "========================================\n";
         }
     }
@@ -446,12 +472,13 @@ int main(int argc, char** argv)
     ObjectFinder finder(homography_yaml, 1920, 1280, debug_mode);  // Waymo image dimensions
 
     // Queues
-    ThreadSafeQueue<TimestampedFrame> capture_queue;
+    ThreadSafeQueue<TimestampedFrame> capture_queue(1);
     ThreadSafeQueue<InferenceResult> display_queue;
 
     // Performance metrics
     PerformanceMetrics metrics;
     metrics.measure_latency = measure_latency;  // Set the flag
+    metrics.start_time = std::chrono::steady_clock::now();
     std::atomic<bool> running{true};
 
     // Launch threads
