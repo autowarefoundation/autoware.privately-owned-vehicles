@@ -53,6 +53,12 @@ private:
     double last_lane_width_bottom = -1.0;
     bool has_strong_history = false;
 
+    // GOOD state criteria
+    // 1. Line must cover at least X% of image height
+    const float min_history_span_ratio = 0.25f; 
+    // 2. Line must have at least X raw pixels (totally intuitive pls don't ask me how)
+    const size_t min_history_pixels = 10;
+
     // RANSAC helper func
     std::vector<double> fitPolySimple(
         const std::vector<cv::Point>& subset, 
