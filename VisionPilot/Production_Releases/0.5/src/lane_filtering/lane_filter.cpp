@@ -241,6 +241,12 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         start_right_vec
     );
 
+    LanePolyFit current_left_fit;
+    LanePolyFit current_right_fit;
+
+    std::vector<cv::Point> left_points;
+    std::vector<cv::Point> right_points;
+
     // Process left line
     if (!start_left_vec.empty()) {
         cv::Point start_pt(
@@ -249,25 +255,29 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         );
         
         // Step 1: sliding window search
-        auto left_points = slidingWindowSearch(
+        left_points = slidingWindowSearch(
             raw_input, 
             start_pt, 
             true
         );
         
         // Step 2: polyfit (cubic)
-        LanePolyFit left_fit = fitPoly(left_points);
+        current_left_fit = fitPoly(left_points);
         
         // Step 3: temporal smoothing
-        if (left_fit.valid) {
+        if (current_left_fit.valid) {
             if (prev_left_fit.valid) {
                 for (size_t i = 0; i < 4; i++) {
-                    left_fit.coeffs[i] = smoothing_factor * left_fit.coeffs[i] + 
-                                       (1.0f - smoothing_factor) * prev_left_fit.coeffs[i];
+                    current_left_fit.coeffs[i]  = smoothing_factor * current_left_fit.coeffs[i] + 
+                                                (1.0f - smoothing_factor) * prev_left_fit.coeffs[i];
                 }
+                current_left_fit.coeffs[4]      = smoothing_factor * current_left_fit.coeffs[4] + 
+                                                (1.0f - smoothing_factor) * prev_left_fit.coeffs[4];
+                current_left_fit.coeffs[5]      = smoothing_factor * current_left_fit.coeffs[5] + 
+                                                (1.0f - smoothing_factor) * prev_left_fit.coeffs[5];
             }
-            prev_left_fit = left_fit;
-            clean_output.left_coeffs = left_fit.coeffs; 
+            prev_left_fit = current_left_fit;
+            clean_output.left_coeffs = current_left_fit.coeffs; 
         }
     } else {
         // If detection lost, maybe keep previous for a few frames? 
@@ -282,22 +292,26 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
             start_right_vec[1]
         );
         
-        auto right_points = slidingWindowSearch(
+        right_points = slidingWindowSearch(
             raw_input, 
             start_pt, 
             false
         );
-        LanePolyFit right_fit = fitPoly(right_points);
+        current_right_fit = fitPoly(right_points);
 
-        if (right_fit.valid) {
+        if (current_right_fit.valid) {
             if (prev_right_fit.valid) {
                 for (size_t i = 0; i < 4; i++) {
-                    right_fit.coeffs[i] = smoothing_factor * right_fit.coeffs[i] + 
-                                        (1.0f - smoothing_factor) * prev_right_fit.coeffs[i];
+                    current_right_fit.coeffs[i] = smoothing_factor * current_right_fit.coeffs[i] + 
+                                                (1.0f - smoothing_factor) * prev_right_fit.coeffs[i];
                 }
+                current_right_fit.coeffs[4]     = smoothing_factor * current_right_fit.coeffs[4] + 
+                                                (1.0f - smoothing_factor) * prev_right_fit.coeffs[4];
+                current_right_fit.coeffs[5]     = smoothing_factor * current_right_fit.coeffs[5] + 
+                                                (1.0f - smoothing_factor) * prev_right_fit.coeffs[5];
             }
-            prev_right_fit = right_fit;
-            clean_output.right_coeffs = right_fit.coeffs;
+            prev_right_fit = current_right_fit;
+            clean_output.right_coeffs = current_right_fit.coeffs;
         }
     } else {
         prev_right_fit.valid = false;
