@@ -99,6 +99,9 @@ int main(int argc, char** argv) {
         if (z_declare_subscriber(z_loan(s), &seg_sub, z_loan(seg_ke), z_move(seg_closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(seg_keyexpr));
         }
+
+        std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
+                std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
         
         std::cout << "Subscribing to '" << keyexpr << "'..." << std::endl;
         std::cout << "Processing video... Press ESC to stop." << std::endl;
@@ -125,8 +128,6 @@ int main(int argc, char** argv) {
             // Create the frame
             cv::Mat seg_frame(row, col, type, const_cast<uint8_t*>(seg_ptr));
 
-            std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
-                std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
             cv::Mat final_frame = viz_engine_->visualize(seg_frame, frame);
 
             // Release the slice after using its data pointer
