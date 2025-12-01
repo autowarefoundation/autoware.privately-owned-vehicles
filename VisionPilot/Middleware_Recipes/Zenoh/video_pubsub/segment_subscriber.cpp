@@ -56,6 +56,8 @@ int main(int argc, char** argv) {
     app.add_option("-k,--key", keyexpr, "The key expression to subscribe to")->default_val(DEFAULT_KEYEXPR);
     std::string seg_keyexpr = SEGMENTATION_KEYEXPR;
     app.add_option("-s,--segkey", seg_keyexpr, "The segmentation key expression to subscribe to")->default_val(SEGMENTATION_KEYEXPR);
+    std::string config_path = "";
+    app.add_option("-c,--config", config_path, "The configuration file. Currently, this file must be a valid JSON5 or YAML file.")->check(CLI::ExistingFile);;
     CLI11_PARSE(app, argc, argv);
 
     try {
@@ -63,6 +65,16 @@ int main(int argc, char** argv) {
         z_owned_config_t config;
         z_owned_session_t s;
         z_config_default(&config);
+        if (!config_path.empty()) {
+            std::cout << "Loading Zenoh config from: " << config_path << std::endl;
+            z_owned_config_t loaded_config;
+            if (zc_config_from_file(&loaded_config, config_path.c_str()) < 0) {
+                throw std::runtime_error("Error loading Zenoh config from file: " + config_path);
+            }
+            z_drop(z_move(config));
+            config = loaded_config;
+        }
+        
         if (z_open(&s, z_move(config), NULL) < 0) {
             throw std::runtime_error("Error opening Zenoh session");
         }
