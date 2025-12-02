@@ -25,6 +25,16 @@ struct LaneSegmentation
   
   int height;
   int width;
+
+  // Coeffs for polyfit upscaling
+  std::vector<double> left_coeffs;
+  std::vector<double> right_coeffs;
+
+  // Debug info
+  cv::Point left_start_point = {-1, -1};
+  cv::Point right_start_point = {-1, -1};
+  std::vector<cv::Rect> left_sliding_windows;
+  std::vector<cv::Rect> right_sliding_windows;
 };
 
 /**

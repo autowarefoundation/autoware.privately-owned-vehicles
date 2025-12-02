@@ -8,8 +8,9 @@
  * - Display Thread: Optionally visualizes and saves results
  */
 
-#include "include/inference/onnxruntime_engine.hpp"
-#include "include/visualization/draw_lanes.hpp"
+#include "inference/onnxruntime_engine.hpp"
+#include "visualization/draw_lanes.hpp"
+#include "lane_filtering/lane_filter.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
@@ -175,6 +176,10 @@ void inferenceThread(
     std::atomic<bool>& running,
     float threshold)
 {
+
+    // Init lane filter
+    LaneFilter lane_filter(0.5f);
+
     while (running.load()) {
         TimestampedFrame tf = input_queue.pop();
         if (tf.frame.empty()) continue;
@@ -182,7 +187,10 @@ void inferenceThread(
         auto t_inference_start = steady_clock::now();
 
         // Run inference
-        LaneSegmentation lanes = engine.inference(tf.frame, threshold);
+        LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
+
+        // Post-processing with lane filter
+        LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
 
         auto t_inference_end = steady_clock::now();
 
@@ -194,7 +202,7 @@ void inferenceThread(
         // Package result
         InferenceResult result;
         result.frame = tf.frame;
-        result.lanes = lanes;
+        result.lanes = filtered_lanes;
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
@@ -213,12 +221,13 @@ void displayThread(
     std::atomic<bool>& running,
     bool enable_viz,
     bool save_video,
-    const std::string& output_video_path)
+    const std::string& output_video_path
+)
 {
     // Visualization setup
     if (enable_viz) {
         cv::namedWindow("AutoSteer Inference", cv::WINDOW_NORMAL);
-        cv::resizeWindow("AutoSteer Inference", 960, 540);
+        cv::resizeWindow("AutoSteer Inference", 960, 1080);
     }
 
     // Video writer setup
@@ -245,20 +254,47 @@ void displayThread(
 
         // Visualization
         if (enable_viz) {
-            drawLanesInPlace(result.frame, result.lanes);
-            int video_fps = 10.0;   // TODO: Make this dynamic
+            // drawLanesInPlace(result.frame, result.lanes, 2);
+            // drawFilteredLanesInPlace(result.frame, result.lanes);
+
+            // 1. Init 2 views, raw masks (debugging) + polyfit lanes (final prod)
+            cv::Mat view_debug = result.frame.clone();
+            cv::Mat view_final = result.frame.clone();
+
+            // 2. Draw 2 views
+            drawRawMasksInPlace(
+                view_debug, 
+                result.lanes
+            );
+            drawPolyFitLanesInPlace(
+                view_final, 
+                result.lanes
+            );
+
+            // 3. Stack vertically
+            cv::Mat stacked_view;
+            cv::vconcat(
+                view_debug, 
+                view_final, 
+                stacked_view
+            );
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
                 // Use H.264 for better performance and smaller file size
                 // XVID is slower and creates larger files
                 int fourcc = cv::VideoWriter::fourcc('a', 'v', 'c', '1');  // H.264
-                video_writer.open(output_video_path, fourcc, video_fps,
-                                cv::Size(result.frame.cols, result.frame.rows), true);
+                video_writer.open(
+                    output_video_path, 
+                    fourcc, 
+                    30.0,
+                    stacked_view.size(),
+                    true
+                );
 
                 if (video_writer.isOpened()) {
-                    std::cout << "Video writer initialized (H.264): " << result.frame.cols 
-                              << "x" << result.frame.rows << " @ " << video_fps << " fps" << std::endl;
+                    std::cout << "Video writer initialized (H.264): " << stacked_view.cols 
+                              << "x" << stacked_view.rows << " @ 30 fps" << std::endl;
                     video_writer_initialized = true;
                 } else {
                     std::cerr << "Warning: Failed to initialize video writer" << std::endl;
@@ -267,13 +303,11 @@ void displayThread(
 
             // Write to video
             if (save_video && video_writer_initialized && video_writer.isOpened()) {
-                video_writer.write(result.frame);
+                video_writer.write(stacked_view);
             }
 
             // Display
-            cv::Mat display_frame;
-            cv::resize(result.frame, display_frame, cv::Size(960, 540));
-            cv::imshow("AutoSteer Inference", display_frame);
+            cv::imshow("AutoSteer Inference", stacked_view);
 
             if (cv::waitKey(1) == 'q') {
                 running.store(false);

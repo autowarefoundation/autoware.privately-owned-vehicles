@@ -9,5 +9,5 @@ Containerized VisionPilot workloads for OpenADKit deployments.
 ## Build the Docker image
 
 ```bash
-docker build -t visionpilot -f Docker/Dockerfile ../..
+docker build -t visionpilot -f Docker/Dockerfile ../../..
 ```

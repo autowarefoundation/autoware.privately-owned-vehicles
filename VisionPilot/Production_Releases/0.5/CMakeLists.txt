@@ -32,6 +32,7 @@ endif()
 
 # Include directories
 include_directories(
+    include
     ${OpenCV_INCLUDE_DIRS}
     ${ONNXRUNTIME_INCLUDE_DIR}
 )
@@ -62,6 +63,14 @@ target_link_libraries(autosteer_visualization
     ${OpenCV_LIBS}
 )
 
+# Lane filtering module
+add_library(autosteer_lane_filtering
+    src/lane_filtering/lane_filter.cpp
+)
+target_link_libraries(autosteer_lane_filtering
+    autosteer_inference
+)
+
 # Main executable
 add_executable(autosteer_pipeline
     main.cpp
@@ -70,6 +79,7 @@ target_compile_definitions(autosteer_pipeline PRIVATE LOG_TYPE=0)  # Use non-ROS
 target_link_libraries(autosteer_pipeline
     autosteer_inference
     autosteer_visualization
+    autosteer_lane_filtering
     ${OpenCV_LIBS}
     pthread
 )
