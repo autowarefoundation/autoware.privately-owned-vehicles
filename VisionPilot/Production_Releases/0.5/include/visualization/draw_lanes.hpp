@@ -17,13 +17,11 @@ namespace autoware_pov::vision::autosteer
  * 
  * @param input_image Original input image (any resolution)
  * @param lanes Lane segmentation masks (typically 320x640)
- * @param radius Radius of drawn circles (default: 2)
  * @return Annotated image (same size as input)
  */
 cv::Mat drawLanes(
   const cv::Mat& input_image,
-  const LaneSegmentation& lanes,
-  int radius = 2
+  const LaneSegmentation& lanes
 );
 
 /**
@@ -31,12 +29,10 @@ cv::Mat drawLanes(
  * 
  * @param image Image to annotate (modified in-place)
  * @param lanes Lane segmentation masks
- * @param radius Radius of drawn circles
  */
 void drawLanesInPlace(
   cv::Mat& image,
-  const LaneSegmentation& lanes,
-  int radius = 2
+  const LaneSegmentation& lanes
 );
 
 /**

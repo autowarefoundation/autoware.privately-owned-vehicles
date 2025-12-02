@@ -191,7 +191,7 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
     cv::VideoWriter video_writer;
     int video_width = 0;
     int video_height = 0;
-    double video_fps = 30.0;
+    double video_fps = 10.0;
     bool video_writer_initialized = false;
     
     if (save_video && enable_viz) {
