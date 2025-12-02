@@ -2,9 +2,9 @@ import os
 import subprocess
 from tqdm import tqdm
 
-BEST_WEIGHT_PATH = "/home/tranhuunhathuy/Documents/Autoware/autoware.privately-owned-vehicles/Models/saves/AutoSteer/models/iter_301692_epoch_3_step_15000.pth"
-TEST_VID_DIR = "/mnt/Storage/pov_datasets/TEST_VIDEOS/READY/"
-OUTPUT_VID_DIR = "/mnt/Storage/pov_datasets/TEST_VIDEOS/RESULTS/"
+BEST_WEIGHT_PATH = "<path to best model weights file>"
+TEST_VID_DIR = "<test video directory path, containing various video files>"
+OUTPUT_VID_DIR = "<output directory for multiple output videos>"
 if (not os.path.exists(OUTPUT_VID_DIR)):
     os.makedirs(OUTPUT_VID_DIR)
 

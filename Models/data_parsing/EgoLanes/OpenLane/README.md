@@ -57,7 +57,7 @@ of images.
 
 ```bash
 # Example: process first 100 images with default sampling
-python3 EgoPath/create_path/OpenLane/process_openlane.py --dataset_dir ../pov_datasets/OpenLane --output_dir ../pov_datasets/OpenLane_Processed --sampling_step 5 --early_stopping 100
+python3 EgoPath/create_path/OpenLane/process_openlane.py --dataset_dir <path to raw OpenLane dataset > --output_dir <path to output processed OpenLane dataset > --sampling_step 5 --early_stopping 100
 ```
 
 
@@ -177,7 +177,7 @@ With `LS`, `RS`, `LE`, and `RE` defined, perform the BEV transformation using a 
 
 ```bash
 # Example: process first 100 images for BEV transformation
-python3 EgoPath/create_path/OpenLane/parse_openlane_bev.py --dataset_dir ../pov_datasets/OpenLane_Processed --early_stopping 100
+python3 EgoPath/create_path/OpenLane/parse_openlane_bev.py --dataset_dir <path to processed OpenLane dataset > --early_stopping 100
 ```
 
 ## III. Functions
@@ -258,6 +258,6 @@ python3 EgoPath/create_path/OpenLane/parse_openlane_bev.py --dataset_dir ../pov_
 ## IV. Running All at Once
 
 ```bash
-python3 EgoPath/create_path/OpenLane/process_openlane.py --dataset_dir ../pov_datasets/OpenLane --output_dir ../pov_datasets/OpenLane_Processed
-python3 EgoPath/create_path/OpenLane/parse_openlane_bev.py --dataset_dir ../pov_datasets/OpenLane_Processed
+python3 EgoPath/create_path/OpenLane/process_openlane.py --dataset_dir <path to raw OpenLane dataset > --output_dir <path to processed OpenLane dataset >
+python3 EgoPath/create_path/OpenLane/parse_openlane_bev.py --dataset_dir <path to processed OpenLane dataset >
 ```
