@@ -39,7 +39,35 @@ void drawLanesInPlace(
   int radius = 2
 );
 
+/**
+ * @brief In-place visualization of filtered lanes
+ * 
+ * @param image Image to annotate (modified in-place)
+ * @param lanes Filtered lane segmentation masks
+ */
+void drawFilteredLanesInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes);
+
+/**
+ * @brief Draws ONLY the raw 160x80 pixel masks overlay.
+ * Useful for debugging the model output and RANSAC inputs.
+ * Later on I might add some more, like sliding windows too etc.
+ */
+void drawRawMasksInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes
+);
+
+/**
+ * @brief Draws ONLY the smooth polynomial fitted lines.
+ * This represents the final product output Insha'Allah.
+ */
+void drawPolyFitLanesInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes
+);
+
 }  // namespace autoware_pov::vision::autosteer
 
 #endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
-
