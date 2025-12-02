@@ -138,7 +138,7 @@ ros2 launch models run_pipeline.launch.py \
 - Install the dependencies in [Zenoh](Zenoh/README.md) first
 
 ```bash
-cd VisionPilot/Zenoh
+cd VisionPilot/Middleware_Recipes/Zenoh
 # Set the environment variable
 export LIBTORCH_INSTALL_ROOT=/path/to/libtorch/
 export ONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0
