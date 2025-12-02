@@ -39,8 +39,11 @@ private:
 
     // Adaptive window width params
     const int min_window_width = 1;
-    const int max_window_width = 16;
-    const float threshold = 0.6f;
+    const int max_window_width = 8;
+    const int height_threshold = 50;
+
+    // Priority strategy params
+    const int priority_pixel_y_threshold = 60;
 
     // RANSAC polyfit params
     const int ransac_iterations = 50;       // Combi of iterations

@@ -536,13 +536,12 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             // 2. Define window
 
             // Dynamic window width based on Y-position (which I call "perspective-aware")
-            // Near bottom (y >= 60%) : forgiving, width = 8 pixels
-            // Rest (y < 60%) : surgically precise, width = 2 pixels
+            // Near bottom (y >= height_threshold) : forgiving, width = 8 pixels
+            // Rest (y < height_threshold) : surgically precise, width = 2 pixels
 
-            float height_thresold = raw.height * threshold;
             int current_width;
 
-            if (current_pos.y < height_thresold) {
+            if (current_pos.y < height_threshold) {
                 current_width = min_window_width;
             } else {
                 current_width = max_window_width;
@@ -584,9 +583,9 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
             long sum_x_other = 0, sum_y_other = 0;
 
             // Y-coord-based priority strategy switch
-            // If we are above y=60 (pixels 0-59), we enter stricter ego-prioritized mode
+            // If we are above a threshold, we enter stricter ego-prioritized mode
             // In this mode, we completely ignore "other_lanes" masks to avoid false positives
-            bool strict_ego_mode = (current_pos.y < 60);
+            bool strict_ego_mode = (current_pos.y < priority_pixel_y_threshold);
 
             // 3. Collect pixels via class-agnostic search
             for (int y = win_y_low; y < win_y_high; y++) {
