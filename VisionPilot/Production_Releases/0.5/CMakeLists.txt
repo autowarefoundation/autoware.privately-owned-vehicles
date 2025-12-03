@@ -71,6 +71,14 @@ target_link_libraries(autosteer_lane_filtering
     autosteer_inference
 )
 
+# Camera utilities module
+add_library(camera_utils
+    src/camera/camera_utils.cpp
+)
+target_link_libraries(camera_utils
+    ${OpenCV_LIBS}
+)
+
 # Main executable
 add_executable(autosteer_pipeline
     main.cpp
@@ -80,6 +88,7 @@ target_link_libraries(autosteer_pipeline
     autosteer_inference
     autosteer_visualization
     autosteer_lane_filtering
+    camera_utils
     ${OpenCV_LIBS}
     pthread
 )
