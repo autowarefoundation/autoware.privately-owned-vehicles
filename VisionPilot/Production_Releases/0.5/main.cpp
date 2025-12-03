@@ -3,7 +3,7 @@
  * @brief Multi-threaded AutoSteer lane detection inference pipeline
  * 
  * Architecture:
- * - Capture Thread: Reads frames from video source
+ * - Capture Thread: Reads frames from video source or camera
  * - Inference Thread: Runs lane detection model
  * - Display Thread: Optionally visualizes and saves results
  */
@@ -11,6 +11,7 @@
 #include "inference/onnxruntime_engine.hpp"
 #include "visualization/draw_lanes.hpp"
 #include "lane_filtering/lane_filter.hpp"
+#include "camera/camera_utils.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
@@ -22,6 +23,7 @@
 #include <iomanip>
 
 using namespace autoware_pov::vision::autosteer;
+using namespace autoware_pov::vision::camera;
 using namespace std::chrono;
 
 // Thread-safe queue with max size limit
@@ -112,57 +114,80 @@ struct PerformanceMetrics {
 };
 
 /**
- * @brief Capture thread - reads frames from video source
+ * @brief Unified capture thread - handles both video files and cameras
  */
 void captureThread(
-    const std::string& video_source,
+    const std::string& source,
+    bool is_camera,
     ThreadSafeQueue<TimestampedFrame>& queue,
     PerformanceMetrics& metrics,
     std::atomic<bool>& running)
 {
-    cv::VideoCapture cap(video_source);
+    cv::VideoCapture cap;
+    
+    if (is_camera) {
+        std::cout << "Opening camera: " << source << std::endl;
+        cap = openCamera(source);
+    } else {
+        std::cout << "Opening video: " << source << std::endl;
+        cap.open(source);
+    }
+    
     if (!cap.isOpened()) {
-        std::cerr << "Error: Could not open video source: " << video_source << std::endl;
+        std::cerr << "Failed to open source: " << source << std::endl;
         running.store(false);
         return;
     }
-
+    
     int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
     int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
-    double fps = 10.0;
-    int total_frames = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_COUNT));
-
-    std::cout << "Video opened: " << frame_width << "x" << frame_height 
-              << " @ " << fps << " FPS" << std::endl;
-    std::cout << "Total frames: " << total_frames << std::endl;
-
+    double fps = cap.get(cv::CAP_PROP_FPS);
+    
+    std::cout << "Source opened: " << frame_width << "x" << frame_height 
+              << " @ " << fps << " FPS\n" << std::endl;
+    
+    if (!is_camera) {
+        int total_frames = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_COUNT));
+        std::cout << "Total frames: " << total_frames << std::endl;
+    }
+    
+    // For camera: throttle 30fps → 10fps
+    int frame_skip = 0;
+    int skip_interval = is_camera ? 3 : 1;
+    
     int frame_number = 0;
     while (running.load()) {
         auto t_start = steady_clock::now();
         
         cv::Mat frame;
-        bool ret = cap.read(frame);
-        
-        auto t_end = steady_clock::now();
-
-        if (!ret || frame.empty()) {
-            std::cout << "End of video stream" << std::endl;
+        if (!cap.read(frame) || frame.empty()) {
+            if (is_camera) {
+                std::cerr << "Camera error" << std::endl;
+            } else {
+                std::cout << "End of video stream" << std::endl;
+            }
             break;
         }
-
-        // Calculate capture latency
+        
+        auto t_end = steady_clock::now();
+        
+        // Frame throttling
+        if (++frame_skip < skip_interval) continue;
+        frame_skip = 0;
+        
         long capture_us = duration_cast<microseconds>(t_end - t_start).count();
         metrics.total_capture_us.fetch_add(capture_us);
-
+        
         TimestampedFrame tf;
         tf.frame = frame;
         tf.frame_number = frame_number++;
         tf.timestamp = t_end;
         queue.push(tf);
     }
-
+    
     running.store(false);
     queue.stop();
+    cap.release();
 }
 
 /**
@@ -360,11 +385,12 @@ void displayThread(
 
 int main(int argc, char** argv)
 {
-    if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <video_source> <model_path> <provider> <precision> "
-                  << "[device_id] [cache_dir] [threshold] [measure_latency] [enable_viz] [save_video] [output_video]\n";
-        std::cerr << "  video_source: Video file path or camera device (e.g., /dev/video0)\n";
-        std::cerr << "  model_path: ONNX model file (.onnx)\n";
+    if (argc < 2) {
+        std::cerr << "Usage:\n";
+        std::cerr << "  " << argv[0] << " camera <model> <provider> <precision> [device_id] [options...]\n";
+        std::cerr << "  " << argv[0] << " video <video_file> <model> <provider> <precision> [device_id] [options...]\n\n";
+        std::cerr << "Arguments:\n";
+        std::cerr << "  model: ONNX model file (.onnx)\n";
         std::cerr << "  provider: 'cpu' or 'tensorrt'\n";
         std::cerr << "  precision: 'fp32' or 'fp16' (for TensorRT)\n";
         std::cerr << "  device_id: (optional) GPU device ID (default: 0)\n";
@@ -373,24 +399,74 @@ int main(int argc, char** argv)
         std::cerr << "  measure_latency: (optional) 'true' to show metrics (default: true)\n";
         std::cerr << "  enable_viz: (optional) 'true' for visualization (default: true)\n";
         std::cerr << "  save_video: (optional) 'true' to save video (default: false)\n";
-        std::cerr << "  output_video: (optional) Output video path (default: output.avi)\n";
-        std::cerr << "\nExample:\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx tensorrt fp16\n";
-        std::cerr << "  " << argv[0] << " video.mp4 model.onnx cpu fp32 0 ./cache 0.0 true false\n";
+        std::cerr << "  output_video: (optional) Output video path (default: output.avi)\n\n";
+        std::cerr << "Examples:\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16\n";
+        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
         return 1;
     }
-
-    std::string video_source = argv[1];
-    std::string model_path = argv[2];
-    std::string provider = argv[3];
-    std::string precision = argv[4];
-    int device_id = (argc >= 6) ? std::atoi(argv[5]) : 0;
-    std::string cache_dir = (argc >= 7) ? argv[6] : "./trt_cache";
-    float threshold = (argc >= 8) ? std::atof(argv[7]) : 0.0f;
-    bool measure_latency = (argc >= 9) ? (std::string(argv[8]) == "true") : true;
-    bool enable_viz = (argc >= 10) ? (std::string(argv[9]) == "true") : true;
-    bool save_video = (argc >= 11) ? (std::string(argv[10]) == "true") : false;
-    std::string output_video_path = (argc >= 12) ? argv[11] : "output.avi";
+    
+    std::string mode = argv[1];
+    std::string source;
+    std::string model_path;
+    std::string provider;
+    std::string precision;
+    bool is_camera = false;
+    
+    // Parse arguments based on mode
+    if (mode == "camera") {
+        if (argc < 5) {
+            std::cerr << "Camera mode requires: camera <model> <provider> <precision>" << std::endl;
+            return 1;
+        }
+        
+        // Interactive camera selection
+        source = selectCamera();
+        if (source.empty()) {
+            std::cout << "No camera selected. Exiting." << std::endl;
+            return 0;
+        }
+        
+        // Verify camera works
+        if (!verifyCamera(source)) {
+            std::cerr << "\nCamera verification failed." << std::endl;
+            std::cerr << "Please check connection and driver installation." << std::endl;
+            printDriverInstructions();
+            return 1;
+        }
+        
+        model_path = argv[2];
+        provider = argv[3];
+        precision = argv[4];
+        is_camera = true;
+        
+    } else if (mode == "video") {
+        if (argc < 6) {
+            std::cerr << "Video mode requires: video <video_file> <model> <provider> <precision>" << std::endl;
+            return 1;
+        }
+        
+        source = argv[2];
+        model_path = argv[3];
+        provider = argv[4];
+        precision = argv[5];
+        is_camera = false;
+        
+    } else {
+        std::cerr << "Unknown mode: " << mode << std::endl;
+        std::cerr << "Use 'camera' or 'video'" << std::endl;
+        return 1;
+    }
+    
+    // Parse optional arguments (different offset for camera vs video)
+    int base_idx = is_camera ? 5 : 6;
+    int device_id = (argc >= base_idx + 1) ? std::atoi(argv[base_idx]) : 0;
+    std::string cache_dir = (argc >= base_idx + 2) ? argv[base_idx + 1] : "./trt_cache";
+    float threshold = (argc >= base_idx + 3) ? std::atof(argv[base_idx + 2]) : 0.0f;
+    bool measure_latency = (argc >= base_idx + 4) ? (std::string(argv[base_idx + 3]) == "true") : true;
+    bool enable_viz = (argc >= base_idx + 5) ? (std::string(argv[base_idx + 4]) == "true") : true;
+    bool save_video = (argc >= base_idx + 6) ? (std::string(argv[base_idx + 5]) == "true") : false;
+    std::string output_video_path = (argc >= base_idx + 7) ? argv[base_idx + 6] : "output.avi";
 
     if (save_video && !enable_viz) {
         std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
@@ -444,6 +520,7 @@ int main(int argc, char** argv)
     std::cout << "========================================" << std::endl;
     std::cout << "Starting multi-threaded inference pipeline" << std::endl;
     std::cout << "========================================" << std::endl;
+    std::cout << "Source: " << (is_camera ? "Camera" : "Video") << std::endl;
     std::cout << "Mode: " << (enable_viz ? "Visualization" : "Headless") << std::endl;
     std::cout << "Threshold: " << threshold << std::endl;
     if (measure_latency) {
@@ -460,7 +537,7 @@ int main(int argc, char** argv)
     }
     std::cout << "========================================\n" << std::endl;
 
-    std::thread t_capture(captureThread, video_source, std::ref(capture_queue),
+    std::thread t_capture(captureThread, source, is_camera, std::ref(capture_queue),
                           std::ref(metrics), std::ref(running));
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
