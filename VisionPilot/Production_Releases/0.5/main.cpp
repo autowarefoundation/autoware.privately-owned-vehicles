@@ -376,15 +376,25 @@ void displayThread(
         }
     }
 
-    // Cleanup
+    // Cleanups
+
+    // Video writer
     if (save_video && video_writer_initialized && video_writer.isOpened()) {
         video_writer.release();
         std::cout << "\nVideo saved to: " << output_video_path << std::endl;
     }
 
+    // Vis
     if (enable_viz) {
         cv::destroyAllWindows();
     }
+
+    // CSV logger
+    if (csv_file.is_open()) {
+        csv_file.close();
+        std::cout << "CSV log saved." << std::endl;
+    }
+
 }
 
 int main(int argc, char** argv)
