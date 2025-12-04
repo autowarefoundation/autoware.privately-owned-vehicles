@@ -131,9 +131,8 @@ LanePolyFit LaneFilter::fitPoly(
     }
 
     // 2. Dynamic order selection
-    int order = 3; 
-    if (n < 30) order = 1; 
-    else if (n < 60) order = 2;
+    int order = 2; 
+    if (n < 30) order = 1;
 
     // 3. RANSAC loop
     std::vector<double> best_model;
@@ -258,7 +257,8 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         left_points = slidingWindowSearch(
             raw_input, 
             start_pt, 
-            true
+            true,
+            clean_output.left_sliding_windows
         );
         
         // Step 2: polyfit (cubic)
@@ -295,7 +295,8 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         right_points = slidingWindowSearch(
             raw_input, 
             start_pt, 
-            false
+            false,
+            clean_output.right_sliding_windows
         );
         current_right_fit = fitPoly(right_points);
 
