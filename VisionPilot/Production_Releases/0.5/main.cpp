@@ -19,6 +19,7 @@
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 
 using namespace autoware_pov::vision::autosteer;
@@ -236,6 +237,17 @@ void displayThread(
 
     if (save_video && enable_viz) {
         std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
+    }
+
+    // CSV logger for curve params metrics
+    std::ofstream csv_file;
+    csv_file.open("curve_params_metrics.csv");
+    if (csv_file.is_open()) {
+        // Write header
+        csv_file << "frame_id,timestamp_ms,lane_offset,yaw_offset,curvature\n";
+        std::cout << "CSV logging enabled: curve_params_metrics.csv" << std::endl;
+    } else {
+        std::cerr << "Error: could not open curve_params_metrics.csv for writing" << std::endl;
     }
 
     while (running.load()) {
