@@ -382,32 +382,32 @@ void drawRawMasksInPlace(
       color_ego_right
     );
 
-    // Draw sliding windows for debugging
-    float scale_x = static_cast<float>(image.cols) / lanes.width;
-    float scale_y = static_cast<float>(image.rows) / lanes.height;
-    cv::Scalar color_window(0, 0, 255); // Red
+    // // Draw sliding windows for debugging
+    // float scale_x = static_cast<float>(image.cols) / lanes.width;
+    // float scale_y = static_cast<float>(image.rows) / lanes.height;
+    // cv::Scalar color_window(0, 0, 255); // Red
 
-    // a. Left windows
-    for (const auto& rect : lanes.left_sliding_windows) {
-        cv::Rect scaled_rect(
-            static_cast<int>(rect.x * scale_x),
-            static_cast<int>(rect.y * scale_y),
-            static_cast<int>(rect.width * scale_x),
-            static_cast<int>(rect.height * scale_y)
-        );
-        cv::rectangle(image, scaled_rect, color_window, 3);
-    }
+    // // a. Left windows
+    // for (const auto& rect : lanes.left_sliding_windows) {
+    //     cv::Rect scaled_rect(
+    //         static_cast<int>(rect.x * scale_x),
+    //         static_cast<int>(rect.y * scale_y),
+    //         static_cast<int>(rect.width * scale_x),
+    //         static_cast<int>(rect.height * scale_y)
+    //     );
+    //     cv::rectangle(image, scaled_rect, color_window, 1);
+    // }
 
-    // b. Right windows
-    for (const auto& rect : lanes.right_sliding_windows) {
-        cv::Rect scaled_rect(
-            static_cast<int>(rect.x * scale_x),
-            static_cast<int>(rect.y * scale_y),
-            static_cast<int>(rect.width * scale_x),
-            static_cast<int>(rect.height * scale_y)
-        );
-        cv::rectangle(image, scaled_rect, color_window, 3);
-    }
+    // // b. Right windows
+    // for (const auto& rect : lanes.right_sliding_windows) {
+    //     cv::Rect scaled_rect(
+    //         static_cast<int>(rect.x * scale_x),
+    //         static_cast<int>(rect.y * scale_y),
+    //         static_cast<int>(rect.width * scale_x),
+    //         static_cast<int>(rect.height * scale_y)
+    //     );
+    //     cv::rectangle(image, scaled_rect, color_window, 1);
+    // }
     
     cv::putText(
       image, 
@@ -529,7 +529,7 @@ void drawPolyFitLanesInPlace(
         std::vector<std::string> lines;
         lines.push_back(cv::format("Lane offset: %.2f px", lanes.lane_offset));
         lines.push_back(cv::format("Yaw offset: %.2f rad", lanes.yaw_offset));
-        lines.push_back(cv::format("Steering angle: %.2f deg", lanes.steering_angle));
+        // lines.push_back(cv::format("Steering angle: %.2f deg", lanes.steering_angle));
         lines.push_back(cv::format("Curvature: %.4f", lanes.curvature));
 
         int font = cv::FONT_HERSHEY_SIMPLEX;
