@@ -469,12 +469,20 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         double c = clean_output.center_coeffs[2];
         double d = clean_output.center_coeffs[3];
 
-        // Lane offset (pixels)
+        // i. Lane offset (pixels)
         double x_pos =  a * pow(y_bottom, 3) + 
                         b * pow(y_bottom, 2) + 
                         c * y_bottom + 
                         d;
         clean_output.lane_offset = x_pos - (static_cast<double>(clean_output.width) / 2.0);
+
+        // ii. Yaw offset (radians)
+        // dx/dy = 3ay^2 + 2by + c
+        // A vertical line has dx/dy = 0. Btw img coords: +X rightward, +Y downward
+        double dx_dy =  3 * a * pow(y_bottom, 2) + 
+                        2 * b * y_bottom + 
+                        c;
+        clean_output.yaw_offset = std::atan(dx_dy);
 
     }
 
