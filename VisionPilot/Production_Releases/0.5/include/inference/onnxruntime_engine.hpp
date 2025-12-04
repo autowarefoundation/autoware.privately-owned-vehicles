@@ -30,6 +30,15 @@ struct LaneSegmentation
   std::vector<double> left_coeffs;
   std::vector<double> right_coeffs;
 
+  // Drivable path info
+  std::vector<double> center_coeffs;
+
+  // Curve params info
+  double lane_offset = 0.0;   // Distance from image center to path center
+  double yaw_offset = 0.0;    // Heading error (radians)
+  double curvature = 0.0;     // 1/R
+  bool path_valid = false;    // True if we successfully calculated the path
+
   // Debug info
   cv::Point left_start_point = {-1, -1};
   cv::Point right_start_point = {-1, -1};
