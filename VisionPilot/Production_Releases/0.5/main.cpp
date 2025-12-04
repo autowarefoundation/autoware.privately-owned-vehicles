@@ -241,7 +241,7 @@ void displayThread(
 
     // CSV logger for curve params metrics
     std::ofstream csv_file;
-    csv_file.open("curve_params_metrics.csv");
+    csv_file.open("./assets/curve_params_metrics.csv");
     if (csv_file.is_open()) {
         // Write header
         csv_file << "frame_id,timestamp_ms,lane_offset,yaw_offset,steering_angle,curvature\n";
@@ -337,12 +337,12 @@ void displayThread(
                 result.capture_time.time_since_epoch()
             ).count();
 
-            csv_file    << result.frame_number << ","
-                        << ms_since_epoch << ","
-                        << result.lanes.lane_offset << ","
-                        << result.lanes.yaw_offset << ","
-                        << result.lanes.steering_angle << ","
-                        << result.lanes.curvature << "\n";
+            csv_file << result.frame_number << ","
+                     << ms_since_epoch << ","
+                     << result.lanes.lane_offset << ","
+                     << result.lanes.yaw_offset << ","
+                     << result.lanes.steering_angle << ","
+                     << result.lanes.curvature << "\n";
         }
 
         auto t_display_end = steady_clock::now();
