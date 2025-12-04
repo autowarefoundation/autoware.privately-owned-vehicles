@@ -222,7 +222,7 @@ void displayThread(
     std::atomic<bool>& running,
     bool enable_viz,
     bool save_video,
-    const std::string& output_video_path
+    const std::string& output_video_path = "./assets/output_video.mp4"
 )
 {
     // Visualization setup
@@ -299,14 +299,14 @@ void displayThread(
                 video_writer.open(
                     output_video_path, 
                     fourcc, 
-                    30.0,
+                    10.0,
                     stacked_view.size(),
                     true
                 );
 
                 if (video_writer.isOpened()) {
                     std::cout << "Video writer initialized (H.264): " << stacked_view.cols 
-                              << "x" << stacked_view.rows << " @ 30 fps" << std::endl;
+                              << "x" << stacked_view.rows << " @ 10 fps" << std::endl;
                     video_writer_initialized = true;
                 } else {
                     std::cerr << "Warning: Failed to initialize video writer" << std::endl;
@@ -429,8 +429,8 @@ int main(int argc, char** argv)
     float threshold = (argc >= 8) ? std::atof(argv[7]) : 0.0f;
     bool measure_latency = (argc >= 9) ? (std::string(argv[8]) == "true") : true;
     bool enable_viz = (argc >= 10) ? (std::string(argv[9]) == "true") : true;
-    bool save_video = (argc >= 11) ? (std::string(argv[10]) == "true") : false;
-    std::string output_video_path = (argc >= 12) ? argv[11] : "output.avi";
+    bool save_video = (argc >= 11) ? (std::string(argv[10]) == "true") : true;
+    std::string output_video_path = (argc >= 12) ? argv[11] : "./assets/output_video.mp4";
 
     if (save_video && !enable_viz) {
         std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
