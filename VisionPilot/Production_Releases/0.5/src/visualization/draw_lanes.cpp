@@ -1,4 +1,5 @@
 #include "visualization/draw_lanes.hpp"
+#include <opencv2/core/types.hpp>
 
 namespace autoware_pov::vision::autosteer
 {
@@ -400,6 +401,7 @@ void drawPolyFitLanesInPlace(
 {
     cv::Scalar color_ego_left(255, 0, 0);     // Blue
     cv::Scalar color_ego_right(255, 0, 200);  // Magenta
+    cv::Scalar color_center(0, 255, 255);     // Yellow
     
     // Draw vectors
 
@@ -459,6 +461,60 @@ void drawPolyFitLanesInPlace(
               cv::LINE_AA
             );
         }
+    }
+
+    // Drivable path
+    if (
+      lanes.path_valid && 
+      !lanes.center_coeffs.empty()
+    ) {
+        std::vector<double> viz_coeffs = lanes.center_coeffs;
+        viz_coeffs[5] = static_cast<double>(lanes.height - 1);  // Extend to bottom
+
+        auto center_points = genSmoothCurve(
+          viz_coeffs, 
+          image.cols, 
+          image.rows, 
+          lanes.width, 
+          lanes.height
+        );
+        
+        if (center_points.size() > 1) {
+            cv::polylines(
+              image, 
+              center_points, 
+              false, 
+              color_center, 
+              15, 
+              cv::LINE_AA
+            );
+            cv::polylines(
+              image, 
+              center_points, 
+              false, 
+              cv::Scalar(255, 255, 255), 
+              5, 
+              cv::LINE_AA
+            );
+        }
+
+        // Params info as text for now
+        std::string metrics_str = cv::format(
+            "Offset: %.2f px | Yaw: %.2f rad | Curv: %.4f", 
+            lanes.lane_offset, 
+            lanes.yaw_offset, 
+            lanes.curvature
+        );
+        
+        cv::putText(
+            image, 
+            metrics_str, 
+            cv::Point(20, 1000),  // Bottom left
+            cv::FONT_HERSHEY_SIMPLEX, 
+            1.2, 
+            color_center, 
+            2
+        );
     }
     
     cv::putText(
