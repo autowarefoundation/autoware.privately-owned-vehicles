@@ -325,8 +325,8 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     };
 
     // Check good state criteria:
-    // 1. Line must cover at least X% of image height
-    // 2. Line must have at least X raw pixels (totally intuitive pls don't ask me how)
+    // a. Line must cover at least X% of image height
+    // b. Line must have at least X raw pixels (totally intuitive pls don't ask me how)
     bool left_is_good = current_left_fit.valid && 
                         (left_points.size() >= min_history_pixels) && 
                         (getSpan(current_left_fit.coeffs) >= raw_input.height * min_history_span_ratio);
@@ -432,6 +432,17 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
             prev_right_fit.coeffs = recovered_coeffs;
             prev_right_fit.valid = true;
         }
+    }
+
+    // 3. Drivable path (along those curve params) derivation
+
+    if (
+        !clean_output.left_coeffs.empty() && 
+        !clean_output.right_coeffs.empty()
+    ) {
+        
+        clean_output.center_coeffs.resize(6);
+
     }
 
     return clean_output;
