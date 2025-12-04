@@ -564,7 +564,9 @@ void LaneFilter::findStartingPoints(
 std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     const LaneSegmentation& raw,
     cv::Point start_point,
-    bool is_left_lane)
+    bool is_left_lane,
+    std::vector<cv::Rect>& debug_sliding_windows
+)
 {
     std::vector<cv::Point> lane_points;
     
@@ -647,6 +649,15 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                 raw.width, 
                 current_pos.x + current_width
             );
+
+            // Save this window to debug the sliding window logic
+            cv::Rect win_rect(
+                win_x_low, 
+                win_y_low, 
+                (win_x_high - win_x_low), 
+                (win_y_high - win_y_low)
+            );
+            debug_sliding_windows.push_back(win_rect);
 
             // Buckets for priority logic
             std::vector<cv::Point> ego_pixels;
