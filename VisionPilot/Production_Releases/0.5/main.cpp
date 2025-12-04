@@ -12,6 +12,9 @@
 #include "visualization/draw_lanes.hpp"
 #include "lane_filtering/lane_filter.hpp"
 #include "camera/camera_utils.hpp"
+#ifdef ENABLE_RERUN
+#include "rerun/rerun_logger.hpp"
+#endif
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <queue>
@@ -199,9 +202,12 @@ void inferenceThread(
     ThreadSafeQueue<InferenceResult>& output_queue,
     PerformanceMetrics& metrics,
     std::atomic<bool>& running,
-    float threshold)
+    float threshold
+#ifdef ENABLE_RERUN
+    , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
+#endif
+)
 {
-
     // Init lane filter
     LaneFilter lane_filter(0.5f);
 
@@ -223,6 +229,19 @@ void inferenceThread(
         long inference_us = duration_cast<microseconds>(
             t_inference_end - t_inference_start).count();
         metrics.total_inference_us.fetch_add(inference_us);
+
+#ifdef ENABLE_RERUN
+        // Log to Rerun (minimal, non-blocking)
+        if (rerun_logger && rerun_logger->isEnabled()) {
+            rerun_logger->logInference(
+                tf.frame_number,
+                tf.frame,
+                raw_lanes,
+                filtered_lanes,
+                inference_us
+            );
+        }
+#endif
 
         // Package result
         InferenceResult result;
@@ -400,8 +419,15 @@ int main(int argc, char** argv)
         std::cerr << "  enable_viz: (optional) 'true' for visualization (default: true)\n";
         std::cerr << "  save_video: (optional) 'true' to save video (default: false)\n";
         std::cerr << "  output_video: (optional) Output video path (default: output.avi)\n\n";
+        std::cerr << "Rerun Logging (optional):\n";
+        std::cerr << "  --rerun              : Enable Rerun live viewer\n";
+        std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n\n";
         std::cerr << "Examples:\n";
-        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16\n";
+        std::cerr << "  # Camera with live Rerun viewer:\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
+        std::cerr << "  # Camera saving to file:\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun-save recording.rrd\n\n";
+        std::cerr << "  # Video without Rerun:\n";
         std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
         return 1;
     }
@@ -468,6 +494,26 @@ int main(int argc, char** argv)
     bool save_video = (argc >= base_idx + 6) ? (std::string(argv[base_idx + 5]) == "true") : false;
     std::string output_video_path = (argc >= base_idx + 7) ? argv[base_idx + 6] : "output.avi";
 
+    // Parse Rerun flags (check all remaining arguments)
+    bool enable_rerun = false;
+    bool spawn_rerun_viewer = true;
+    std::string rerun_save_path = "";
+    
+    for (int i = base_idx + 7; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--rerun") {
+            enable_rerun = true;
+        } else if (arg == "--rerun-save") {
+            enable_rerun = true;
+            spawn_rerun_viewer = false;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                rerun_save_path = argv[++i];
+            } else {
+                rerun_save_path = "autosteer.rrd";
+            }
+        }
+    }
+
     if (save_video && !enable_viz) {
         std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
         enable_viz = true;
@@ -507,6 +553,15 @@ int main(int argc, char** argv)
     
     std::cout << "Backend ready!\n" << std::endl;
 
+#ifdef ENABLE_RERUN
+    // Initialize Rerun logger (optional)
+    std::unique_ptr<autoware_pov::vision::rerun_integration::RerunLogger> rerun_logger;
+    if (enable_rerun) {
+        rerun_logger = std::make_unique<autoware_pov::vision::rerun_integration::RerunLogger>(
+            "AutoSteer", spawn_rerun_viewer, rerun_save_path);
+    }
+#endif
+
     // Thread-safe queues with bounded size (prevents memory overflow)
     ThreadSafeQueue<TimestampedFrame> capture_queue(5);   // Max 5 frames waiting for inference
     ThreadSafeQueue<InferenceResult> display_queue(5);    // Max 5 frames waiting for display
@@ -523,6 +578,11 @@ int main(int argc, char** argv)
     std::cout << "Source: " << (is_camera ? "Camera" : "Video") << std::endl;
     std::cout << "Mode: " << (enable_viz ? "Visualization" : "Headless") << std::endl;
     std::cout << "Threshold: " << threshold << std::endl;
+#ifdef ENABLE_RERUN
+    if (enable_rerun && rerun_logger && rerun_logger->isEnabled()) {
+        std::cout << "Rerun logging: ENABLED" << std::endl;
+    }
+#endif
     if (measure_latency) {
         std::cout << "Latency measurement: ENABLED (metrics every 30 frames)" << std::endl;
     }
@@ -539,9 +599,16 @@ int main(int argc, char** argv)
 
     std::thread t_capture(captureThread, source, is_camera, std::ref(capture_queue),
                           std::ref(metrics), std::ref(running));
+#ifdef ENABLE_RERUN
+    std::thread t_inference(inferenceThread, std::ref(engine),
+                            std::ref(capture_queue), std::ref(display_queue),
+                            std::ref(metrics), std::ref(running), threshold,
+                            rerun_logger.get());
+#else
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold);
+#endif
     std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                          std::ref(running), enable_viz, save_video, output_video_path);
 
