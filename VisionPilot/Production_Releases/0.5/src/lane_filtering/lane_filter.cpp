@@ -443,6 +443,27 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         
         clean_output.center_coeffs.resize(6);
 
+        // a. Average coeffs to get middleline (aka drivable path) : x_mid = (x_left + x_right) / 2
+        // Can do this via averaging coeffs tho
+        for(int i = 0; i < 4; ++i) {
+            clean_output.center_coeffs[i] = (
+                clean_output.left_coeffs[i] + 
+                clean_output.right_coeffs[i]
+            ) / 2.0;
+        }
+
+        // b. Lim their y-ranges
+        clean_output.center_coeffs[4] = std::min(
+            clean_output.left_coeffs[4], 
+            clean_output.right_coeffs[4]
+        ); // min_y
+        clean_output.center_coeffs[5] = std::max(
+            clean_output.left_coeffs[5], 
+            clean_output.right_coeffs[5]
+        ); // max_y
+
+        
+
     }
 
     return clean_output;
