@@ -381,6 +381,33 @@ void drawRawMasksInPlace(
       lanes.ego_right, 
       color_ego_right
     );
+
+    // Draw sliding windows for debugging
+    float scale_x = static_cast<float>(image.cols) / lanes.width;
+    float scale_y = static_cast<float>(image.rows) / lanes.height;
+    cv::Scalar color_window(0, 0, 255); // Red
+
+    // a. Left windows
+    for (const auto& rect : lanes.left_sliding_windows) {
+        cv::Rect scaled_rect(
+            static_cast<int>(rect.x * scale_x),
+            static_cast<int>(rect.y * scale_y),
+            static_cast<int>(rect.width * scale_x),
+            static_cast<int>(rect.height * scale_y)
+        );
+        cv::rectangle(image, scaled_rect, color_window, 3);
+    }
+
+    // b. Right windows
+    for (const auto& rect : lanes.right_sliding_windows) {
+        cv::Rect scaled_rect(
+            static_cast<int>(rect.x * scale_x),
+            static_cast<int>(rect.y * scale_y),
+            static_cast<int>(rect.width * scale_x),
+            static_cast<int>(rect.height * scale_y)
+        );
+        cv::rectangle(image, scaled_rect, color_window, 3);
+    }
     
     cv::putText(
       image, 
