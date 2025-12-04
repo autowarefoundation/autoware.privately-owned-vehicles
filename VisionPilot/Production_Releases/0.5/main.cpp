@@ -327,6 +327,23 @@ void displayThread(
             }
         }
 
+        // CSV logging for curve params
+        if (
+            csv_file.is_open() && 
+            result.lanes.path_valid
+        ) {
+            // Timestamp calc, from captured time
+            auto ms_since_epoch = duration_cast<milliseconds>(
+                result.capture_time.time_since_epoch()
+            ).count();
+
+            csv_file << result.frame_number << ","
+                     << ms_since_epoch << ","
+                     << result.lanes.lane_offset << ","
+                     << result.lanes.yaw_offset << ","
+                     << result.lanes.curvature << "\n";
+        }
+
         auto t_display_end = steady_clock::now();
 
         // Calculate latencies
