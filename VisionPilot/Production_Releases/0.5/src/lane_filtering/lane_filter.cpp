@@ -462,7 +462,19 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
             clean_output.right_coeffs[5]
         ); // max_y
 
-        
+        // c. Extend to bottom + metrics calc
+        double y_bottom = static_cast<double>(clean_output.height);
+        double a = clean_output.center_coeffs[0];
+        double b = clean_output.center_coeffs[1];
+        double c = clean_output.center_coeffs[2];
+        double d = clean_output.center_coeffs[3];
+
+        // Lane offset (pixels)
+        double x_pos =  a * pow(y_bottom, 3) + 
+                        b * pow(y_bottom, 2) + 
+                        c * y_bottom + 
+                        d;
+        clean_output.lane_offset = x_pos - (static_cast<double>(clean_output.width) / 2.0);
 
     }
 
