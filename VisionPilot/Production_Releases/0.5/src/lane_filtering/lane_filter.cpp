@@ -484,7 +484,10 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
                         c;
         clean_output.yaw_offset = std::atan(dx_dy);
 
-        // iii. Curvature (1/R)
+        // iii. Steering angle (degrees)
+        clean_output.steering_angle = clean_output.yaw_offset * (180.0 / CV_PI);
+
+        // iv. Curvature (1/R)
         // k = |x''| / (1 + x'^2)^1.5
         // x'' = 6ay + 2b
         double d2x_dy2 =    6 * a * y_bottom + 

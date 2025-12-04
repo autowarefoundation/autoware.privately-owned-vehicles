@@ -499,22 +499,39 @@ void drawPolyFitLanesInPlace(
         }
 
         // Params info as text for now
-        std::string metrics_str = cv::format(
-            "Offset: %.2f px | Yaw: %.2f rad | Curv: %.4f", 
-            lanes.lane_offset, 
-            lanes.yaw_offset, 
-            lanes.curvature
-        );
+        std::vector<std::string> lines;
+        lines.push_back(cv::format("Lane offset: %.2f px", lanes.lane_offset));
+        lines.push_back(cv::format("Yaw offset: %.2f rad", lanes.yaw_offset));
+        lines.push_back(cv::format("Steering angle: %.2f deg", lanes.steering_angle));
+        lines.push_back(cv::format("Curvature: %.4f", lanes.curvature));
+
+        int font = cv::FONT_HERSHEY_SIMPLEX;
+        double scale = 1.2;
+        int thickness = 2;
+        int line_spacing = 10; // extra spacing
+        int margin = 50;
+        int y = margin;
         
-        cv::putText(
-            image, 
-            metrics_str, 
-            cv::Point(20, 1000),  // Bottom left
-            cv::FONT_HERSHEY_SIMPLEX, 
-            1.2, 
-            color_center, 
-            2
-        );
+        for (const auto& l : lines) {
+            cv::Size textSize = cv::getTextSize(
+              l, 
+              font, 
+              scale, 
+              thickness, 
+              nullptr
+            );
+            int x = image.cols - textSize.width - margin;  // Align right
+            cv::putText(
+              image, 
+              l, 
+              cv::Point(x, y), 
+              font, 
+              scale, 
+              color_center, 
+              thickness
+            );
+            y += textSize.height + line_spacing;
+        }
     }
     
     cv::putText(
