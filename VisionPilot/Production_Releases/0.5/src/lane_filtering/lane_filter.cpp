@@ -484,6 +484,23 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
                         c;
         clean_output.yaw_offset = std::atan(dx_dy);
 
+        // iii. Curvature (1/R)
+        // k = |x''| / (1 + x'^2)^1.5
+        // x'' = 6ay + 2b
+        double d2x_dy2 =    6 * a * y_bottom + 
+                            2 * b;
+        double denominator = std::pow(
+            1 + dx_dy * dx_dy, 
+            1.5
+        );
+        if (std::abs(denominator) > 1e-6) {
+            clean_output.curvature = std::abs(d2x_dy2) / denominator;
+        } else {
+            clean_output.curvature = 0.0;
+        }
+
+        clean_output.path_valid = true;
+
     }
 
     return clean_output;
