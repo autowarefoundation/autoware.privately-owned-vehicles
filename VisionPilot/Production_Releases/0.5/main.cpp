@@ -244,7 +244,7 @@ void displayThread(
     csv_file.open("curve_params_metrics.csv");
     if (csv_file.is_open()) {
         // Write header
-        csv_file << "frame_id,timestamp_ms,lane_offset,yaw_offset,curvature\n";
+        csv_file << "frame_id,timestamp_ms,lane_offset,yaw_offset,steering_angle,curvature\n";
         std::cout << "CSV logging enabled: curve_params_metrics.csv" << std::endl;
     } else {
         std::cerr << "Error: could not open curve_params_metrics.csv for writing" << std::endl;
@@ -337,11 +337,12 @@ void displayThread(
                 result.capture_time.time_since_epoch()
             ).count();
 
-            csv_file << result.frame_number << ","
-                     << ms_since_epoch << ","
-                     << result.lanes.lane_offset << ","
-                     << result.lanes.yaw_offset << ","
-                     << result.lanes.curvature << "\n";
+            csv_file    << result.frame_number << ","
+                        << ms_since_epoch << ","
+                        << result.lanes.lane_offset << ","
+                        << result.lanes.yaw_offset << ","
+                        << result.lanes.steering_angle << ","
+                        << result.lanes.curvature << "\n";
         }
 
         auto t_display_end = steady_clock::now();
