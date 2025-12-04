@@ -87,7 +87,8 @@ private:
     std::vector<cv::Point> slidingWindowSearch(
         const LaneSegmentation& raw,
         cv::Point start_point,
-        bool is_left_lane
+        bool is_left_lane,
+        std::vector<cv::Rect>& debug_sliding_windows
     );
 
     // Step 3: cubic polynomial fit
