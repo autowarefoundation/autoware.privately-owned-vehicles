@@ -89,11 +89,13 @@ void RerunLogger::logInference(
     rec_->set_time_sequence("frame", frame_number);
     
     // Log input frame (convert BGR to RGB for Rerun)
+    // NOTE: We convert here but logImage() will create a copy for async logging
     cv::Mat rgb_frame;
     cv::cvtColor(input_frame, rgb_frame, cv::COLOR_BGR2RGB);
     logImage("camera/image", rgb_frame);
     
     // Log raw lane masks (before filtering)
+    // NOTE: Each logMask() creates a copy for async logging
     logMask("lanes/raw/ego_left", raw_lanes.ego_left);
     logMask("lanes/raw/ego_right", raw_lanes.ego_right);
     logMask("lanes/raw/other", raw_lanes.other_lanes);
@@ -103,7 +105,7 @@ void RerunLogger::logInference(
     logMask("lanes/filtered/ego_right", filtered_lanes.ego_right);
     logMask("lanes/filtered/other", filtered_lanes.other_lanes);
     
-    // Log inference time metric
+    // Log inference time metric (small data, copy is fine)
     double time_ms = inference_time_us / 1000.0;
     std::vector<rerun::components::Scalar> scalars = {rerun::components::Scalar(time_ms)};
     rec_->log("metrics/inference_time_ms", 
@@ -122,10 +124,17 @@ void RerunLogger::logImage(const std::string& entity_path, const cv::Mat& image)
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // Use rerun::borrow() for zero-copy (just a pointer, no data copy)
+    // CRITICAL: We MUST copy the data because rec_->log() is asynchronous!
+    // The cv::Mat might be destroyed before Rerun's background thread accesses it.
+    // Creating a vector transfers ownership to Rerun's Collection.
+    std::vector<uint8_t> image_copy(
+        image.data, 
+        image.data + (image.cols * image.rows * image.channels())
+    );
+    
     rec_->log(entity_path, 
               rerun::archetypes::Image::from_rgb24(
-                  rerun::borrow(image.data, image.cols * image.rows * image.channels()), 
+                  std::move(image_copy),  // Move ownership to Rerun
                   {static_cast<uint32_t>(image.cols), static_cast<uint32_t>(image.rows)}));
 #else
     (void)entity_path;
@@ -142,10 +151,18 @@ void RerunLogger::logMask(const std::string& entity_path, const cv::Mat& mask)
     cv::Mat mask_u8;
     mask.convertTo(mask_u8, CV_8UC1, 255.0);
     
-    // Use rerun::borrow() for zero-copy (mask_u8 is still in scope)
+    // CRITICAL: We MUST copy the data because rec_->log() is asynchronous!
+    // mask_u8 is a local variable that will be destroyed when this function returns,
+    // but Rerun's background thread might not access the data until later.
+    // Creating a vector transfers ownership to Rerun's Collection.
+    std::vector<uint8_t> mask_copy(
+        mask_u8.data, 
+        mask_u8.data + (mask_u8.cols * mask_u8.rows)
+    );
+    
     rec_->log(entity_path, 
               rerun::archetypes::DepthImage(
-                  rerun::borrow(mask_u8.data, mask_u8.cols * mask_u8.rows), 
+                  std::move(mask_copy),  // Move ownership to Rerun
                   {static_cast<uint32_t>(mask_u8.cols), static_cast<uint32_t>(mask_u8.rows)},
                   rerun::datatypes::ChannelDatatype::U8));
 #else
