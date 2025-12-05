@@ -100,10 +100,12 @@ struct TimestampedFrame {
 // Inference result
 struct InferenceResult {
     cv::Mat frame;
-    LaneSegmentation lanes;
+    LaneSegmentation lanes;          // Filtered lanes (for display)
+    LaneSegmentation raw_lanes;      // Raw lanes (for Rerun comparison)
     int frame_number;
     steady_clock::time_point capture_time;
     steady_clock::time_point inference_time;
+    long inference_us;               // Inference time for Rerun metrics
 };
 
 // Performance metrics
@@ -203,9 +205,6 @@ void inferenceThread(
     PerformanceMetrics& metrics,
     std::atomic<bool>& running,
     float threshold
-#ifdef ENABLE_RERUN
-    , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
-#endif
 )
 {
     // Init lane filter
@@ -230,44 +229,15 @@ void inferenceThread(
             t_inference_end - t_inference_start).count();
         metrics.total_inference_us.fetch_add(inference_us);
 
-#ifdef ENABLE_RERUN
-        // Log to Rerun
-        // CRITICAL FIX: Clone ALL data HERE in the inference thread (synchronously)
-        // before passing to Rerun. This ensures clear ownership and no race conditions.
-        // The next loop iteration can safely reuse raw_lanes/filtered_lanes.
-        if (rerun_logger && rerun_logger->isEnabled()) {
-            // Deep clone frame (tf.frame is from queue, might be reused)
-            cv::Mat frame_clone = tf.frame.clone();
-            int frame_number_clone = tf.frame_number;
-            // Deep clone all lane masks
-            LaneSegmentation raw_lanes_clone;
-            raw_lanes_clone.ego_left = raw_lanes.ego_left.clone();
-            raw_lanes_clone.ego_right = raw_lanes.ego_right.clone();
-            raw_lanes_clone.other_lanes = raw_lanes.other_lanes.clone();
-            
-            LaneSegmentation filtered_lanes_clone;
-            filtered_lanes_clone.ego_left = filtered_lanes.ego_left.clone();
-            filtered_lanes_clone.ego_right = filtered_lanes.ego_right.clone();
-            filtered_lanes_clone.other_lanes = filtered_lanes.other_lanes.clone();
-            
-            // Now pass the clones - Rerun owns this data
-            rerun_logger->logInference(
-                frame_number_clone,
-                frame_clone,           // Cloned data
-                raw_lanes_clone,       // Cloned data
-                filtered_lanes_clone,  // Cloned data
-                inference_us
-            );
-        }
-#endif
-
-        // Package result
+        // Package result (including raw lanes for Rerun logging in display thread)
         InferenceResult result;
         result.frame = tf.frame;
         result.lanes = filtered_lanes;
+        result.raw_lanes = raw_lanes;        // Pass raw lanes for Rerun
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
+        result.inference_us = inference_us;  // Pass timing for Rerun
         output_queue.push(result);
     }
 
@@ -284,6 +254,9 @@ void displayThread(
     bool enable_viz,
     bool save_video,
     const std::string& output_video_path
+#ifdef ENABLE_RERUN
+    , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
+#endif
 )
 {
     // Visualization setup
@@ -310,6 +283,19 @@ void displayThread(
         auto t_display_start = steady_clock::now();
 
         int count = metrics.frame_count.fetch_add(1) + 1;
+
+#ifdef ENABLE_RERUN
+        // Log to Rerun (single-threaded, no race conditions!)
+        if (rerun_logger && rerun_logger->isEnabled()) {
+            rerun_logger->logInference(
+                result.frame_number,
+                result.frame,
+                result.raw_lanes,
+                result.lanes,  // filtered lanes
+                result.inference_us
+            );
+        }
+#endif
 
         // Console output: frame info
         std::cout << "[Frame " << result.frame_number << "] Processed" << std::endl;
@@ -620,18 +606,19 @@ int main(int argc, char** argv)
 
     std::thread t_capture(captureThread, source, is_camera, std::ref(capture_queue),
                           std::ref(metrics), std::ref(running));
-#ifdef ENABLE_RERUN
-    std::thread t_inference(inferenceThread, std::ref(engine),
-                            std::ref(capture_queue), std::ref(display_queue),
-                            std::ref(metrics), std::ref(running), threshold,
-                            rerun_logger.get());
-#else
+    
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold);
-#endif
+    
+#ifdef ENABLE_RERUN
+    std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
+                         std::ref(running), enable_viz, save_video, output_video_path,
+                         rerun_logger.get());  // Pass to display thread
+#else
     std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                          std::ref(running), enable_viz, save_video, output_video_path);
+#endif
 
     // Wait for threads
     t_capture.join();
