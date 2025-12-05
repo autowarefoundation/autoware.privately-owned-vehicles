@@ -89,43 +89,29 @@ void RerunLogger::logInference(
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // CRITICAL RACE CONDITION FIX:
-    // The input cv::Mat objects are passed by const reference from the inference thread.
-    // They might be reused/freed by that thread while we're still logging!
-    // Solution: DEEP CLONE all cv::Mat data IMMEDIATELY before any async operations.
-    
-    // 1. Clone input frame (deep copy - safe from race conditions)
-    cv::Mat input_frame_clone = input_frame.clone();
-    
-    // 2. Clone all lane masks (deep copy - safe from race conditions)
-    cv::Mat raw_ego_left_clone = raw_lanes.ego_left.clone();
-    cv::Mat raw_ego_right_clone = raw_lanes.ego_right.clone();
-    cv::Mat raw_other_clone = raw_lanes.other_lanes.clone();
-    cv::Mat filtered_ego_left_clone = filtered_lanes.ego_left.clone();
-    cv::Mat filtered_ego_right_clone = filtered_lanes.ego_right.clone();
-    cv::Mat filtered_other_clone = filtered_lanes.other_lanes.clone();
-    
-    // Now we own all the data - safe to use in async logging
+    // NOTE: In multi-threaded mode, the caller (inferenceThread in main.cpp) 
+    // already cloned all data before calling this function.
+    // We can safely use the data directly without additional cloning.
     
     // Set timeline
     rec_->set_time_sequence("frame", frame_number);
     
     // Log input frame (convert BGR to RGB for Rerun)
     cv::Mat rgb_frame;
-    cv::cvtColor(input_frame_clone, rgb_frame, cv::COLOR_BGR2RGB);
+    cv::cvtColor(input_frame, rgb_frame, cv::COLOR_BGR2RGB);
     logImage("camera/image", rgb_frame);
     
-    // Log raw lane masks (using our clones)
-    logMask("lanes/raw/ego_left", raw_ego_left_clone);
-    logMask("lanes/raw/ego_right", raw_ego_right_clone);
-    logMask("lanes/raw/other", raw_other_clone);
+    // Log raw lane masks
+    logMask("lanes/raw/ego_left", raw_lanes.ego_left);
+    logMask("lanes/raw/ego_right", raw_lanes.ego_right);
+    logMask("lanes/raw/other", raw_lanes.other_lanes);
     
-    // Log filtered lane masks (using our clones)
-    logMask("lanes/filtered/ego_left", filtered_ego_left_clone);
-    logMask("lanes/filtered/ego_right", filtered_ego_right_clone);
-    logMask("lanes/filtered/other", filtered_other_clone);
+    // Log filtered lane masks
+    logMask("lanes/filtered/ego_left", filtered_lanes.ego_left);
+    logMask("lanes/filtered/ego_right", filtered_lanes.ego_right);
+    logMask("lanes/filtered/other", filtered_lanes.other_lanes);
     
-    // Log inference time metric (small data, copy is fine)
+    // Log inference time metric
     double time_ms = inference_time_us / 1000.0;
     std::vector<rerun::components::Scalar> scalars = {rerun::components::Scalar(time_ms)};
     rec_->log("metrics/inference_time_ms", 
