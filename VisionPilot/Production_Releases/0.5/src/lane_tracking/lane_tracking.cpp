@@ -34,3 +34,15 @@ void LaneTracker::initHomography(const cv::Size& image_size) {
     
 }
 
+std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
+    const LaneSegmentation& input_lanes,
+    const cv::Size& image_size
+) {
+    
+    // Ensure homography ready
+    initHomography(image_size);
+
+    LaneSegmentation output_lanes = input_lanes;
+    DualViewMetrics metrics;
+
+    
