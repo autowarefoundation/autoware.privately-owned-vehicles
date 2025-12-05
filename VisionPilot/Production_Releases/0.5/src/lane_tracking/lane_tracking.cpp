@@ -271,3 +271,9 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         output_lanes.yaw_offset = metrics.pers_yaw_offset;
         output_lanes.curvature = metrics.pers_curvature;
     }
+
+    return {
+        output_lanes, 
+        metrics
+    };
+}
