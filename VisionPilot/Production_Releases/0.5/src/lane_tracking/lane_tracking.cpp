@@ -199,3 +199,23 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
             input_lanes.height
         );
     }
+
+    // 3. COMPUTE CURVE PARAMS BOTH VIEWS (if at least one lane present)
+    if (
+        !left_pts_bev.empty() && 
+        !right_pts_bev.empty()
+    ) {
+        
+        // a. BEV driving corridor
+        std::vector<cv::Point2f> center_pts_bev;
+        size_t n = std::min(
+            left_pts_bev.size(), 
+            right_pts_bev.size()
+        );
+        for (size_t i = 0; i < n; ++i) {
+            cv::Point2f mid = (left_pts_bev[i] + right_pts_bev[i]) * 0.5f;
+            center_pts_bev.push_back(mid);
+        }
+
+        
+    }
