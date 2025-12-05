@@ -9,8 +9,8 @@
 
 namespace autoware_pov::vision::rerun_integration {
 
-RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std::string& save_path, int frame_skip)
-    : enabled_(false), frame_skip_(frame_skip), frame_counter_(0)
+RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std::string& save_path)
+    : enabled_(false)
 {
 #ifdef ENABLE_RERUN
     // CRITICAL: Don't create RecordingStream if there's no output sink!
@@ -60,11 +60,7 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
         }
         
         enabled_ = true;
-        std::cout << "✓ Rerun logging enabled" << std::endl;
-        if (frame_skip_ > 1) {
-            std::cout << "  - Frame throttle: Logging every " << frame_skip_ 
-                      << "th frame (" << (100/frame_skip_) << "% of frames)" << std::endl;
-        }
+        std::cout << "✓ Rerun logging enabled (all frames, deep clone mode)" << std::endl;
         if (!spawn_viewer && !save_path.empty()) {
             std::cout << "  ⚠ WARNING: Save-only mode buffers ALL data in RAM until completion!" << std::endl;
             std::cout << "    Recommended: Use spawn viewer for real-time streaming (no buffering)" << std::endl;
@@ -92,12 +88,6 @@ void RerunLogger::logInference(
 {
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
-    
-    // CRITICAL OPTIMIZATION: Throttle to every Nth frame to reduce memory pressure
-    // This reduces data volume while still providing good visualization
-    if (++frame_counter_ % frame_skip_ != 0) {
-        return;  // Skip this frame
-    }
     
     // CRITICAL RACE CONDITION FIX:
     // The input cv::Mat objects are passed by const reference from the inference thread.
