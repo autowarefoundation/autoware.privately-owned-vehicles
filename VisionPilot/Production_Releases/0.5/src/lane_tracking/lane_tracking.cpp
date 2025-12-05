@@ -396,3 +396,16 @@ double LaneTracker::calcLaneOffset(
 
 }
 
+double LaneTracker::calcYawOffset(
+    const std::vector<double>& c, 
+    double y
+) {
+
+    if (c.size() < 4) return 0.0;
+    // dx/dy = 2ay + b
+    double dx_dy = 2*c[1]*y + c[2];
+
+    return std::atan(dx_dy);
+
+}
+
