@@ -79,7 +79,7 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
     std::vector<cv::Point2f> left_pts_bev, right_pts_bev;
 
 
-    // 1. Warp existing lines to BEV
+    // 1. WARP EXISTING LINES TO BEV SPACE
     if (left_valid) {
         auto up_coeffs = upscaleCoeffs(input_lanes.left_coeffs);
         auto pts_pers = genPointsFromCoeffs(
@@ -102,4 +102,30 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
             pts_pers, 
             H_orig_to_bev
         );
+    }
+
+    // 2. UPDATE LANE WIDTH HISTORY OR RECOVER MISSING LINES
+    if (
+        left_valid && 
+        right_valid
+    ) {
+        
+        // Update: calc average lateral distance in BEV at bottom - BEV lane width
+        if (
+            !left_pts_bev.empty() && 
+            !right_pts_bev.empty()
+        ) {
+            // Simple X diff at bottom
+            double w = std::abs(
+                right_pts_bev.back().x - 
+                left_pts_bev.back().x
+            );
+            
+            // Smooth update so the width won't jump too much (hopefully lol)
+            last_valid_bev_width = 
+                (has_valid_width_history) ? 
+                (last_valid_bev_width * 0.9 + w * 0.1) : 
+                w;
+            has_valid_width_history = true;
+        }
     }
