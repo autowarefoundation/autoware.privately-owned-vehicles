@@ -17,12 +17,16 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
         rec_ = std::make_unique<rerun::RecordingStream>(app_id);
         
         if (spawn_viewer) {
-            auto result = rec_->spawn();
+            // Configure spawn options with memory limit to prevent memory leaks
+            rerun::SpawnOptions opts;
+            opts.memory_limit = "2GB";  // Limit viewer memory to 2GB (drops oldest data)
+            
+            auto result = rec_->spawn(opts);
             if (result.is_err()) {
                 std::cerr << "Failed to spawn Rerun viewer" << std::endl;
                 return;
             }
-            std::cout << "✓ Rerun viewer spawned" << std::endl;
+            std::cout << "✓ Rerun viewer spawned (memory limit: 2GB)" << std::endl;
         } else if (!save_path.empty()) {
             auto result = rec_->save(save_path);
             if (result.is_err()) {
@@ -33,7 +37,7 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
         }
         
         enabled_ = true;
-        std::cout << "✓ Rerun logging enabled" << std::endl;
+        std::cout << "✓ Rerun logging enabled (zero-copy mode)" << std::endl;
         
     } catch (const std::exception& e) {
         std::cerr << "Rerun initialization failed: " << e.what() << std::endl;
@@ -95,12 +99,13 @@ void RerunLogger::logImage(const std::string& entity_path, const cv::Mat& image)
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // Create a vector from image data for Rerun
-    std::vector<uint8_t> image_data(image.data, image.data + (image.cols * image.rows * image.channels()));
+    // Borrow image data directly (zero-copy)
+    size_t num_pixels = image.cols * image.rows * image.channels();
+    auto borrowed_data = rerun::Collection<uint8_t>::borrow(image.data, num_pixels);
     
-    // Log as RGB8 image
+    // Log as RGB8 image (no memory copy!)
     rec_->log(entity_path, 
-              rerun::archetypes::Image::from_rgb24(image_data, 
+              rerun::archetypes::Image::from_rgb24(borrowed_data, 
                   {static_cast<uint32_t>(image.cols), static_cast<uint32_t>(image.rows)}));
 #else
     (void)entity_path;
@@ -117,13 +122,14 @@ void RerunLogger::logMask(const std::string& entity_path, const cv::Mat& mask)
     cv::Mat mask_u8;
     mask.convertTo(mask_u8, CV_8UC1, 255.0);
     
-    // Create a vector from mask data for Rerun
-    std::vector<uint8_t> mask_data(mask_u8.data, mask_u8.data + (mask_u8.cols * mask_u8.rows));
+    // Borrow mask data directly (zero-copy)
+    size_t num_pixels = mask_u8.cols * mask_u8.rows;
+    auto borrowed_data = rerun::Collection<uint8_t>::borrow(mask_u8.data, num_pixels);
     
     // Log as depth image (Rerun will visualize as heatmap)
     rec_->log(entity_path, 
               rerun::archetypes::DepthImage(
-                  mask_data, 
+                  borrowed_data, 
                   {static_cast<uint32_t>(mask_u8.cols), static_cast<uint32_t>(mask_u8.rows)},
                   rerun::datatypes::ChannelDatatype::U8));
 #else
