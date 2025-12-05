@@ -285,6 +285,7 @@ std::vector<cv::Point2f> LaneTracker::warpPoints(
     const std::vector<cv::Point2f>& src_pts, 
     const cv::Mat& H
 ) {
+
     std::vector<cv::Point2f> dst_pts;
     if (src_pts.empty()) return dst_pts;
     cv::perspectiveTransform(
@@ -293,5 +294,37 @@ std::vector<cv::Point2f> LaneTracker::warpPoints(
         H
     );
     return dst_pts;
+
 }
 
+std::vector<cv::Point2f> LaneTracker::genPointsFromCoeffs(
+    const std::vector<double>& c, 
+    int height,
+    int step
+) {
+
+    std::vector<cv::Point2f> pts;
+    if (c.size() < 6) return pts;
+    
+    // c is [0, a, b, c, min_y, max_y] for x = ay^2 + by + c
+    // Or [a, b, c, d, min, max] for cubic
+    // Now using quadratic (TODO: add dynamic logic later - Tran)
+    
+    double min_y = c[4];
+    double max_y = c[5];
+
+    for (double y = min_y; y <= max_y; y += step) {
+        double x = 0;
+        if (c[1] != 0) {    // Quadratic
+            x = c[1]*y*y + c[2]*y + c[3];
+        } else {            // Linear
+             x = c[2]*y + c[3];
+        }
+        pts.push_back(cv::Point2f(
+            (float)x, 
+            (float)y
+        ));
+    }
+    return pts;
+    
+}
