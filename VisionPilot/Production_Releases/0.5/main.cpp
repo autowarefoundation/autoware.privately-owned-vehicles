@@ -420,13 +420,15 @@ int main(int argc, char** argv)
         std::cerr << "  save_video: (optional) 'true' to save video (default: false)\n";
         std::cerr << "  output_video: (optional) Output video path (default: output.avi)\n\n";
         std::cerr << "Rerun Logging (optional):\n";
-        std::cerr << "  --rerun              : Enable Rerun live viewer\n";
-        std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n\n";
+        std::cerr << "  --rerun              : Spawn Rerun live viewer (recommended - no memory buffering)\n";
+        std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n";
+        std::cerr << "                         ⚠ Saving buffers ALL data in RAM until completion!\n";
+        std::cerr << "  --rerun --rerun-save : Both spawn viewer AND save to file\n\n";
         std::cerr << "Examples:\n";
-        std::cerr << "  # Camera with live Rerun viewer:\n";
+        std::cerr << "  # Camera with live viewer (no memory buffering):\n";
         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
-        std::cerr << "  # Camera saving to file:\n";
-        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun-save recording.rrd\n\n";
+        std::cerr << "  # Camera with viewer + save to file:\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun --rerun-save rec.rrd\n\n";
         std::cerr << "  # Video without Rerun:\n";
         std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
         return 1;
@@ -503,9 +505,10 @@ int main(int argc, char** argv)
         std::string arg = argv[i];
         if (arg == "--rerun") {
             enable_rerun = true;
+            spawn_rerun_viewer = true;  // Spawn viewer
         } else if (arg == "--rerun-save") {
             enable_rerun = true;
-            spawn_rerun_viewer = false;
+            // Also save to file (can be combined with --rerun)
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 rerun_save_path = argv[++i];
             } else {
