@@ -391,6 +391,7 @@ double LaneTracker::calcLaneOffset(
 ) {
 
     if (c.size() < 4) return 0.0;
+    
     // Quadratic: ay^2 + by + c (stored as 0, a, b, c...)
     return c[1]*y*y + c[2]*y + c[3];
 
@@ -402,6 +403,7 @@ double LaneTracker::calcYawOffset(
 ) {
 
     if (c.size() < 4) return 0.0;
+    
     // dx/dy = 2ay + b
     double dx_dy = 2*c[1]*y + c[2];
 
@@ -409,3 +411,23 @@ double LaneTracker::calcYawOffset(
 
 }
 
+double LaneTracker::calcCurvature(
+    const std::vector<double>& c, 
+    double y
+) {
+
+    if (c.size() < 4) return 0.0;
+    
+    // x' = 2ay + b
+    // x'' = 2a
+    double dx_dy = 2*c[1]*y + c[2];
+    double d2x_dy2 = 2*c[1];
+    
+    double denom = std::pow(
+        1 + dx_dy*dx_dy, 
+        1.5
+    );
+    if (std::abs(denom) < 1e-6) return 0.0;
+    
+    return std::abs(d2x_dy2) / denom;
+}
