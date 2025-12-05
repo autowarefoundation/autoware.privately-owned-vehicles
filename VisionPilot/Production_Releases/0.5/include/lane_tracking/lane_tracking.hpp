@@ -83,6 +83,20 @@ private:
         int img_height
     );
 
-    
+    // MATH HELPERS
+    double calcCurvature(
+        const std::vector<double>& coeffs, 
+        double y_eval
+    );
+    double calcYawOffset(
+        const std::vector<double>& coeffs, 
+        double y_eval
+    );
+    double calcLaneOffset(
+        const std::vector<double>& coeffs, 
+        double y_eval
+    );
 
-}
+};
+
+} // namespace autoware_pov::vision::autosteer
