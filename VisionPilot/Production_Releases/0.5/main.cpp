@@ -496,7 +496,7 @@ int main(int argc, char** argv)
 
     // Parse Rerun flags (check all remaining arguments)
     bool enable_rerun = false;
-    bool spawn_rerun_viewer = true;
+    bool spawn_rerun_viewer = false;
     std::string rerun_save_path = "";
     
     for (int i = base_idx + 7; i < argc; ++i) {

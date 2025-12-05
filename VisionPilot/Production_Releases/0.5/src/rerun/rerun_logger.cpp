@@ -13,6 +13,13 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
     : enabled_(false)
 {
 #ifdef ENABLE_RERUN
+    // CRITICAL: Don't create RecordingStream if there's no output sink!
+    // If no viewer and no save path, don't initialize at all to prevent memory buffering
+    if (!spawn_viewer && save_path.empty()) {
+        std::cout << "ℹ Rerun not initialized (no viewer or save path specified)" << std::endl;
+        return;
+    }
+    
     try {
         rec_ = std::make_unique<rerun::RecordingStream>(app_id);
         
@@ -99,13 +106,10 @@ void RerunLogger::logImage(const std::string& entity_path, const cv::Mat& image)
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // Borrow image data directly (zero-copy)
-    size_t num_pixels = image.cols * image.rows * image.channels();
-    auto borrowed_data = rerun::Collection<uint8_t>::borrow(image.data, num_pixels);
-    
-    // Log as RGB8 image (no memory copy!)
+    // Use rerun::borrow() for zero-copy (just a pointer, no data copy)
     rec_->log(entity_path, 
-              rerun::archetypes::Image::from_rgb24(borrowed_data, 
+              rerun::archetypes::Image::from_rgb24(
+                  rerun::borrow(image.data, image.cols * image.rows * image.channels()), 
                   {static_cast<uint32_t>(image.cols), static_cast<uint32_t>(image.rows)}));
 #else
     (void)entity_path;
@@ -122,14 +126,10 @@ void RerunLogger::logMask(const std::string& entity_path, const cv::Mat& mask)
     cv::Mat mask_u8;
     mask.convertTo(mask_u8, CV_8UC1, 255.0);
     
-    // Borrow mask data directly (zero-copy)
-    size_t num_pixels = mask_u8.cols * mask_u8.rows;
-    auto borrowed_data = rerun::Collection<uint8_t>::borrow(mask_u8.data, num_pixels);
-    
-    // Log as depth image (Rerun will visualize as heatmap)
+    // Use rerun::borrow() for zero-copy (mask_u8 is still in scope)
     rec_->log(entity_path, 
               rerun::archetypes::DepthImage(
-                  borrowed_data, 
+                  rerun::borrow(mask_u8.data, mask_u8.cols * mask_u8.rows), 
                   {static_cast<uint32_t>(mask_u8.cols), static_cast<uint32_t>(mask_u8.rows)},
                   rerun::datatypes::ChannelDatatype::U8));
 #else
