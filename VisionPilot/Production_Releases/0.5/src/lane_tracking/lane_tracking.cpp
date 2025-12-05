@@ -7,3 +7,8 @@
 // Verify this is working by visualizing the transformed points.
 
 // Once this has been verfied, we will proceed with the drivable corridor parameter estimation and temporal tracking.
+
+#include "lane_tracking/lane_tracking.hpp"
+#include <cmath>
+#include <algorithm>
+#include <iostream>
