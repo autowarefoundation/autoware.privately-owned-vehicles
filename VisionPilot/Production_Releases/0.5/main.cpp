@@ -231,13 +231,31 @@ void inferenceThread(
         metrics.total_inference_us.fetch_add(inference_us);
 
 #ifdef ENABLE_RERUN
-        // Log to Rerun (minimal, non-blocking)
+        // Log to Rerun
+        // CRITICAL FIX: Clone ALL data HERE in the inference thread (synchronously)
+        // before passing to Rerun. This ensures clear ownership and no race conditions.
+        // The next loop iteration can safely reuse raw_lanes/filtered_lanes.
         if (rerun_logger && rerun_logger->isEnabled()) {
+            // Deep clone frame (tf.frame is from queue, might be reused)
+            cv::Mat frame_clone = tf.frame.clone();
+            int frame_number_clone = tf.frame_number;
+            // Deep clone all lane masks
+            LaneSegmentation raw_lanes_clone;
+            raw_lanes_clone.ego_left = raw_lanes.ego_left.clone();
+            raw_lanes_clone.ego_right = raw_lanes.ego_right.clone();
+            raw_lanes_clone.other_lanes = raw_lanes.other_lanes.clone();
+            
+            LaneSegmentation filtered_lanes_clone;
+            filtered_lanes_clone.ego_left = filtered_lanes.ego_left.clone();
+            filtered_lanes_clone.ego_right = filtered_lanes.ego_right.clone();
+            filtered_lanes_clone.other_lanes = filtered_lanes.other_lanes.clone();
+            
+            // Now pass the clones - Rerun owns this data
             rerun_logger->logInference(
-                tf.frame_number,
-                tf.frame,
-                raw_lanes,
-                filtered_lanes,
+                frame_number_clone,
+                frame_clone,           // Cloned data
+                raw_lanes_clone,       // Cloned data
+                filtered_lanes_clone,  // Cloned data
                 inference_us
             );
         }
