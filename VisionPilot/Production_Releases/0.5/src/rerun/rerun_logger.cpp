@@ -5,6 +5,7 @@
 
 #include "rerun/rerun_logger.hpp"
 #include <iostream>
+#include <vector>
 
 namespace autoware_pov::vision::rerun_integration {
 
@@ -18,14 +19,14 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
         if (spawn_viewer) {
             auto result = rec_->spawn();
             if (result.is_err()) {
-                std::cerr << "Failed to spawn Rerun viewer: " << result.error.description << std::endl;
+                std::cerr << "Failed to spawn Rerun viewer" << std::endl;
                 return;
             }
             std::cout << "✓ Rerun viewer spawned" << std::endl;
         } else if (!save_path.empty()) {
             auto result = rec_->save(save_path);
             if (result.is_err()) {
-                std::cerr << "Failed to save to " << save_path << ": " << result.error.description << std::endl;
+                std::cerr << "Failed to save to " << save_path << std::endl;
                 return;
             }
             std::cout << "✓ Logging to: " << save_path << std::endl;
@@ -76,8 +77,10 @@ void RerunLogger::logInference(
     logMask("lanes/filtered/other", filtered_lanes.other_lanes);
     
     // Log inference time metric
+    double time_ms = inference_time_us / 1000.0;
+    std::vector<rerun::components::Scalar> scalars = {rerun::components::Scalar(time_ms)};
     rec_->log("metrics/inference_time_ms", 
-              rerun::Scalar(inference_time_us / 1000.0));
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>(scalars)));
 #else
     (void)frame_number;
     (void)input_frame;
@@ -92,9 +95,13 @@ void RerunLogger::logImage(const std::string& entity_path, const cv::Mat& image)
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // Rerun expects RGB8 format
+    // Create a vector from image data for Rerun
+    std::vector<uint8_t> image_data(image.data, image.data + (image.cols * image.rows * image.channels()));
+    
+    // Log as RGB8 image
     rec_->log(entity_path, 
-              rerun::Image::from_rgb24(image.data, {image.cols, image.rows}));
+              rerun::archetypes::Image::from_rgb24(image_data, 
+                  {static_cast<uint32_t>(image.cols), static_cast<uint32_t>(image.rows)}));
 #else
     (void)entity_path;
     (void)image;
@@ -110,9 +117,15 @@ void RerunLogger::logMask(const std::string& entity_path, const cv::Mat& mask)
     cv::Mat mask_u8;
     mask.convertTo(mask_u8, CV_8UC1, 255.0);
     
+    // Create a vector from mask data for Rerun
+    std::vector<uint8_t> mask_data(mask_u8.data, mask_u8.data + (mask_u8.cols * mask_u8.rows));
+    
     // Log as depth image (Rerun will visualize as heatmap)
     rec_->log(entity_path, 
-              rerun::DepthImage(mask_u8.data, {mask_u8.cols, mask_u8.rows}));
+              rerun::archetypes::DepthImage(
+                  mask_data, 
+                  {static_cast<uint32_t>(mask_u8.cols), static_cast<uint32_t>(mask_u8.rows)},
+                  rerun::datatypes::ChannelDatatype::U8));
 #else
     (void)entity_path;
     (void)mask;
