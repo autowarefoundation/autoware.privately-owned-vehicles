@@ -207,6 +207,7 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
     ) {
         
         // a. BEV DRIVING CORRIDOR
+
         std::vector<cv::Point2f> center_pts_bev;
         size_t n = std::min(
             left_pts_bev.size(), 
@@ -237,5 +238,31 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         metrics.bev_curvature = calcCurvature(
             bev_coeffs, 
             bev_car_y
+        );
+
+        // b. PERSPECTIVE DRIVING CORRIDOR (for vis)
+
+        output_lanes.center_coeffs.resize(6);
+        for (int i = 0; i < 6; ++i) {
+             output_lanes.center_coeffs[i] = (
+                output_lanes.left_coeffs[i] + 
+                output_lanes.right_coeffs[i]
+            ) / 2.0;
+        }
+        output_lanes.path_valid = true;
+
+        // Orig curve params at bottom of orig grid)
+        double orig_car_y = 79.0;
+        metrics.pers_lane_offset = calcLaneOffset(
+            output_lanes.center_coeffs, 
+            orig_car_y
+        ) - (input_lanes.width / 2.0);
+        metrics.pers_yaw_offset = calcYawOffset(
+            output_lanes.center_coeffs, 
+            orig_car_y
+        );
+        metrics.pers_curvature = calcCurvature(
+            output_lanes.center_coeffs, 
+            orig_car_y
         );
     }
