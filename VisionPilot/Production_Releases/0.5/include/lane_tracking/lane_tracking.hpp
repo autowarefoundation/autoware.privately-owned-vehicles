@@ -24,7 +24,9 @@ struct DualViewMetrics {
 };
 
 class LaneTracker {
+
 public:
+
     LaneTracker();
     ~LaneTracker() = default;
 
@@ -44,7 +46,8 @@ public:
     );
 
 private:
-    // --- State params ---
+
+    // STATE PARAMS
     cv::Mat H_orig_to_bev;      // Homomatrix
     cv::Mat H_bev_to_orig;      // Inversed homomatrix
     bool homography_inited = false;
@@ -56,5 +59,30 @@ private:
     // If both lost, fuck it I'm out.
     double last_valid_bev_width = 180.0;    // Default fallback (tuned for 640x640 BEV)
     bool has_valid_width_history = false;
+
+    // BEV HELPERS
+
+    // Init homography
+    void initHomography(const cv::Size& image_size);
+
+    // Coords transforms
+    std::vector<cv::Point2f> warpPoints(
+        const std::vector<cv::Point2f>& src_pts, 
+        const cv::Mat& H
+    );
+
+    // Polynomial
+    std::vector<cv::Point2f> genPointsFromCoeffs(
+        const std::vector<double>& coeffs, 
+        int height,
+        int step = 5
+    );
+
+    std::vector<double> fitPoly2ndOrder(
+        const std::vector<cv::Point2f>& points,
+        int img_height
+    );
+
+    
 
 }
