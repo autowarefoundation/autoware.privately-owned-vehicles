@@ -12,3 +12,13 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+
+
+namespace autoware_pov::vision::autosteer
+{
+
+LaneTracker::LaneTracker() {
+    // Homography is pre-computed elsewhere and hard-coded.
+    // If you got any problem with it, ask me.
+}
+
