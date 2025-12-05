@@ -9,8 +9,8 @@
 
 namespace autoware_pov::vision::rerun_integration {
 
-RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std::string& save_path)
-    : enabled_(false)
+RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std::string& save_path, int frame_skip)
+    : enabled_(false), frame_skip_(frame_skip), frame_counter_(0)
 {
 #ifdef ENABLE_RERUN
     // CRITICAL: Don't create RecordingStream if there's no output sink!
@@ -60,7 +60,15 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
         }
         
         enabled_ = true;
-        std::cout << "✓ Rerun logging enabled (zero-copy mode)" << std::endl;
+        std::cout << "✓ Rerun logging enabled" << std::endl;
+        if (frame_skip_ > 1) {
+            std::cout << "  - Frame throttle: Logging every " << frame_skip_ 
+                      << "th frame (" << (100/frame_skip_) << "% of frames)" << std::endl;
+        }
+        if (!spawn_viewer && !save_path.empty()) {
+            std::cout << "  ⚠ WARNING: Save-only mode buffers ALL data in RAM until completion!" << std::endl;
+            std::cout << "    Recommended: Use spawn viewer for real-time streaming (no buffering)" << std::endl;
+        }
         
     } catch (const std::exception& e) {
         std::cerr << "Rerun initialization failed: " << e.what() << std::endl;
@@ -85,25 +93,47 @@ void RerunLogger::logInference(
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
+    // CRITICAL OPTIMIZATION: Throttle to every Nth frame to reduce memory pressure
+    // This reduces data volume while still providing good visualization
+    if (++frame_counter_ % frame_skip_ != 0) {
+        return;  // Skip this frame
+    }
+    
+    // CRITICAL RACE CONDITION FIX:
+    // The input cv::Mat objects are passed by const reference from the inference thread.
+    // They might be reused/freed by that thread while we're still logging!
+    // Solution: DEEP CLONE all cv::Mat data IMMEDIATELY before any async operations.
+    
+    // 1. Clone input frame (deep copy - safe from race conditions)
+    cv::Mat input_frame_clone = input_frame.clone();
+    
+    // 2. Clone all lane masks (deep copy - safe from race conditions)
+    cv::Mat raw_ego_left_clone = raw_lanes.ego_left.clone();
+    cv::Mat raw_ego_right_clone = raw_lanes.ego_right.clone();
+    cv::Mat raw_other_clone = raw_lanes.other_lanes.clone();
+    cv::Mat filtered_ego_left_clone = filtered_lanes.ego_left.clone();
+    cv::Mat filtered_ego_right_clone = filtered_lanes.ego_right.clone();
+    cv::Mat filtered_other_clone = filtered_lanes.other_lanes.clone();
+    
+    // Now we own all the data - safe to use in async logging
+    
     // Set timeline
     rec_->set_time_sequence("frame", frame_number);
     
     // Log input frame (convert BGR to RGB for Rerun)
-    // NOTE: We convert here but logImage() will create a copy for async logging
     cv::Mat rgb_frame;
-    cv::cvtColor(input_frame, rgb_frame, cv::COLOR_BGR2RGB);
+    cv::cvtColor(input_frame_clone, rgb_frame, cv::COLOR_BGR2RGB);
     logImage("camera/image", rgb_frame);
     
-    // Log raw lane masks (before filtering)
-    // NOTE: Each logMask() creates a copy for async logging
-    logMask("lanes/raw/ego_left", raw_lanes.ego_left);
-    logMask("lanes/raw/ego_right", raw_lanes.ego_right);
-    logMask("lanes/raw/other", raw_lanes.other_lanes);
+    // Log raw lane masks (using our clones)
+    logMask("lanes/raw/ego_left", raw_ego_left_clone);
+    logMask("lanes/raw/ego_right", raw_ego_right_clone);
+    logMask("lanes/raw/other", raw_other_clone);
     
-    // Log filtered lane masks (after filtering)
-    logMask("lanes/filtered/ego_left", filtered_lanes.ego_left);
-    logMask("lanes/filtered/ego_right", filtered_lanes.ego_right);
-    logMask("lanes/filtered/other", filtered_lanes.other_lanes);
+    // Log filtered lane masks (using our clones)
+    logMask("lanes/filtered/ego_left", filtered_ego_left_clone);
+    logMask("lanes/filtered/ego_right", filtered_ego_right_clone);
+    logMask("lanes/filtered/other", filtered_other_clone);
     
     // Log inference time metric (small data, copy is fine)
     double time_ms = inference_time_us / 1000.0;
