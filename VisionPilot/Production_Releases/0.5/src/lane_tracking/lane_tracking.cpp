@@ -60,7 +60,7 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         // x_model = ay^2 + by + c
         // x_img/sx = a(y_img/sy)^2 + b(y_img/sy) + c
         // x_img = (a*sx/sy^2)*y_img^2 + (b*sx/sy)*y_img + (c*sx)
-        
+
         if (c.size() < 6) return up;
         up[0] = 0; // Cubic term ignored for now if we use quadratic
         if (c.size() == 6) { // Assuming quadratic storage [0, a, b, c, min, max]
@@ -77,3 +77,29 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
     bool right_valid = !input_lanes.right_coeffs.empty();
 
     std::vector<cv::Point2f> left_pts_bev, right_pts_bev;
+
+
+    // 1. Warp existing lines to BEV
+    if (left_valid) {
+        auto up_coeffs = upscaleCoeffs(input_lanes.left_coeffs);
+        auto pts_pers = genPointsFromCoeffs(
+            up_coeffs, 
+            image_size.height
+        );
+        left_pts_bev = warpPoints(
+            pts_pers, 
+            H_orig_to_bev
+        );
+    }
+
+    if (right_valid) {
+        auto up_coeffs = upscaleCoeffs(input_lanes.right_coeffs);
+        auto pts_pers = genPointsFromCoeffs(
+            up_coeffs, 
+            image_size.height
+        );
+        right_pts_bev = warpPoints(
+            pts_pers, 
+            H_orig_to_bev
+        );
+    }
