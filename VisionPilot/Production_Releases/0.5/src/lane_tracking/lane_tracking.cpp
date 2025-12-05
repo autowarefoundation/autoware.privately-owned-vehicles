@@ -326,5 +326,60 @@ std::vector<cv::Point2f> LaneTracker::genPointsFromCoeffs(
         ));
     }
     return pts;
-    
+
+}
+
+std::vector<double> LaneTracker::fitPoly2ndOrder(
+    const std::vector<cv::Point2f>& points,
+    int img_height
+) {
+
+    std::vector<double> coeffs(
+        6, 
+        0.0
+    );
+    if (points.size() < 3) return coeffs;
+
+    // Least squares for x = ay^2 + by + c
+    cv::Mat A(
+        points.size(), 
+        3, 
+        CV_64F
+    );
+    cv::Mat B(
+        points.size(), 
+        1, 
+        CV_64F
+    );
+
+    double min_y = 1e9, max_y = -1e9;
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        double y = points[i].y;
+        double x = points[i].x;
+        
+        A.at<double>(i, 0) = y * y;
+        A.at<double>(i, 1) = y;
+        A.at<double>(i, 2) = 1.0;
+        B.at<double>(i, 0) = x;
+
+        if (y < min_y) min_y = y;
+        if (y > max_y) max_y = y;
+    }
+
+    cv::Mat solution;
+    if (cv::solve(
+        A, 
+        B, 
+        solution, 
+        cv::DECOMP_SVD
+    )) {
+        coeffs[0] = 0.0;                        // Cubic term
+        coeffs[1] = solution.at<double>(0); // a
+        coeffs[2] = solution.at<double>(1); // b
+        coeffs[3] = solution.at<double>(2); // c
+        coeffs[4] = min_y;
+        coeffs[5] = max_y;
+    }
+    return coeffs;
 }
