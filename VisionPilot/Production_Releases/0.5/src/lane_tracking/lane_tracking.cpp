@@ -382,4 +382,17 @@ std::vector<double> LaneTracker::fitPoly2ndOrder(
         coeffs[5] = max_y;
     }
     return coeffs;
+
 }
+
+double LaneTracker::calcLaneOffset(
+    const std::vector<double>& c, 
+    double y
+) {
+
+    if (c.size() < 4) return 0.0;
+    // Quadratic: ay^2 + by + c (stored as 0, a, b, c...)
+    return c[1]*y*y + c[2]*y + c[3];
+
+}
+
