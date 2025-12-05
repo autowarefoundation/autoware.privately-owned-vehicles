@@ -23,4 +23,24 @@ struct DualViewMetrics {
     double bev_curvature = 0.0;
 };
 
+class LaneTracker {
+public:
+    LaneTracker();
+    ~LaneTracker() = default;
+
+    /**
+     * @brief Main processing func
+     * 1. Warp valid egoline to BEV
+     * 2. Recover missing egoline in BEV via last-known-good-frame's lane width shifting
+     * 3. Calc curve params in BEV
+     * 4. Warp back to perspective to update vis
+     * * @param input_lanes Input from LaneFilter
+     * @param image_size Size of full input img
+     * @return Updated LaneSegmentation with recovered egolines and 6 curve params (3 for each view)
+     */
+    std::pair<LaneSegmentation, DualViewMetrics> update(
+        const LaneSegmentation& input_lanes,
+        const cv::Size& image_size
+    );
+
 }
