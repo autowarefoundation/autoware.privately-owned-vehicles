@@ -47,8 +47,17 @@ public:
 private:
 
     // STATE PARAMS
-    cv::Mat H_orig_to_bev;      // Homomatrix
-    cv::Mat H_bev_to_orig;      // Inversed homomatrix
+
+    // Homomatrix, hard-coded from calibration
+    cv::Mat H_orig_to_bev = (cv::Mat_<double>(3,3) <<
+        -1.79887412e-01, -6.05811422e-01,  6.02998251e+02,
+        1.85824549e-14 , -1.28170839e+00,  8.63871455e+02,
+        2.95628463e-17 , -1.76125061e-03,  1.00000000e+00
+    );
+
+    // Inversed homomatrix
+    cv::Mat H_bev_to_orig = H_orig_to_bev.inv();
+    
     bool homography_inited = false;
     cv::Size cached_image_size;
 
