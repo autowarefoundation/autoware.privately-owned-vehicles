@@ -428,6 +428,8 @@ double LaneTracker::calcCurvature(
         1.5
     );
     if (std::abs(denom) < 1e-6) return 0.0;
-    
+
     return std::abs(d2x_dy2) / denom;
 }
+
+} // namespace autoware_pov::vision::autosteer
