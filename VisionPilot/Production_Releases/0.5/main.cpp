@@ -560,11 +560,8 @@ int main(int argc, char** argv)
     // Initialize Rerun logger (optional)
     std::unique_ptr<autoware_pov::vision::rerun_integration::RerunLogger> rerun_logger;
     if (enable_rerun) {
-        // frame_skip=3 means log every 3rd frame (66% reduction in data volume)
-        // Adjust this value: 1=all frames, 2=every other, 3=every 3rd, etc.
-        int frame_skip = 3;
         rerun_logger = std::make_unique<autoware_pov::vision::rerun_integration::RerunLogger>(
-            "AutoSteer", spawn_rerun_viewer, rerun_save_path, frame_skip);
+            "AutoSteer", spawn_rerun_viewer, rerun_save_path);
     }
 #endif
 
