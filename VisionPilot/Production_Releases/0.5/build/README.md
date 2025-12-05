@@ -1,1 +1,0 @@
-Simply `build` for C++ guys.
