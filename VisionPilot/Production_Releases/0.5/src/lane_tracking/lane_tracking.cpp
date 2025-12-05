@@ -22,3 +22,15 @@ LaneTracker::LaneTracker() {
     // If you got any problem with it, ask me.
 }
 
+void LaneTracker::initHomography(const cv::Size& image_size) {
+
+    if (
+        homography_inited && 
+        cached_image_size == image_size
+    ) return;
+
+    cached_image_size = image_size;
+    homography_inited = true;
+    
+}
+
