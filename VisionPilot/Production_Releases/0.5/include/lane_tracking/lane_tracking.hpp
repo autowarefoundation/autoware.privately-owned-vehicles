@@ -43,4 +43,18 @@ public:
         const cv::Size& image_size
     );
 
+private:
+    // --- State params ---
+    cv::Mat H_orig_to_bev;      // Homomatrix
+    cv::Mat H_bev_to_orig;      // Inversed homomatrix
+    bool homography_inited = false;
+    cv::Size cached_image_size;
+
+    // BEV lane width cache (in BEV pixels)
+    // Updated whenever there are 2 valid egolines.
+    // If one missing, use this to shift the available one.
+    // If both lost, fuck it I'm out.
+    double last_valid_bev_width = 180.0;    // Default fallback (tuned for 640x640 BEV)
+    bool has_valid_width_history = false;
+
 }
