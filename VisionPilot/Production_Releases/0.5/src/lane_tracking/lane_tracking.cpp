@@ -206,7 +206,7 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         !right_pts_bev.empty()
     ) {
         
-        // a. BEV driving corridor
+        // a. BEV DRIVING CORRIDOR
         std::vector<cv::Point2f> center_pts_bev;
         size_t n = std::min(
             left_pts_bev.size(), 
@@ -217,5 +217,25 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
             center_pts_bev.push_back(mid);
         }
 
-        
+        // Fit curve in BEV
+        auto bev_coeffs = fitPoly2ndOrder(
+            center_pts_bev, 
+            640
+        );
+
+        // BEV curve params at bottom of BEV grid (y = 640)
+        // BEV center is x = 320
+        double bev_car_y = 640.0;
+        metrics.bev_lane_offset = calcLaneOffset(
+            bev_coeffs, 
+            bev_car_y
+        ) - 320.0; 
+        metrics.bev_yaw_offset = calcYawOffset(
+            bev_coeffs, 
+            bev_car_y
+        );
+        metrics.bev_curvature = calcCurvature(
+            bev_coeffs, 
+            bev_car_y
+        );
     }
