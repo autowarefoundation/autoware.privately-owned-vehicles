@@ -45,4 +45,35 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
     LaneSegmentation output_lanes = input_lanes;
     DualViewMetrics metrics;
 
+    // Coeffs in input_lanes are normalized to 160 x 80.
+    // Must upscale em to image_size for warping.
     
+    double scale_x = static_cast<double>(image_size.width) / input_lanes.width;
+    double scale_y = static_cast<double>(image_size.height) / input_lanes.height;
+
+    // Helper lambda to upscale coeffs
+    auto upscaleCoeffs = [&](const std::vector<double>& c) {
+        std::vector<double> up(6);
+        
+        // y_img = y_model * scale_y
+        // x_img = x_model * scale_x
+        // x_model = ay^2 + by + c
+        // x_img/sx = a(y_img/sy)^2 + b(y_img/sy) + c
+        // x_img = (a*sx/sy^2)*y_img^2 + (b*sx/sy)*y_img + (c*sx)
+        
+        if (c.size() < 6) return up;
+        up[0] = 0; // Cubic term ignored for now if we use quadratic
+        if (c.size() == 6) { // Assuming quadratic storage [0, a, b, c, min, max]
+             up[1] = c[1] * scale_x / (scale_y * scale_y);
+             up[2] = c[2] * scale_x / scale_y;
+             up[3] = c[3] * scale_x;
+             up[4] = c[4] * scale_y;
+             up[5] = c[5] * scale_y;
+        }
+        return up;
+    };
+
+    bool left_valid = !input_lanes.left_coeffs.empty();
+    bool right_valid = !input_lanes.right_coeffs.empty();
+
+    std::vector<cv::Point2f> left_pts_bev, right_pts_bev;
