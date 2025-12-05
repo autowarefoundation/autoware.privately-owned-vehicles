@@ -277,3 +277,21 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         metrics
     };
 }
+
+
+// HELPER FUNCS
+
+std::vector<cv::Point2f> LaneTracker::warpPoints(
+    const std::vector<cv::Point2f>& src_pts, 
+    const cv::Mat& H
+) {
+    std::vector<cv::Point2f> dst_pts;
+    if (src_pts.empty()) return dst_pts;
+    cv::perspectiveTransform(
+        src_pts, 
+        dst_pts, 
+        H
+    );
+    return dst_pts;
+}
+
