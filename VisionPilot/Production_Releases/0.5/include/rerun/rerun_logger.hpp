@@ -32,10 +32,12 @@ public:
      * @param app_id Application identifier
      * @param spawn_viewer If true, spawn viewer; if false, save to file
      * @param save_path Path to .rrd file (used if !spawn_viewer)
+     * @param frame_skip Log every Nth frame (1=all frames, 2=every other, 3=every 3rd, etc.)
      */
     RerunLogger(const std::string& app_id = "AutoSteer", 
                 bool spawn_viewer = true,
-                const std::string& save_path = "");
+                const std::string& save_path = "",
+                int frame_skip = 2);
     
     ~RerunLogger();
     
@@ -64,6 +66,8 @@ private:
     std::unique_ptr<rerun::RecordingStream> rec_;
 #endif
     bool enabled_;
+    int frame_skip_;
+    int frame_counter_;
     
     void logImage(const std::string& entity_path, const cv::Mat& image);
     void logMask(const std::string& entity_path, const cv::Mat& mask);
