@@ -165,3 +165,37 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
             input_lanes.height
         );
     }
+
+    // c. RIGHT missing, LEFT present
+    else if (
+        left_valid && 
+        !right_valid && 
+        has_valid_width_history
+    ) {
+        
+        // Recover RIGHT from LEFT + last known width
+        right_pts_bev = left_pts_bev;
+        for (auto& p : right_pts_bev) {
+            p.x += last_valid_bev_width; // Shift RIGHT in BEV
+        }
+
+        // Reproject back to orig to update vis lines
+        auto recovered_orig = warpPoints(
+            right_pts_bev, 
+            H_bev_to_orig
+        );
+        
+        // Re-fit poly in model space 160 x 80 for consistency
+        // Downscale first
+        std::vector<cv::Point2f> model_pts;
+        for(const auto& p : recovered_orig) {
+            model_pts.push_back(cv::Point2f(
+                p.x / scale_x, 
+                p.y / scale_y
+            ));
+        }
+        output_lanes.right_coeffs = fitPoly2ndOrder(
+            model_pts, 
+            input_lanes.height
+        );
+    }
