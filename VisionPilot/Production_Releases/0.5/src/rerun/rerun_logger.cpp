@@ -23,24 +23,40 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
     try {
         rec_ = std::make_unique<rerun::RecordingStream>(app_id);
         
+        bool init_success = true;
+        
+        // Spawn viewer (streams data directly - no RAM buffering!)
         if (spawn_viewer) {
-            // Configure spawn options with memory limit to prevent memory leaks
             rerun::SpawnOptions opts;
             opts.memory_limit = "2GB";  // Limit viewer memory to 2GB (drops oldest data)
             
             auto result = rec_->spawn(opts);
             if (result.is_err()) {
                 std::cerr << "Failed to spawn Rerun viewer" << std::endl;
-                return;
+                init_success = false;
+            } else {
+                std::cout << "✓ Rerun viewer spawned (memory limit: 2GB)" << std::endl;
             }
-            std::cout << "✓ Rerun viewer spawned (memory limit: 2GB)" << std::endl;
-        } else if (!save_path.empty()) {
+        }
+        
+        // Save to file (⚠ buffers ALL data in RAM until stream closes!)
+        if (!save_path.empty() && init_success) {
             auto result = rec_->save(save_path);
             if (result.is_err()) {
                 std::cerr << "Failed to save to " << save_path << std::endl;
-                return;
+                if (!spawn_viewer) {
+                    init_success = false;
+                }
+            } else {
+                std::cout << "✓ Also saving to: " << save_path << std::endl;
+                if (!spawn_viewer) {
+                    std::cout << "  ⚠ WARNING: Saving without viewer buffers ALL data in RAM!" << std::endl;
+                }
             }
-            std::cout << "✓ Logging to: " << save_path << std::endl;
+        }
+        
+        if (!init_success) {
+            return;
         }
         
         enabled_ = true;
