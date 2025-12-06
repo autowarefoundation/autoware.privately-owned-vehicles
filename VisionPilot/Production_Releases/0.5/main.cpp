@@ -19,6 +19,7 @@
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 
 using namespace autoware_pov::vision::autosteer;
@@ -221,7 +222,7 @@ void displayThread(
     std::atomic<bool>& running,
     bool enable_viz,
     bool save_video,
-    const std::string& output_video_path
+    const std::string& output_video_path = "./assets/output_video.mp4"
 )
 {
     // Visualization setup
@@ -236,6 +237,17 @@ void displayThread(
 
     if (save_video && enable_viz) {
         std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
+    }
+
+    // CSV logger for curve params metrics
+    std::ofstream csv_file;
+    csv_file.open("./assets/curve_params_metrics.csv");
+    if (csv_file.is_open()) {
+        // Write header
+        csv_file << "frame_id,timestamp_ms,lane_offset,yaw_offset,curvature\n";
+        std::cout << "CSV logging enabled: curve_params_metrics.csv" << std::endl;
+    } else {
+        std::cerr << "Error: could not open curve_params_metrics.csv for writing" << std::endl;
     }
 
     while (running.load()) {
@@ -287,14 +299,14 @@ void displayThread(
                 video_writer.open(
                     output_video_path, 
                     fourcc, 
-                    30.0,
+                    10.0,
                     stacked_view.size(),
                     true
                 );
 
                 if (video_writer.isOpened()) {
                     std::cout << "Video writer initialized (H.264): " << stacked_view.cols 
-                              << "x" << stacked_view.rows << " @ 30 fps" << std::endl;
+                              << "x" << stacked_view.rows << " @ 10 fps" << std::endl;
                     video_writer_initialized = true;
                 } else {
                     std::cerr << "Warning: Failed to initialize video writer" << std::endl;
@@ -313,6 +325,23 @@ void displayThread(
                 running.store(false);
                 break;
             }
+        }
+
+        // CSV logging for curve params
+        if (
+            csv_file.is_open() && 
+            result.lanes.path_valid
+        ) {
+            // Timestamp calc, from captured time
+            auto ms_since_epoch = duration_cast<milliseconds>(
+                result.capture_time.time_since_epoch()
+            ).count();
+
+            csv_file << result.frame_number << ","
+                     << ms_since_epoch << ","
+                     << result.lanes.lane_offset << ","
+                     << result.lanes.yaw_offset << ","
+                     << result.lanes.curvature << "\n";
         }
 
         auto t_display_end = steady_clock::now();
@@ -347,15 +376,25 @@ void displayThread(
         }
     }
 
-    // Cleanup
+    // Cleanups
+
+    // Video writer
     if (save_video && video_writer_initialized && video_writer.isOpened()) {
         video_writer.release();
         std::cout << "\nVideo saved to: " << output_video_path << std::endl;
     }
 
+    // Vis
     if (enable_viz) {
         cv::destroyAllWindows();
     }
+
+    // CSV logger
+    if (csv_file.is_open()) {
+        csv_file.close();
+        std::cout << "CSV log saved." << std::endl;
+    }
+
 }
 
 int main(int argc, char** argv)
@@ -389,8 +428,8 @@ int main(int argc, char** argv)
     float threshold = (argc >= 8) ? std::atof(argv[7]) : 0.0f;
     bool measure_latency = (argc >= 9) ? (std::string(argv[8]) == "true") : true;
     bool enable_viz = (argc >= 10) ? (std::string(argv[9]) == "true") : true;
-    bool save_video = (argc >= 11) ? (std::string(argv[10]) == "true") : false;
-    std::string output_video_path = (argc >= 12) ? argv[11] : "output.avi";
+    bool save_video = (argc >= 11) ? (std::string(argv[10]) == "true") : true;
+    std::string output_video_path = (argc >= 12) ? argv[11] : "./assets/output_video.mp4";
 
     if (save_video && !enable_viz) {
         std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;

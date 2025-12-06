@@ -1,4 +1,5 @@
 #include "visualization/draw_lanes.hpp"
+#include <opencv2/core/types.hpp>
 
 namespace autoware_pov::vision::autosteer
 {
@@ -380,6 +381,33 @@ void drawRawMasksInPlace(
       lanes.ego_right, 
       color_ego_right
     );
+
+    // // Draw sliding windows for debugging
+    // float scale_x = static_cast<float>(image.cols) / lanes.width;
+    // float scale_y = static_cast<float>(image.rows) / lanes.height;
+    // cv::Scalar color_window(0, 0, 255); // Red
+
+    // // a. Left windows
+    // for (const auto& rect : lanes.left_sliding_windows) {
+    //     cv::Rect scaled_rect(
+    //         static_cast<int>(rect.x * scale_x),
+    //         static_cast<int>(rect.y * scale_y),
+    //         static_cast<int>(rect.width * scale_x),
+    //         static_cast<int>(rect.height * scale_y)
+    //     );
+    //     cv::rectangle(image, scaled_rect, color_window, 1);
+    // }
+
+    // // b. Right windows
+    // for (const auto& rect : lanes.right_sliding_windows) {
+    //     cv::Rect scaled_rect(
+    //         static_cast<int>(rect.x * scale_x),
+    //         static_cast<int>(rect.y * scale_y),
+    //         static_cast<int>(rect.width * scale_x),
+    //         static_cast<int>(rect.height * scale_y)
+    //     );
+    //     cv::rectangle(image, scaled_rect, color_window, 1);
+    // }
     
     cv::putText(
       image, 
@@ -400,6 +428,7 @@ void drawPolyFitLanesInPlace(
 {
     cv::Scalar color_ego_left(255, 0, 0);     // Blue
     cv::Scalar color_ego_right(255, 0, 200);  // Magenta
+    cv::Scalar color_center(0, 255, 255);     // Yellow
     
     // Draw vectors
 
@@ -458,6 +487,77 @@ void drawPolyFitLanesInPlace(
               5, 
               cv::LINE_AA
             );
+        }
+    }
+
+    // Drivable path
+    if (
+      lanes.path_valid && 
+      !lanes.center_coeffs.empty()
+    ) {
+        std::vector<double> viz_coeffs = lanes.center_coeffs;
+        viz_coeffs[5] = static_cast<double>(lanes.height - 1);  // Extend to bottom
+
+        auto center_points = genSmoothCurve(
+          viz_coeffs, 
+          image.cols, 
+          image.rows, 
+          lanes.width, 
+          lanes.height
+        );
+        
+        if (center_points.size() > 1) {
+            cv::polylines(
+              image, 
+              center_points, 
+              false, 
+              color_center, 
+              15, 
+              cv::LINE_AA
+            );
+            cv::polylines(
+              image, 
+              center_points, 
+              false, 
+              cv::Scalar(255, 255, 255), 
+              5, 
+              cv::LINE_AA
+            );
+        }
+
+        // Params info as text for now
+        std::vector<std::string> lines;
+        lines.push_back(cv::format("Lane offset: %.2f px", lanes.lane_offset));
+        lines.push_back(cv::format("Yaw offset: %.2f rad", lanes.yaw_offset));
+        // lines.push_back(cv::format("Steering angle: %.2f deg", lanes.steering_angle));
+        lines.push_back(cv::format("Curvature: %.4f", lanes.curvature));
+
+        int font = cv::FONT_HERSHEY_SIMPLEX;
+        double scale = 1.2;
+        int thickness = 2;
+        int line_spacing = 10; // extra spacing
+        int margin = 50;
+        int y = margin;
+        
+        for (const auto& l : lines) {
+            cv::Size textSize = cv::getTextSize(
+              l, 
+              font, 
+              scale, 
+              thickness, 
+              nullptr
+            );
+            int x = image.cols - textSize.width - margin;  // Align right
+            cv::putText(
+              image, 
+              l, 
+              cv::Point(x, y), 
+              font, 
+              scale, 
+              color_center, 
+              thickness
+            );
+            y += textSize.height + line_spacing;
         }
     }
     
