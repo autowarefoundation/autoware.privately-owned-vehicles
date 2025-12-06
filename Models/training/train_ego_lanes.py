@@ -28,8 +28,8 @@ def main():
     # ====================== Loading datasets ====================== #
 
     # Root
-    ROOT_PATH   = "/mnt/Storage/pov_datasets/"
-    POV_PATH    = "/home/tranhuunhathuy/Documents/Autoware/autoware.privately-owned-vehicles/"
+    ROOT_PATH   = "<path to dataset directory containing all processed datasets>"
+    POV_PATH    = "<path to PoV project directory>"
 
     # Model save root path
     MODEL_SAVE_ROOT_PATH = os.path.join(

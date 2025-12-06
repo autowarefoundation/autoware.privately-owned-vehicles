@@ -25,14 +25,14 @@ For example, if you created a folder called cmu_x, then it will have two sub fol
 - labels (containing all labels)
 
 
-To execute the code, asume the relative path to the cmu_x folder with the images/labels is "../../../../Data/Data_May_5th_2025/cmu_x/", this will be assigned to the variable -d in the python code.
+To execute the code, asume the relative path to the cmu_x folder with the images/labels, this will be assigned to the variable -d in the python code.
 
 The processed labels will be stored in a folder named "label", and the processed images will be stored in a folder named "image"; both folders (label and image) will be stored in a folder (relative path) name assigned to the variable -s. Assume we assign the variable -s as save;
 
 ### Example Usage:
 
 ```bash
-python3 process_roadwork.py -d ../../../../Data/Data_May_5th_2025/cmu_x/  -s save/
+python3 process_roadwork.py -d <relative_path_to_cmu_x_folder> -s save/
 ```
 
 A processed version of the data can be found in the Kaggle link https://www.kaggle.com/datasets/austinosas/cmu-road-work-processed-data
