@@ -62,6 +62,10 @@ public:
 private:
 #ifdef ENABLE_RERUN
     std::unique_ptr<rerun::RecordingStream> rec_;
+    
+    // Fixed buffers for zero-allocation logging (reused every frame)
+    cv::Mat rgb_buffer_;        // Buffer for BGR→RGB conversion
+    cv::Mat mask_u8_buffer_;    // Buffer for float→uint8 mask conversion
 #endif
     bool enabled_;
     
