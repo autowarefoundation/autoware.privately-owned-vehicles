@@ -6,8 +6,7 @@ xhost +
 
 # Run the container
 docker run -it --rm \
-    -e DISPLAY="$DISPLAY" \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -p 6080:6080 \
     -v "$(pwd)/model-weights:/autoware/model-weights" \
     -v "$(pwd)/test:/autoware/test" \
     ghcr.io/autowarefoundation/visionpilot:latest \
