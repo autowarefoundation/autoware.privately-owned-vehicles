@@ -89,24 +89,23 @@ void RerunLogger::logInference(
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // NOTE: In multi-threaded mode, the caller (inferenceThread in main.cpp) 
-    // already cloned all data before calling this function.
-    // We can safely use the data directly without additional cloning.
+    // NOTE: The caller (inferenceThread) has downsampled and cloned all data.
+    // We use rerun::borrow() for zero-copy - directly borrowing cv::Mat buffers.
+    // Fixed buffers are reused every frame for zero allocation churn.
     
     // Set timeline
     rec_->set_time_sequence("frame", frame_number);
     
-    // Log input frame (convert BGR to RGB for Rerun)
-    cv::Mat rgb_frame;
-    cv::cvtColor(input_frame, rgb_frame, cv::COLOR_BGR2RGB);
-    logImage("camera/image", rgb_frame);
+    // Log input frame (convert BGR→RGB using fixed buffer)
+    cv::cvtColor(input_frame, rgb_buffer_, cv::COLOR_BGR2RGB);
+    logImage("camera/image", rgb_buffer_);
     
-    // Log raw lane masks
+    // Log raw lane masks (reuses mask_u8_buffer_ internally)
     logMask("lanes/raw/ego_left", raw_lanes.ego_left);
     logMask("lanes/raw/ego_right", raw_lanes.ego_right);
     logMask("lanes/raw/other", raw_lanes.other_lanes);
     
-    // Log filtered lane masks
+    // Log filtered lane masks (reuses mask_u8_buffer_ internally)
     logMask("lanes/filtered/ego_left", filtered_lanes.ego_left);
     logMask("lanes/filtered/ego_right", filtered_lanes.ego_right);
     logMask("lanes/filtered/other", filtered_lanes.other_lanes);
@@ -130,18 +129,25 @@ void RerunLogger::logImage(const std::string& entity_path, const cv::Mat& image)
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // CRITICAL: We MUST copy the data because rec_->log() is asynchronous!
-    // The cv::Mat might be destroyed before Rerun's background thread accesses it.
-    // Creating a vector transfers ownership to Rerun's Collection.
-    std::vector<uint8_t> image_copy(
-        image.data, 
-        image.data + (image.cols * image.rows * image.channels())
-    );
+    // ZERO-COPY: Borrow data directly from cv::Mat buffer (fixed buffer, reused every frame)
+    // Safe because:
+    // 1. Caller cloned/downsampled the data before calling us
+    // 2. We use fixed rgb_buffer_ that persists across frames
+    // 3. rerun::borrow() creates non-owning view
+    // 4. Rerun serializes synchronously before we return
+    size_t data_size = image.cols * image.rows * image.channels();
     
-    rec_->log(entity_path, 
-              rerun::archetypes::Image::from_rgb24(
-                  std::move(image_copy),  // Move ownership to Rerun
-                  {static_cast<uint32_t>(image.cols), static_cast<uint32_t>(image.rows)}));
+    rec_->log(
+        entity_path,
+        rerun::Image(
+            rerun::borrow(image.data, data_size),  
+            rerun::WidthHeight(
+                static_cast<uint32_t>(image.cols),
+                static_cast<uint32_t>(image.rows)
+            ),
+            rerun::ColorModel::RGB  // Already converted BGR→RGB in logInference
+        )
+    );
 #else
     (void)entity_path;
     (void)image;
@@ -153,24 +159,29 @@ void RerunLogger::logMask(const std::string& entity_path, const cv::Mat& mask)
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // Convert float mask to uint8 for visualization
-    cv::Mat mask_u8;
-    mask.convertTo(mask_u8, CV_8UC1, 255.0);
+    // Convert float mask to uint8 using fixed buffer (reused every mask)
+    // This is the only allocation we keep - unavoidable for type conversion
+    mask.convertTo(mask_u8_buffer_, CV_8UC1, 255.0);
     
-    // CRITICAL: We MUST copy the data because rec_->log() is asynchronous!
-    // mask_u8 is a local variable that will be destroyed when this function returns,
-    // but Rerun's background thread might not access the data until later.
-    // Creating a vector transfers ownership to Rerun's Collection.
-    std::vector<uint8_t> mask_copy(
-        mask_u8.data, 
-        mask_u8.data + (mask_u8.cols * mask_u8.rows)
+    // ZERO-COPY: Borrow data directly from fixed buffer
+    // Safe because:
+    // 1. mask_u8_buffer_ is a member variable that persists
+    // 2. rerun::borrow() creates non-owning view
+    // 3. Rerun serializes synchronously before we return
+    // 4. Buffer is reused for next mask (no allocation churn)
+    size_t data_size = mask_u8_buffer_.cols * mask_u8_buffer_.rows;
+    
+    rec_->log(
+        entity_path,
+        rerun::archetypes::DepthImage(
+            rerun::borrow(mask_u8_buffer_.data, data_size),  // ✅ Zero-copy borrow!
+            rerun::WidthHeight(
+                static_cast<uint32_t>(mask_u8_buffer_.cols),
+                static_cast<uint32_t>(mask_u8_buffer_.rows)
+            ),
+            rerun::datatypes::ChannelDatatype::U8
+        )
     );
-    
-    rec_->log(entity_path, 
-              rerun::archetypes::DepthImage(
-                  std::move(mask_copy),  // Move ownership to Rerun
-                  {static_cast<uint32_t>(mask_u8.cols), static_cast<uint32_t>(mask_u8.rows)},
-                  rerun::datatypes::ChannelDatatype::U8));
 #else
     (void)entity_path;
     (void)mask;
