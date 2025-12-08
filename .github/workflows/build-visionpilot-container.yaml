@@ -63,6 +63,7 @@ jobs:
             ARCH=${{ matrix.arch }}
             ONNXRUNTIME_VERSION=${{ inputs.onnxruntime-version || env.DEFAULT_ONNXRUNTIME_VERSION }}
           push: true
+          provenance: false
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
           tags: |
