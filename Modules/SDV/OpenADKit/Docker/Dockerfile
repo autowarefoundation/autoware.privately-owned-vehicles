@@ -1,8 +1,8 @@
 FROM ubuntu:24.04
 
 # x64 or aarch64
-ARG ARCH=x64 
-ARG ONNXRUNTIME_VERSION=1.22.0
+ARG ARCH
+ARG ONNXRUNTIME_VERSION
 
 # Install visionpilot dependencies
 WORKDIR /autoware

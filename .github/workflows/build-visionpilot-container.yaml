@@ -1,7 +1,15 @@
 name: Build VisionPilot Container
 
+env:
+  DEFAULT_ONNXRUNTIME_VERSION: "1.22.0"
+
 on:
   workflow_dispatch:
+    inputs:
+      onnxruntime-version:
+        description: "ONNX Runtime version"
+        required: true
+        default: "1.22.0"
   push:
     branches:
       - main
@@ -19,10 +27,12 @@ jobs:
           - platform: amd64
             runner: ubuntu-22.04
             arch-platform: linux/amd64
+            arch: x64
           - platform: arm64
             runner: ubuntu-22.04-arm
             arch-platform: linux/arm64
-    
+            arch: aarch64
+
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
@@ -49,6 +59,9 @@ jobs:
           platforms: ${{ matrix.arch-platform }}
           context: .
           file: ./Modules/SDV/OpenADKit/Docker/Dockerfile
+          build-args: |
+            ARCH=${{ matrix.arch }}
+            ONNXRUNTIME_VERSION=${{ inputs.onnxruntime-version || env.DEFAULT_ONNXRUNTIME_VERSION }}
           push: true
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
