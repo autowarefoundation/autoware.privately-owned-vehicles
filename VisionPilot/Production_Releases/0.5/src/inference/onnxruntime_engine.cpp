@@ -1,6 +1,5 @@
 #include "inference/onnxruntime_engine.hpp"
 #include "inference/onnxruntime_session.hpp"
-#include <algorithm>
 #include <stdexcept>
 #include <cstdio>
 

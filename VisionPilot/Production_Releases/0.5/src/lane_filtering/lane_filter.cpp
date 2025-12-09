@@ -131,9 +131,8 @@ LanePolyFit LaneFilter::fitPoly(
     }
 
     // 2. Dynamic order selection
-    int order = 3; 
-    if (n < 30) order = 1; 
-    else if (n < 60) order = 2;
+    int order = 2; 
+    if (n < 30) order = 1;
 
     // 3. RANSAC loop
     std::vector<double> best_model;
@@ -258,7 +257,8 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         left_points = slidingWindowSearch(
             raw_input, 
             start_pt, 
-            true
+            true,
+            clean_output.left_sliding_windows
         );
         
         // Step 2: polyfit (cubic)
@@ -295,7 +295,8 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         right_points = slidingWindowSearch(
             raw_input, 
             start_pt, 
-            false
+            false,
+            clean_output.right_sliding_windows
         );
         current_right_fit = fitPoly(right_points);
 
@@ -325,8 +326,8 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
     };
 
     // Check good state criteria:
-    // 1. Line must cover at least X% of image height
-    // 2. Line must have at least X raw pixels (totally intuitive pls don't ask me how)
+    // a. Line must cover at least X% of image height
+    // b. Line must have at least X raw pixels (totally intuitive pls don't ask me how)
     bool left_is_good = current_left_fit.valid && 
                         (left_points.size() >= min_history_pixels) && 
                         (getSpan(current_left_fit.coeffs) >= raw_input.height * min_history_span_ratio);
@@ -434,6 +435,78 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         }
     }
 
+    // 3. Drivable path (along those curve params) derivation
+
+    if (
+        !clean_output.left_coeffs.empty() && 
+        !clean_output.right_coeffs.empty()
+    ) {
+        
+        clean_output.center_coeffs.resize(6);
+
+        // a. Average coeffs to get middleline (aka drivable path) : x_mid = (x_left + x_right) / 2
+        // Can do this via averaging coeffs tho
+        for(int i = 0; i < 4; ++i) {
+            clean_output.center_coeffs[i] = (
+                clean_output.left_coeffs[i] + 
+                clean_output.right_coeffs[i]
+            ) / 2.0;
+        }
+
+        // b. Lim their y-ranges
+        clean_output.center_coeffs[4] = std::min(
+            clean_output.left_coeffs[4], 
+            clean_output.right_coeffs[4]
+        ); // min_y
+        clean_output.center_coeffs[5] = std::max(
+            clean_output.left_coeffs[5], 
+            clean_output.right_coeffs[5]
+        ); // max_y
+
+        // c. Extend to bottom + metrics calc
+        double y_bottom = static_cast<double>(clean_output.height);
+        double a = clean_output.center_coeffs[0];
+        double b = clean_output.center_coeffs[1];
+        double c = clean_output.center_coeffs[2];
+        double d = clean_output.center_coeffs[3];
+
+        // i. Lane offset (pixels)
+        double x_pos =  a * pow(y_bottom, 3) + 
+                        b * pow(y_bottom, 2) + 
+                        c * y_bottom + 
+                        d;
+        clean_output.lane_offset = x_pos - (static_cast<double>(clean_output.width) / 2.0);
+
+        // ii. Yaw offset (radians)
+        // dx/dy = 3ay^2 + 2by + c
+        // A vertical line has dx/dy = 0. Btw img coords: +X rightward, +Y downward
+        double dx_dy =  3 * a * pow(y_bottom, 2) + 
+                        2 * b * y_bottom + 
+                        c;
+        clean_output.yaw_offset = std::atan(dx_dy);
+
+        // // iii. Steering angle (degrees)
+        // clean_output.steering_angle = clean_output.yaw_offset * (180.0 / CV_PI);
+
+        // iv. Curvature (1/R)
+        // k = |x''| / (1 + x'^2)^1.5
+        // x'' = 6ay + 2b
+        double d2x_dy2 =    6 * a * y_bottom + 
+                            2 * b;
+        double denominator = std::pow(
+            1 + dx_dy * dx_dy, 
+            1.5
+        );
+        if (std::abs(denominator) > 1e-6) {
+            clean_output.curvature = std::abs(d2x_dy2) / denominator;
+        } else {
+            clean_output.curvature = 0.0;
+        }
+
+        clean_output.path_valid = true;
+
+    }
+
     return clean_output;
 }
 
@@ -491,7 +564,9 @@ void LaneFilter::findStartingPoints(
 std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     const LaneSegmentation& raw,
     cv::Point start_point,
-    bool is_left_lane)
+    bool is_left_lane,
+    std::vector<cv::Rect>& debug_sliding_windows
+)
 {
     std::vector<cv::Point> lane_points;
     
@@ -574,6 +649,15 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
                 raw.width, 
                 current_pos.x + current_width
             );
+
+            // Save this window to debug the sliding window logic
+            cv::Rect win_rect(
+                win_x_low, 
+                win_y_low, 
+                (win_x_high - win_x_low), 
+                (win_y_high - win_y_low)
+            );
+            debug_sliding_windows.push_back(win_rect);
 
             // Buckets for priority logic
             std::vector<cv::Point> ego_pixels;

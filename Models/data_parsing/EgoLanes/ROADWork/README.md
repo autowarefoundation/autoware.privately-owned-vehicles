@@ -53,8 +53,8 @@ options:
 ### Example:
 ```bash
 $ python process_roadwork.py\
-> --image-dir ~/autoware_datasets/roadwork/traj_images/\
-> --annotation-dir ~/autoware_datasets/roadwork/traj_annotations/\
+> --image-dir <path to image dir >\
+> --annotation-dir <path to annotation dir >\
 > --output-dir ~/tmp/output --display rgb
 ```
 
@@ -100,7 +100,7 @@ options:
 ### Example:
 ```bash
 $ python audit_roadwork.py\
-> --dataset-dir ~/autoware_datasets/roadwork/\
+> --dataset-dir <path to dataset dir >\
 > --output-dir ~/tmp/output
 
 ### ROADWork Dataset Outputs

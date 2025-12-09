@@ -106,16 +106,16 @@ def create_onnx_from_qat_checkpoint(
         logger.info(f"--- [3/4] Calibrating model with {num_calibration_samples} samples ---")
         # Load all validation datasets for calibration
         datasets = {
-            "ACDC": LoadDataSceneSeg(os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'ACDC/ACDC/gt_masks/'),
-                                   os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'ACDC/ACDC/images/'), 'ACDC'),
-            "IDDAW": LoadDataSceneSeg(os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'IDDAW/IDDAW/gt_masks/'),
-                                    os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'IDDAW/IDDAW/images/'), 'IDDAW'),
-            "MUSES": LoadDataSceneSeg(os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'MUSES/MUSES/gt_masks/'),
-                                    os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'MUSES/MUSES/images/'), 'MUSES'),
-            "MAPILLARY": LoadDataSceneSeg(os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'Mapillary_Vistas/Mapillary_Vistas/gt_masks/'),
-                                        os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'Mapillary_Vistas/Mapillary_Vistas/images/'), 'MAPILLARY'),
-            "COMMA10K": LoadDataSceneSeg(os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'comma10k/comma10k/gt_masks/'),
-                                       os.path.join("/home/pranavdoma/Downloads/data/SceneSeg/", 'comma10k/comma10k/images/'), 'COMMA10K')
+            "ACDC": LoadDataSceneSeg(os.path.join("<path to SceneSeg>", 'ACDC/ACDC/gt_masks/'),
+                                   os.path.join("<path to SceneSeg>", 'ACDC/ACDC/images/'), 'ACDC'),
+            "IDDAW": LoadDataSceneSeg(os.path.join("<path to SceneSeg>", 'IDDAW/IDDAW/gt_masks/'),
+                                    os.path.join("<path to SceneSeg>", 'IDDAW/IDDAW/images/'), 'IDDAW'),
+            "MUSES": LoadDataSceneSeg(os.path.join("<path to SceneSeg>", 'MUSES/MUSES/gt_masks/'),
+                                    os.path.join("<path to SceneSeg>", 'MUSES/MUSES/images/'), 'MUSES'),
+            "MAPILLARY": LoadDataSceneSeg(os.path.join("<path to SceneSeg>", 'Mapillary_Vistas/Mapillary_Vistas/gt_masks/'),
+                                        os.path.join("<path to SceneSeg>", 'Mapillary_Vistas/Mapillary_Vistas/images/'), 'MAPILLARY'),
+            "COMMA10K": LoadDataSceneSeg(os.path.join("<path to SceneSeg>", 'comma10k/comma10k/gt_masks/'),
+                                       os.path.join("<path to SceneSeg>", 'comma10k/comma10k/images/'), 'COMMA10K')
         }
         all_calib_samples = []
         for name, dataset in datasets.items():
@@ -210,7 +210,7 @@ def main():
     parser.add_argument("--qat_checkpoint_path", type=str, required=True,
                         help="Path to the QAT checkpoint to convert and benchmark.")
     parser.add_argument("--dataset_root", type=str,
-                        default="/home/pranavdoma/Downloads/data/SceneSeg/",
+                        default="<path to SceneSeg>",
                         help="Root directory of datasets.")
     parser.add_argument("--device", type=str, default="cpu",
                         help="Device for model preparation ('cpu' or 'cuda'). Inference is on CPU.")
