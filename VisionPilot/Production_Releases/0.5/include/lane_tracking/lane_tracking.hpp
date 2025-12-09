@@ -12,9 +12,9 @@ namespace autoware_pov::vision::autosteer
 struct DualViewMetrics {
 
     // Original perspective curve params
-    double pers_lane_offset = 0.0;
-    double pers_yaw_offset = 0.0;
-    double pers_curvature = 0.0;
+    double orig_lane_offset = 0.0;
+    double orig_yaw_offset = 0.0;
+    double orig_curvature = 0.0;
 
     // BEV perspective curve params
     double bev_lane_offset = 0.0;
