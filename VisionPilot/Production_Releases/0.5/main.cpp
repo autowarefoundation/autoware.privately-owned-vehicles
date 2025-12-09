@@ -3,7 +3,7 @@
  * @brief Multi-threaded AutoSteer lane detection inference pipeline
  * 
  * Architecture:
- * - Capture Thread: Reads frames from video source
+ * - Capture Thread: Reads frames from video source or camera
  * - Inference Thread: Runs lane detection model
  * - Display Thread: Optionally visualizes and saves results
  */
@@ -150,60 +150,12 @@ void captureThread(
             std::cout << "End of video stream" << std::endl;
             break;
         }
-
-        // Calculate capture latency
-        long capture_us = duration_cast<microseconds>(t_end - t_start).count();
-        metrics.total_capture_us.fetch_add(capture_us);
-
-        TimestampedFrame tf;
-        tf.frame = frame;
-        tf.frame_number = frame_number++;
-        tf.timestamp = t_end;
-        queue.push(tf);
-    }
-
-    running.store(false);
-    queue.stop();
-}
-
-/**
- * @brief Inference thread - runs lane detection model
- */
-void inferenceThread(
-    AutoSteerOnnxEngine& engine,
-    ThreadSafeQueue<TimestampedFrame>& input_queue,
-    ThreadSafeQueue<InferenceResult>& output_queue,
-    PerformanceMetrics& metrics,
-    std::atomic<bool>& running,
-    float threshold)
-{
-
-    // Init lane filter
-    LaneFilter lane_filter(0.5f);
-
-    while (running.load()) {
-        TimestampedFrame tf = input_queue.pop();
-        if (tf.frame.empty()) continue;
-
-        auto t_inference_start = steady_clock::now();
-
-        // Run inference
-        LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
-
-        // Post-processing with lane filter
-        LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
-
-        auto t_inference_end = steady_clock::now();
-
-        // Calculate inference latency
-        long inference_us = duration_cast<microseconds>(
-            t_inference_end - t_inference_start).count();
-        metrics.total_inference_us.fetch_add(inference_us);
-
-        // Package result
+#endif
+ 
+        // Package result (clone frame to avoid race with capture thread reusing buffer)
         InferenceResult result;
-        result.frame = tf.frame;
-        result.lanes = filtered_lanes;
+        result.frame = tf.frame.clone();  // Clone for display thread safety
+        result.lanes = filtered_lanes;    // LaneSegmentation uses cv::Mat ref counting (safe)
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;

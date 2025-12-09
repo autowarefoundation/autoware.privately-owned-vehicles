@@ -71,21 +71,110 @@ target_link_libraries(autosteer_lane_filtering
     autosteer_inference
 )
 
+# Camera utilities module
+add_library(camera_utils
+    src/camera/camera_utils.cpp
+)
+target_link_libraries(camera_utils
+    ${OpenCV_LIBS}
+)
+
+# Rerun SDK (optional, for visualization/logging)
+option(ENABLE_RERUN "Enable Rerun logging and visualization" OFF)
+
+if(ENABLE_RERUN)
+    if(NOT DEFINED ENV{RERUN_SDK_ROOT})
+        message(WARNING "RERUN_SDK_ROOT not set. Disabling Rerun support.\n"
+                        "To enable: export RERUN_SDK_ROOT=/path/to/rerun_cpp_sdk")
+        set(ENABLE_RERUN OFF)
+    else()
+        set(RERUN_SDK_ROOT $ENV{RERUN_SDK_ROOT})
+        
+        # Check if Rerun SDK exists (src/rerun.hpp for SDK bundle)
+        if(NOT EXISTS ${RERUN_SDK_ROOT}/src/rerun.hpp)
+            message(WARNING "Rerun SDK not found at ${RERUN_SDK_ROOT}. Disabling Rerun support.")
+            set(ENABLE_RERUN OFF)
+        else()
+            message(STATUS "Rerun SDK: ${RERUN_SDK_ROOT}")
+            
+            # Configure Rerun to use system-installed Arrow (no download)
+            set(RERUN_DOWNLOAD_AND_BUILD_ARROW OFF CACHE BOOL "Use system Arrow" FORCE)
+            
+            # Find Arrow (should be at /usr/local after manual install)
+            set(CMAKE_PREFIX_PATH "/usr/local;${CMAKE_PREFIX_PATH}")
+            find_package(Arrow REQUIRED)
+            message(STATUS "  - Arrow found: ${Arrow_DIR}")
+            
+            # Add Rerun SDK as subdirectory (will build rerun_cpp from source)
+            add_subdirectory(${RERUN_SDK_ROOT} ${CMAKE_CURRENT_BINARY_DIR}/rerun_sdk_build EXCLUDE_FROM_ALL)
+            
+            # Rerun logger module
+            add_library(rerun_logger
+                src/rerun/rerun_logger.cpp
+            )
+            target_compile_definitions(rerun_logger PRIVATE ENABLE_RERUN)
+            target_link_libraries(rerun_logger
+                autosteer_inference
+                ${OpenCV_LIBS}
+                rerun_sdk
+            )
+            
+            set(RERUN_ENABLED TRUE)
+            message(STATUS "Rerun support: ENABLED")
+        endif()
+    endif()
+endif()
+
+if(NOT RERUN_ENABLED)
+    message(STATUS "Rerun support: DISABLED")
+endif()
+
 # Main executable
 add_executable(autosteer_pipeline
     main.cpp
 )
 target_compile_definitions(autosteer_pipeline PRIVATE LOG_TYPE=0)  # Use non-ROS logging
-target_link_libraries(autosteer_pipeline
+
+# Link libraries
+set(AUTOSTEER_LIBS
     autosteer_inference
     autosteer_visualization
+    autosteer_lane_filtering
+    camera_utils
+    ${OpenCV_LIBS}
+    pthread
+)
+
+if(ENABLE_RERUN AND RERUN_ENABLED)
+    target_compile_definitions(autosteer_pipeline PRIVATE ENABLE_RERUN)
+    list(APPEND AUTOSTEER_LIBS rerun_logger)
+endif()
+
+target_link_libraries(autosteer_pipeline ${AUTOSTEER_LIBS})
+
+# Linear test executable (for debugging - single-threaded, no visualization)
+add_executable(autosteer_linear_test
+    main_linear.cpp
+)
+target_compile_definitions(autosteer_linear_test PRIVATE LOG_TYPE=0)
+
+# Link same libraries as main pipeline (except no visualization needed)
+set(LINEAR_TEST_LIBS
+    autosteer_inference
     autosteer_lane_filtering
     ${OpenCV_LIBS}
     pthread
 )
 
+if(ENABLE_RERUN AND RERUN_ENABLED)
+    target_compile_definitions(autosteer_linear_test PRIVATE ENABLE_RERUN)
+    list(APPEND LINEAR_TEST_LIBS rerun_logger)
+endif()
+
+target_link_libraries(autosteer_linear_test ${LINEAR_TEST_LIBS})
+
 # Installation
-install(TARGETS autosteer_pipeline
+install(TARGETS autosteer_pipeline autosteer_linear_test
     RUNTIME DESTINATION bin
 )
 
