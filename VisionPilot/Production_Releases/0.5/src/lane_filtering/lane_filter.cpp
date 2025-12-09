@@ -318,10 +318,6 @@ LaneSegmentation LaneFilter::update(const LaneSegmentation& raw_input) {
         prev_right_fit.valid = false;
     }
 
-    // RECOVERY STRATEGY
-
-    
-
     return clean_output;
 }
 
