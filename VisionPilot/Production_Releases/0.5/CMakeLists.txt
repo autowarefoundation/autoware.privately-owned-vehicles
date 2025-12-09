@@ -69,6 +69,7 @@ add_library(autosteer_lane_filtering
 )
 target_link_libraries(autosteer_lane_filtering
     autosteer_inference
+    ${OpenCV_LIBS}
 )
 
 # Camera utilities module
@@ -135,6 +136,7 @@ add_library(autosteer_lane_tracking
 )
 target_link_libraries(autosteer_lane_tracking
     autosteer_inference
+    ${OpenCV_LIBS}
 )
 
 # Main executable
@@ -148,6 +150,7 @@ set(AUTOSTEER_LIBS
     autosteer_inference
     autosteer_visualization
     autosteer_lane_filtering
+    autosteer_lane_tracking
     camera_utils
     ${OpenCV_LIBS}
     pthread
