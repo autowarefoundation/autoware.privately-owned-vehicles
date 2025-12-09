@@ -11,7 +11,6 @@
 #include "lane_tracking/lane_tracking.hpp"
 #include <cmath>
 #include <algorithm>
-#include <iostream>
 
 
 namespace autoware_pov::vision::autosteer
@@ -253,23 +252,23 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
 
         // Orig curve params at bottom of orig grid)
         double orig_car_y = 79.0;
-        metrics.pers_lane_offset = calcLaneOffset(
+        metrics.orig_lane_offset = calcLaneOffset(
             output_lanes.center_coeffs, 
             orig_car_y
         ) - (input_lanes.width / 2.0);
-        metrics.pers_yaw_offset = calcYawOffset(
+        metrics.orig_yaw_offset = calcYawOffset(
             output_lanes.center_coeffs, 
             orig_car_y
         );
-        metrics.pers_curvature = calcCurvature(
+        metrics.orig_curvature = calcCurvature(
             output_lanes.center_coeffs, 
             orig_car_y
         );
 
         // Output struct curve params
-        output_lanes.lane_offset = metrics.pers_lane_offset;
-        output_lanes.yaw_offset = metrics.pers_yaw_offset;
-        output_lanes.curvature = metrics.pers_curvature;
+        output_lanes.lane_offset = metrics.orig_lane_offset;
+        output_lanes.yaw_offset = metrics.orig_yaw_offset;
+        output_lanes.curvature = metrics.orig_curvature;
     }
 
     return {
