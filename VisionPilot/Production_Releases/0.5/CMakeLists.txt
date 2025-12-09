@@ -152,29 +152,8 @@ endif()
 
 target_link_libraries(autosteer_pipeline ${AUTOSTEER_LIBS})
 
-# Linear test executable (for debugging - single-threaded, no visualization)
-add_executable(autosteer_linear_test
-    main_linear.cpp
-)
-target_compile_definitions(autosteer_linear_test PRIVATE LOG_TYPE=0)
-
-# Link same libraries as main pipeline (except no visualization needed)
-set(LINEAR_TEST_LIBS
-    autosteer_inference
-    autosteer_lane_filtering
-    ${OpenCV_LIBS}
-    pthread
-)
-
-if(ENABLE_RERUN AND RERUN_ENABLED)
-    target_compile_definitions(autosteer_linear_test PRIVATE ENABLE_RERUN)
-    list(APPEND LINEAR_TEST_LIBS rerun_logger)
-endif()
-
-target_link_libraries(autosteer_linear_test ${LINEAR_TEST_LIBS})
-
 # Installation
-install(TARGETS autosteer_pipeline autosteer_linear_test
+install(TARGETS autosteer_pipeline
     RUNTIME DESTINATION bin
 )
 
