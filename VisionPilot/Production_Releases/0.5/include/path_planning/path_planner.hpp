@@ -55,31 +55,31 @@ struct PathPlanningOutput
  * @brief Path planner for lane tracking and trajectory estimation
  * 
  * Features:
- * - Polynomial fitting to lane points
- * - BEV coordinate transformation
+ * - Polynomial fitting to BEV lane points (in meters)
  * - Temporal smoothing via Bayes filter
  * - Robust fusion of left/right lanes
+ * 
+ * Note: Expects BEV points already in metric coordinates (meters)
  */
 class PathPlanner
 {
 public:
     /**
      * @brief Initialize path planner
-     * @param homography_matrix 3x3 matrix for pixel → BEV transform
      * @param default_lane_width Default lane width in meters (default: 4.0)
      */
-    explicit PathPlanner(const cv::Mat& homography_matrix, double default_lane_width = 4.0);
+    explicit PathPlanner(double default_lane_width = 4.0);
     
     /**
      * @brief Update with new lane detections
      * 
-     * @param left_pts_pixel Left lane points in image pixels
-     * @param right_pts_pixel Right lane points in image pixels
+     * @param left_pts_bev Left lane points in BEV meters (x=lateral, y=longitudinal)
+     * @param right_pts_bev Right lane points in BEV meters
      * @return Path planning output (fused metrics + individual curves)
      */
     PathPlanningOutput update(
-        const std::vector<cv::Point2f>& left_pts_pixel,
-        const std::vector<cv::Point2f>& right_pts_pixel);
+        const std::vector<cv::Point2f>& left_pts_bev,
+        const std::vector<cv::Point2f>& right_pts_bev);
     
     /**
      * @brief Get current tracked state
@@ -93,7 +93,6 @@ public:
     void reset();
 
 private:
-    cv::Mat H_;  // Homography matrix (pixel → BEV)
     double default_lane_width_;
     Estimator bayes_filter_;
     
@@ -105,26 +104,10 @@ private:
     const double STD_M_WIDTH = 0.01;     // Width measurement std (m)
     
     /**
-     * @brief Transform pixel points to BEV metric coordinates
-     */
-    std::vector<cv::Point2f> transformToBEV(const std::vector<cv::Point2f>& pixel_pts) const;
-    
-    /**
      * @brief Initialize Bayes filter
      */
     void initializeBayesFilter();
 };
-
-/**
- * @brief Load homography matrix from YAML file
- * 
- * Expected format:
- *   H: [h00, h01, h02, h10, h11, h12, h20, h21, h22]
- * 
- * @param filename Path to YAML file
- * @return 3x3 homography matrix
- */
-cv::Mat loadHomographyFromYAML(const std::string& filename);
 
 } // namespace autoware_pov::vision::path_planning
 
