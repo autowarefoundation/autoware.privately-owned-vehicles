@@ -13,7 +13,7 @@
  #include "lane_filtering/lane_filter.hpp"
  #include "lane_tracking/lane_tracking.hpp"
  #include "camera/camera_utils.hpp"
- #include "path_planning/path_planner.hpp"
+ #include "path_planning/path_finder.hpp"
  #ifdef ENABLE_RERUN
  #include "rerun/rerun_logger.hpp"
  #endif
@@ -248,7 +248,7 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
      PerformanceMetrics& metrics,
      std::atomic<bool>& running,
      float threshold,
-     PathPlanner* path_planner = nullptr
+      PathFinder* path_finder = nullptr
  #ifdef ENABLE_RERUN
      , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
  #endif
@@ -299,9 +299,9 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
           metrics.total_inference_us.fetch_add(inference_us);
 
           // ========================================
-          // PATH PLANNING (Polynomial Fitting + Bayes Filter)
+          // PATHFINDER (Polynomial Fitting + Bayes Filter)
           // ========================================
-          if (path_planner != nullptr && final_metrics.bev_visuals.valid) {
+          if (path_finder != nullptr && final_metrics.bev_visuals.valid) {
               
               // 1. Get BEV points in PIXEL space from LaneTracker
               std::vector<cv::Point2f> left_bev_pixels = final_metrics.bev_visuals.bev_left_pts;
@@ -312,12 +312,12 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
               std::vector<cv::Point2f> left_bev_meters = transformPixelsToMeters(left_bev_pixels);
               std::vector<cv::Point2f> right_bev_meters = transformPixelsToMeters(right_bev_pixels);
               
-              // 3. Update path planner (polynomial fit + Bayes filter in metric space)
-              PathPlanningOutput path_output = path_planner->update(left_bev_meters, right_bev_meters);
+              // 3. Update PathFinder (polynomial fit + Bayes filter in metric space)
+              PathFinderOutput path_output = path_finder->update(left_bev_meters, right_bev_meters);
               
               // 4. Print output (cross-track error, yaw error, curvature, lane width)
               if (path_output.fused_valid) {
-                  std::cout << "[PathPlanner Frame " << tf.frame_number << "] "
+                  std::cout << "[PathFinder Frame " << tf.frame_number << "] "
                             << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m, "
                             << "Yaw: " << path_output.yaw_error << " rad, "
                             << "Curvature: " << path_output.curvature << " 1/m, "
@@ -645,7 +645,7 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         std::cerr << "Rerun Logging (optional):\n";
         std::cerr << "  --rerun              : Enable Rerun live viewer\n";
         std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n\n";
-        std::cerr << "Path Planning (optional):\n";
+        std::cerr << "PathFinder (optional):\n";
         std::cerr << "  --path-planner       : Enable PathFinder (Bayes filter + polynomial fitting)\n";
         std::cerr << "  --pathfinder         : (alias)\n\n";
         std::cerr << "Examples:\n";
@@ -722,7 +722,7 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
      bool save_video = (argc >= base_idx + 6) ? (std::string(argv[base_idx + 5]) == "true") : false;
      std::string output_video_path = (argc >= base_idx + 7) ? argv[base_idx + 6] : "output.avi";
  
-    // Parse Rerun flags and PathPlanner flags (check all remaining arguments)
+    // Parse Rerun flags and PathFinder flags (check all remaining arguments)
     bool enable_rerun = false;
     bool spawn_rerun_viewer = true;
     std::string rerun_save_path = "";
@@ -793,11 +793,11 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     }
 #endif
 
-    // Initialize PathPlanner (optional - uses LaneTracker's BEV output)
-    std::unique_ptr<PathPlanner> path_planner;
+    // Initialize PathFinder (optional - uses LaneTracker's BEV output)
+    std::unique_ptr<PathFinder> path_finder;
     if (enable_path_planner) {
-        path_planner = std::make_unique<PathPlanner>(4.0);  // 4.0m default lane width
-        std::cout << "PathPlanner initialized (Bayes filter + polynomial fitting)" << std::endl;
+        path_finder = std::make_unique<PathFinder>(4.0);  // 4.0m default lane width
+        std::cout << "PathFinder initialized (Bayes filter + polynomial fitting)" << std::endl;
         std::cout << "  - Using BEV points from LaneTracker" << std::endl;
         std::cout << "  - Transform: BEV pixels → meters (TODO: calibrate)" << "\n" << std::endl;
     }
@@ -823,8 +823,8 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         std::cout << "Rerun logging: ENABLED" << std::endl;
     }
 #endif
-    if (path_planner) {
-        std::cout << "PathPlanner: ENABLED (polynomial fitting + Bayes filter)" << std::endl;
+    if (path_finder) {
+        std::cout << "PathFinder: ENABLED (polynomial fitting + Bayes filter)" << std::endl;
     }
     if (measure_latency) {
         std::cout << "Latency measurement: ENABLED (metrics every 30 frames)" << std::endl;
@@ -846,13 +846,13 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
-                            path_planner.get(),
+                            path_finder.get(),
                             rerun_logger.get());
 #else
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
-                            path_planner.get());
+                            path_finder.get());
 #endif
      std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                           std::ref(running), enable_viz, save_video, output_video_path);
