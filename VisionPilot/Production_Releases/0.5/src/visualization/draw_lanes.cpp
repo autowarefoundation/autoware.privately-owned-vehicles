@@ -783,5 +783,7 @@ void drawBEVVis(
       2
     );
 
+}
+
 }  // namespace autoware_pov::vision::autosteer
 
