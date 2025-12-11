@@ -671,5 +671,21 @@ void drawBEVVis(
       );
     }
 
+    // 3. Egoright
+    auto right_pts = genBEVPoints(
+      bev_data.bev_right_coeffs, 
+      bev_h
+    );
+    if (right_pts.size() > 1) {
+      cv::polylines(
+        image, 
+        right_pts, 
+        false, 
+        color_right, 
+        thickness, 
+        cv::LINE_AA
+      );
+    }
+
 }  // namespace autoware_pov::vision::autosteer
 
