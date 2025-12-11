@@ -30,6 +30,9 @@ struct DualViewMetrics {
     double bev_lane_offset = 0.0;
     double bev_yaw_offset = 0.0;
     double bev_curvature = 0.0;
+
+    // BEV visuals metrics
+    BEVVisuals bev_visuals;
 };
 
 class LaneTracker {
