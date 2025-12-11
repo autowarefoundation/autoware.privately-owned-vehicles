@@ -280,6 +280,11 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         output_lanes.lane_offset = metrics.orig_lane_offset;
         output_lanes.yaw_offset = metrics.orig_yaw_offset;
         output_lanes.curvature = metrics.orig_curvature;
+
+        // Populate BEV vis data
+        metrics.bev_visuals.H_orig_to_bev = H_orig_to_bev.clone();
+        metrics.bev_visuals.last_valid_width_pixels = last_valid_bev_width;
+        metrics.bev_visuals.valid = true;
     }
 
     return {
