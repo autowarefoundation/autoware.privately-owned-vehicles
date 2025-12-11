@@ -284,6 +284,8 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         output_lanes.curvature = metrics.orig_curvature;
 
         // Populate BEV vis data
+        metrics.bev_visuals.bev_left_pts = left_pts_bev;   // Store BEV points for PathPlanner
+        metrics.bev_visuals.bev_right_pts = right_pts_bev; // Store BEV points for PathPlanner
         metrics.bev_visuals.last_valid_width_pixels = last_valid_bev_width;
         metrics.bev_visuals.valid = true;
     }
