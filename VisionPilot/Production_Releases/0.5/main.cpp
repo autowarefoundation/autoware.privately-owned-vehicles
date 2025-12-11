@@ -124,12 +124,17 @@ struct PerformanceMetrics {
 /**
  * @brief Transform BEV pixel coordinates to BEV metric coordinates (meters)
  * 
- * TODO: Calibrate this transform for your specific camera setup
+ * Transformation based on 640x640 BEV image:
+ * Input (Pixels):
+ *   - Origin (0,0) at Top-Left
+ *   - x right, y down
+ *   - Vehicle at Bottom-Center (320, 640)
  * 
- * Current stub implementation uses approximate scaling:
- * - BEV image is 640x640 pixels
- * - Represents approximately 6m width x 40m length
- * - Origin at bottom-center (vehicle position)
+ * Output (Meters):
+ *   - Origin (0,0) at Vehicle Position
+ *   - x right (lateral), y forward (longitudinal)
+ *   - Range: X [-20m, 20m], Y [0m, 40m]
+ *   - Scale: 640 pixels = 40 meters
  * 
  * @param bev_pixels BEV points in pixel coordinates (from LaneTracker)
  * @return BEV points in metric coordinates (meters, x=lateral, y=longitudinal)
@@ -141,20 +146,19 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         return bev_meters;
     }
     
-    // TODO: Replace with calibrated transform
-    // These values are approximate and should be calibrated for your camera
-    const double scale_x = 6.0 / 640.0;   // pixels → meters (lateral), ~0.0094 m/pixel
-    const double scale_y = 40.0 / 640.0;  // pixels → meters (longitudinal), ~0.0625 m/pixel
-    const double center_x = 320.0;        // BEV center pixel (lateral)
-    const double origin_y = 640.0;        // BEV origin pixel (bottom = vehicle position)
+    
+    const double bev_width_px = 640.0;
+    const double bev_height_px = 640.0;
+    const double bev_range_m = 40.0;
+    
+    const double scale = bev_range_m / bev_height_px; // 40m / 640px = 0.0625 m/px
+    const double center_x = bev_width_px / 2.0;       // 320.0
+    const double origin_y = bev_height_px;            // 640.0 (bottom)
     
     for (const auto& pt : bev_pixels) {
-        // Transform:
-        // - Center x-axis at vehicle (pt.x=320 → 0m)
-        // - Flip y-axis (image origin top-left → vehicle origin bottom)
         bev_meters.push_back(cv::Point2f(
-            (pt.x - center_x) * scale_x,      // Lateral position (m)
-            (origin_y - pt.y) * scale_y       // Longitudinal position (m)
+            (pt.x - center_x) * scale,      // Lateral: (x - 320) * scale
+            (origin_y - pt.y) * scale       // Longitudinal: (640 - y) * scale (Flip Y)
         ));
     }
     
