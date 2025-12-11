@@ -14,6 +14,11 @@ struct BEVVisuals {
     std::vector<double> bev_left_coeffs;  // BEV egoleft coeffs
     std::vector<double> bev_right_coeffs; // BEV egoright coeffs
     std::vector<double> bev_center_coeffs;// BEV drivable corridor coeffs
+    
+    // BEV lane points in pixel space (for PathPlanner)
+    std::vector<cv::Point2f> bev_left_pts;   // Left lane points in BEV pixels
+    std::vector<cv::Point2f> bev_right_pts;  // Right lane points in BEV pixels
+    
     double last_valid_width_pixels = 0.0; // Width bar
     bool valid = false;
 };
