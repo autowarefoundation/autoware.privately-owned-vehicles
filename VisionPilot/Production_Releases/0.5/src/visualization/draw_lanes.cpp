@@ -574,7 +574,39 @@ void drawPolyFitLanesInPlace(
 
 // ========================== ADDITIONAL VIS VIEW - BEV ========================== //
 
+// Helper func: gen points from coeffs directly in BEV space (no scaling needed)
+static std::vector<cv::Point> genBEVPoints(
+    const std::vector<double>& coeffs,
+    int bev_height = 640
+)
+{
+    std::vector<cv::Point> points;
+    // Now using quadratic coeffs: [0, a, b, c, min_y, max_y]
+    if (coeffs.size() < 6) return points;
 
+    double a = coeffs[1];
+    double b = coeffs[2];
+    double c = coeffs[3];
+    double min_y = coeffs[4];
+    double max_y = coeffs[5];
+
+    for (int y = 0; y < bev_height; ++y) {
+        // Only draw within valid y-range defined by fitted points
+        if (y < min_y || y > max_y) continue;
+
+        // x = ay^2 + by + c
+        double x = a*y*y + b*y + c;
+        
+        // BEV grid is 640 wide
+        if (x >= 0 && x < 640) {
+            points.push_back(cv::Point(
+              static_cast<int>(x), 
+              y
+            ));
+        }
+    }
+    return points;
+}
 
 }  // namespace autoware_pov::vision::autosteer
 
