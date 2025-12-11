@@ -1,9 +1,22 @@
+#ifndef AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
+#define AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
+
 #include "inference/onnxruntime_engine.hpp"
 #include <opencv2/opencv.hpp>
 #include <vector>
 
 namespace autoware_pov::vision::autosteer
 {
+
+// BEV-specific visualization data
+struct BEVVisuals {
+    cv::Mat H_orig_to_bev;                // Homography for warping frame
+    std::vector<double> bev_left_coeffs;  // BEV egoleft coeffs
+    std::vector<double> bev_right_coeffs; // BEV egoright coeffs
+    std::vector<double> bev_center_coeffs;// BEV drivable corridor coeffs
+    double last_valid_width_pixels = 0.0; // Width bar
+    bool valid = false;
+};
 
 /**
  * @brief Container for curve params both views
@@ -12,14 +25,17 @@ namespace autoware_pov::vision::autosteer
 struct DualViewMetrics {
 
     // Original perspective curve params
-    double pers_lane_offset = 0.0;
-    double pers_yaw_offset = 0.0;
-    double pers_curvature = 0.0;
+    double orig_lane_offset = 0.0;
+    double orig_yaw_offset = 0.0;
+    double orig_curvature = 0.0;
 
     // BEV perspective curve params
     double bev_lane_offset = 0.0;
     double bev_yaw_offset = 0.0;
     double bev_curvature = 0.0;
+
+    // BEV visuals metrics
+    BEVVisuals bev_visuals;
 };
 
 class LaneTracker {
@@ -108,3 +124,5 @@ private:
 };
 
 } // namespace autoware_pov::vision::autosteer
+
+#endif // AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
