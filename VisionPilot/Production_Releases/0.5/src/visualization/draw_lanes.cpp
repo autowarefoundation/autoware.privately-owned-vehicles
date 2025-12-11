@@ -301,7 +301,7 @@ void drawFilteredLanesInPlace(
       }
 }
 
-// ========================== NEW VIS VIEWS - DEBUGGING + FINAL OUTPUTS ========================== //
+// ========================== MAIN VIS VIEWS - DEBUGGING + FINAL OUTPUTS ========================== //
 
 // Helper func: draw mask overlay only
 static void drawMaskOverlay(
@@ -571,6 +571,10 @@ void drawPolyFitLanesInPlace(
       2
     );
 }
+
+// ========================== ADDITIONAL VIS VIEW - BEV ========================== //
+
+
 
 }  // namespace autoware_pov::vision::autosteer
 
