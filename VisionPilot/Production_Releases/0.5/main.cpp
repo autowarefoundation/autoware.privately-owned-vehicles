@@ -154,11 +154,11 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     const double scale = bev_range_m / bev_height_px; // 40m / 640px = 0.0625 m/px
     const double center_x = bev_width_px / 2.0;       // 320.0
     const double origin_y = bev_height_px;            // 640.0 (bottom)
-    
+    //check again
     for (const auto& pt : bev_pixels) {
         bev_meters.push_back(cv::Point2f(
-            (pt.x - center_x) * scale,      // Lateral: (x - 320) * scale
-            (origin_y - pt.y) * scale       // Longitudinal: (640 - y) * scale (Flip Y)
+            (origin_y - pt.y) * scale,      // Longitudinal: (640 - y) * scale (Flip Y to match image origin)
+            (pt.x - center_x) * scale       // Lateral: (x - 320) * scale
         ));
     }
     
@@ -319,13 +319,17 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
               // 3. Update PathFinder (polynomial fit + Bayes filter in metric space)
               PathFinderOutput path_output = path_finder->update(left_bev_meters, right_bev_meters);
               
-              // 4. Print output (cross-track error, yaw error, curvature, lane width)
+              // 4. Print output (cross-track error, yaw error, curvature, lane width + variances)
               if (path_output.fused_valid) {
                   std::cout << "[PathFinder Frame " << tf.frame_number << "] "
-                            << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m, "
-                            << "Yaw: " << path_output.yaw_error << " rad, "
-                            << "Curvature: " << path_output.curvature << " 1/m, "
-                            << "Width: " << path_output.lane_width << " m" << std::endl;
+                            << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m "
+                            << "(var: " << path_output.cte_variance << "), "
+                            << "Yaw: " << path_output.yaw_error << " rad "
+                            << "(var: " << path_output.yaw_variance << "), "
+                            << "Curvature: " << path_output.curvature << " 1/m "
+                            << "(var: " << path_output.curv_variance << "), "
+                            << "Width: " << path_output.lane_width << " m "
+                            << "(var: " << path_output.lane_width_variance << ")" << std::endl;
                   
                   // Print polynomial coefficients (for control interface)
                   std::cout << "  Center polynomial: c0=" << path_output.center_coeff[0]
