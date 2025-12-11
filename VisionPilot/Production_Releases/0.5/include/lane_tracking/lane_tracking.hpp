@@ -5,6 +5,16 @@
 namespace autoware_pov::vision::autosteer
 {
 
+// BEV-specific visualization data
+struct BEVVisuals {
+    cv::Mat H_orig_to_bev;                // Homography for warping frame
+    std::vector<double> bev_left_coeffs;  // BEV egoleft coeffs
+    std::vector<double> bev_right_coeffs; // BEV egoright coeffs
+    std::vector<double> bev_center_coeffs;// BEV drivable corridor coeffs
+    double last_valid_width_pixels = 0.0; // Width bar
+    bool valid = false;
+};
+
 /**
  * @brief Container for curve params both views
  * (for statistics and debugging later)
