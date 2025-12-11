@@ -608,5 +608,31 @@ static std::vector<cv::Point> genBEVPoints(
     return points;
 }
 
+// Helper func: draw BEV vis
+void drawBEVVis(
+  cv::Mat& image,
+  const cv::Mat& orig_frame,
+  const BEVVisuals& bev_data
+)
+{
+    // 1. Warp orig frame to BEV (640 x 640)
+    if (image.size() != cv::Size(640, 640)) {
+        image.create(
+          640, 
+          640, 
+          orig_frame.type()
+        );
+    }
+
+    cv::warpPerspective(
+        orig_frame,
+        image,
+        bev_data.H_orig_to_bev,
+        cv::Size(
+          640, 
+          640
+        )
+    );
+
 }  // namespace autoware_pov::vision::autosteer
 
