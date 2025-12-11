@@ -13,13 +13,9 @@
 
 namespace autoware_pov::vision::path_planning {
 
-PathPlanner::PathPlanner(const cv::Mat& homography_matrix, double default_lane_width)
-    : H_(homography_matrix.clone()), default_lane_width_(default_lane_width)
+PathPlanner::PathPlanner(double default_lane_width)
+    : default_lane_width_(default_lane_width)
 {
-    if (H_.rows != 3 || H_.cols != 3) {
-        throw std::runtime_error("Homography matrix must be 3x3");
-    }
-    
     initializeBayesFilter();
 }
 
@@ -48,22 +44,10 @@ void PathPlanner::initializeBayesFilter()
               << default_lane_width_ << " m" << std::endl;
 }
 
-std::vector<cv::Point2f> PathPlanner::transformToBEV(
-    const std::vector<cv::Point2f>& pixel_pts) const
-{
-    if (pixel_pts.empty()) {
-        return {};
-    }
-    
-    std::vector<cv::Point2f> bev_pts;
-    cv::perspectiveTransform(pixel_pts, bev_pts, H_);
-    
-    return bev_pts;
-}
 
 PathPlanningOutput PathPlanner::update(
-    const std::vector<cv::Point2f>& left_pts_pixel,
-    const std::vector<cv::Point2f>& right_pts_pixel)
+    const std::vector<cv::Point2f>& left_pts_bev,
+    const std::vector<cv::Point2f>& right_pts_bev)
 {
     PathPlanningOutput output;
     output.left_valid = false;
@@ -83,13 +67,11 @@ PathPlanningOutput PathPlanner::update(
     }
     bayes_filter_.predict(process);
     
-    // 2. Transform to BEV
-    std::vector<cv::Point2f> left_bev = transformToBEV(left_pts_pixel);
-    std::vector<cv::Point2f> right_bev = transformToBEV(right_pts_pixel);
+    // 2. BEV points already provided (no transformation needed)
     
-    // 3. Fit polynomials
-    auto left_coeff = fitQuadPoly(left_bev);
-    auto right_coeff = fitQuadPoly(right_bev);
+    // 3. Fit polynomials to BEV points (in meters)
+    auto left_coeff = fitQuadPoly(left_pts_bev);
+    auto right_coeff = fitQuadPoly(right_pts_bev);
     
     FittedCurve left_curve(left_coeff);
     FittedCurve right_curve(right_coeff);
@@ -216,55 +198,6 @@ const std::array<Gaussian, STATE_DIM>& PathPlanner::getState() const
 void PathPlanner::reset()
 {
     initializeBayesFilter();
-}
-
-cv::Mat loadHomographyFromYAML(const std::string& filename)
-{
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        throw std::runtime_error("Failed to open homography file: " + filename);
-    }
-    
-    cv::Mat H = cv::Mat::eye(3, 3, CV_64F);
-    
-    std::string line;
-    while (std::getline(file, line)) {
-        // Look for "H:" line
-        if (line.find("H:") != std::string::npos) {
-            // Extract matrix values (space or comma separated)
-            size_t start = line.find("[");
-            size_t end = line.find("]");
-            
-            if (start != std::string::npos && end != std::string::npos) {
-                std::string values_str = line.substr(start + 1, end - start - 1);
-                
-                // Parse 9 values
-                std::stringstream ss(values_str);
-                std::vector<double> values;
-                double val;
-                
-                while (ss >> val) {
-                    values.push_back(val);
-                    // Skip comma if present
-                    if (ss.peek() == ',') ss.ignore();
-                }
-                
-                if (values.size() == 9) {
-                    for (int i = 0; i < 9; ++i) {
-                        H.at<double>(i / 3, i % 3) = values[i];
-                    }
-                    std::cout << "[PathPlanner] Loaded homography matrix from: " 
-                              << filename << std::endl;
-                    return H;
-                } else {
-                    throw std::runtime_error("Expected 9 values in H matrix, got " + 
-                                           std::to_string(values.size()));
-                }
-            }
-        }
-    }
-    
-    throw std::runtime_error("Could not find 'H:' in file: " + filename);
 }
 
 } // namespace autoware_pov::vision::path_planning
