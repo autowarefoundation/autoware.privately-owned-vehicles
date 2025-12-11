@@ -2,6 +2,7 @@
 #define AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
 
 #include "../inference/onnxruntime_engine.hpp"
+#include "../lane_tracking/lane_tracking.hpp"
 #include <opencv2/opencv.hpp>
 
 namespace autoware_pov::vision::autosteer
@@ -62,6 +63,18 @@ void drawRawMasksInPlace(
 void drawPolyFitLanesInPlace(
   cv::Mat& image,
   const LaneSegmentation& lanes
+);
+
+/**
+ * @brief Draws BEV vis panel.
+ * * @param image Output img to draw on (will be resized to 640x640).
+ * @param orig_frame Orig perspective frame.
+ * @param bev_data BEV vis data from the tracker.
+ */
+void drawBEVVis(
+  cv::Mat& image,
+  const cv::Mat& orig_frame,
+  const BEVVisuals& bev_data
 );
 
 }  // namespace autoware_pov::vision::autosteer

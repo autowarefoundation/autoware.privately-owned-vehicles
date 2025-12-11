@@ -8,47 +8,49 @@
  * - Display Thread: Optionally visualizes and saves results
  */
 
-#include "inference/onnxruntime_engine.hpp"
-#include "visualization/draw_lanes.hpp"
-#include "lane_filtering/lane_filter.hpp"
-#include "camera/camera_utils.hpp"
-#include "path_planning/path_planner.hpp"
-#ifdef ENABLE_RERUN
-#include "rerun/rerun_logger.hpp"
-#endif
-#include <opencv2/opencv.hpp>
-#include <thread>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
-#include <atomic>
-#include <chrono>
-#include <iostream>
-#include <iomanip>
+ #include "inference/onnxruntime_engine.hpp"
+ #include "visualization/draw_lanes.hpp"
+ #include "lane_filtering/lane_filter.hpp"
+ #include "lane_tracking/lane_tracking.hpp"
+ #include "camera/camera_utils.hpp"
+ #include "path_planning/path_planner.hpp"
+ #ifdef ENABLE_RERUN
+ #include "rerun/rerun_logger.hpp"
+ #endif
+ #include <opencv2/opencv.hpp>
+ #include <thread>
+ #include <queue>
+ #include <mutex>
+ #include <condition_variable>
+ #include <atomic>
+ #include <chrono>
+ #include <iostream>
+ #include <iomanip>
+ #include <fstream>
 
-using namespace autoware_pov::vision::autosteer;
-using namespace autoware_pov::vision::camera;
-using namespace autoware_pov::vision::path_planning;
-using namespace std::chrono;
- 
+ using namespace autoware_pov::vision::autosteer;
+ using namespace autoware_pov::vision::camera;
+ using namespace autoware_pov::vision::path_planning;
+ using namespace std::chrono;
+
  // Thread-safe queue with max size limit
  template<typename T>
  class ThreadSafeQueue {
  public:
      explicit ThreadSafeQueue(size_t max_size = 10) : max_size_(max_size) {}
- 
+
      void push(const T& item) {
          std::unique_lock<std::mutex> lock(mutex_);
          // Wait if queue is full (backpressure)
-         cond_not_full_.wait(lock, [this] { 
-             return queue_.size() < max_size_ || !active_; 
+         cond_not_full_.wait(lock, [this] {
+             return queue_.size() < max_size_ || !active_;
          });
          if (!active_) return;
-         
+
          queue_.push(item);
          cond_not_empty_.notify_one();
      }
- 
+
      bool try_pop(T& item) {
          std::unique_lock<std::mutex> lock(mutex_);
          if (queue_.empty()) {
@@ -59,7 +61,7 @@ using namespace std::chrono;
          cond_not_full_.notify_one();  // Notify that space is available
          return true;
      }
- 
+
      T pop() {
          std::unique_lock<std::mutex> lock(mutex_);
          cond_not_empty_.wait(lock, [this] { return !queue_.empty() || !active_; });
@@ -71,18 +73,18 @@ using namespace std::chrono;
          cond_not_full_.notify_one();  // Notify that space is available
          return item;
      }
- 
+
      void stop() {
          active_ = false;
          cond_not_empty_.notify_all();
          cond_not_full_.notify_all();
      }
- 
+
      size_t size() {
          std::unique_lock<std::mutex> lock(mutex_);
          return queue_.size();
      }
- 
+
  private:
      std::queue<T> queue_;
      std::mutex mutex_;
@@ -91,18 +93,19 @@ using namespace std::chrono;
      std::atomic<bool> active_{true};
      size_t max_size_;
  };
- 
+
  // Timestamped frame
  struct TimestampedFrame {
      cv::Mat frame;
      int frame_number;
      steady_clock::time_point timestamp;
  };
- 
+
  // Inference result
  struct InferenceResult {
      cv::Mat frame;
      LaneSegmentation lanes;
+     DualViewMetrics metrics;
      int frame_number;
      steady_clock::time_point capture_time;
      steady_clock::time_point inference_time;
@@ -168,7 +171,7 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
      std::atomic<bool>& running)
  {
      cv::VideoCapture cap;
-     
+
      if (is_camera) {
          std::cout << "Opening camera: " << source << std::endl;
          cap = openCamera(source);
@@ -176,33 +179,33 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
          std::cout << "Opening video: " << source << std::endl;
          cap.open(source);
      }
-     
+
      if (!cap.isOpened()) {
          std::cerr << "Failed to open source: " << source << std::endl;
          running.store(false);
          return;
      }
-     
+
      int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
      int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
      double fps = cap.get(cv::CAP_PROP_FPS);
-     
-     std::cout << "Source opened: " << frame_width << "x" << frame_height 
+
+     std::cout << "Source opened: " << frame_width << "x" << frame_height
                << " @ " << fps << " FPS\n" << std::endl;
-     
+
      if (!is_camera) {
          int total_frames = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_COUNT));
          std::cout << "Total frames: " << total_frames << std::endl;
      }
-     
+
      // For camera: throttle 30fps → 10fps
      int frame_skip = 0;
      int skip_interval = is_camera ? 3 : 1;
-     
+
      int frame_number = 0;
      while (running.load()) {
          auto t_start = steady_clock::now();
-         
+
          cv::Mat frame;
          if (!cap.read(frame) || frame.empty()) {
              if (is_camera) {
@@ -212,66 +215,88 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
              }
              break;
          }
-         
+
          auto t_end = steady_clock::now();
-         
+
          // Frame throttling
          if (++frame_skip < skip_interval) continue;
          frame_skip = 0;
-         
+
          long capture_us = duration_cast<microseconds>(t_end - t_start).count();
          metrics.total_capture_us.fetch_add(capture_us);
-         
+
          TimestampedFrame tf;
          tf.frame = frame;
          tf.frame_number = frame_number++;
          tf.timestamp = t_end;
          queue.push(tf);
      }
-     
+
      running.store(false);
      queue.stop();
      cap.release();
  }
- 
-/**
- * @brief Inference thread - runs lane detection model
- */
-void inferenceThread(
-    AutoSteerOnnxEngine& engine,
-    ThreadSafeQueue<TimestampedFrame>& input_queue,
-    ThreadSafeQueue<InferenceResult>& output_queue,
-    PerformanceMetrics& metrics,
-    std::atomic<bool>& running,
-    float threshold,
-    PathPlanner* path_planner = nullptr
-#ifdef ENABLE_RERUN
-    , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
-#endif
-)
-{
-    // Init lane filter
-    LaneFilter lane_filter(0.5f);
 
-    while (running.load()) {
-        TimestampedFrame tf = input_queue.pop();
-        if (tf.frame.empty()) continue;
+ /**
+  * @brief Inference thread - runs lane detection model
+  */
+ void inferenceThread(
+     AutoSteerOnnxEngine& engine,
+     ThreadSafeQueue<TimestampedFrame>& input_queue,
+     ThreadSafeQueue<InferenceResult>& output_queue,
+     PerformanceMetrics& metrics,
+     std::atomic<bool>& running,
+     float threshold,
+     PathPlanner* path_planner = nullptr
+ #ifdef ENABLE_RERUN
+     , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
+ #endif
+ )
+ {
+     // Init lane filter
+     LaneFilter lane_filter(0.5f);
 
-        auto t_inference_start = steady_clock::now();
+     // Init lane tracker
+     LaneTracker lane_tracker;
 
-        // Run inference
-        LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
 
-        // Post-processing with lane filter
-        LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
+     while (running.load()) {
+         TimestampedFrame tf = input_queue.pop();
+         if (tf.frame.empty()) continue;
 
-        auto t_inference_end = steady_clock::now();
+         auto t_inference_start = steady_clock::now();
 
-        // Calculate inference latency
-        long inference_us = duration_cast<microseconds>(
-            t_inference_end - t_inference_start).count();
-        metrics.total_inference_us.fetch_add(inference_us);
-        // lane_tracker.update( filtered_lanes, tf.frame.size() );
+         // Crop tf.frame 420 pixels top
+         tf.frame = tf.frame(cv::Rect(
+             0,
+             420,
+             tf.frame.cols,
+             tf.frame.rows - 420
+         ));
+
+         // Run inference
+         LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
+
+         // Post-processing with lane filter
+         LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
+
+         // Further processing with lane tracker
+         cv::Size frame_size(tf.frame.cols, tf.frame.rows);
+         std::pair<LaneSegmentation, DualViewMetrics> track_result = lane_tracker.update(
+             filtered_lanes,
+             frame_size
+         );
+
+         LaneSegmentation final_lanes = track_result.first;
+         DualViewMetrics final_metrics = track_result.second;
+
+         auto t_inference_end = steady_clock::now();
+
+         // Calculate inference latency
+         long inference_us = duration_cast<microseconds>(
+             t_inference_end - t_inference_start).count();
+         metrics.total_inference_us.fetch_add(inference_us);
+         // lane_tracker.update( filtered_lanes, tf.frame.size() );
         // filtered_bev_points = Lanefra
         // get filtered_bev_points.ego_left, filtered_bev_points.ego_right
         //TransformLanePoints(filtered_bev_points.ego_left);
@@ -302,7 +327,7 @@ void inferenceThread(
             }
         }
         // ========================================
- 
+
 #ifdef ENABLE_RERUN
         // Log to Rerun with downsampled frame (reduces data by 75%)
         if (rerun_logger && rerun_logger->isEnabled()) {
@@ -310,18 +335,18 @@ void inferenceThread(
             // Full-res inference already completed, this is just for visualization
             cv::Mat frame_small;
             cv::resize(tf.frame, frame_small, cv::Size(), 0.5, 0.5, cv::INTER_AREA);
-            
+
             // Deep clone lane masks (synchronous, safe for zero-copy borrow in logger)
             autoware_pov::vision::autosteer::LaneSegmentation raw_clone;
             raw_clone.ego_left = raw_lanes.ego_left.clone();
             raw_clone.ego_right = raw_lanes.ego_right.clone();
             raw_clone.other_lanes = raw_lanes.other_lanes.clone();
-            
+
             autoware_pov::vision::autosteer::LaneSegmentation filtered_clone;
             filtered_clone.ego_left = filtered_lanes.ego_left.clone();
             filtered_clone.ego_right = filtered_lanes.ego_right.clone();
             filtered_clone.other_lanes = filtered_lanes.other_lanes.clone();
-            
+
             // Now safe to log (data cloned, lifetime guaranteed, zero-copy borrow in logger)
             rerun_logger->logInference(
                 tf.frame_number,
@@ -332,20 +357,21 @@ void inferenceThread(
             );
         }
 #endif
- 
+
         // Package result (clone frame to avoid race with capture thread reusing buffer)
         InferenceResult result;
         result.frame = tf.frame.clone();  // Clone for display thread safety
-        result.lanes = filtered_lanes;    // LaneSegmentation uses cv::Mat ref counting (safe)
+        result.lanes = final_lanes;
+        result.metrics = final_metrics;
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
         output_queue.push(result);
      }
- 
+
      output_queue.stop();
  }
- 
+
  /**
   * @brief Display thread - handles visualization and video saving
   */
@@ -355,118 +381,213 @@ void inferenceThread(
      std::atomic<bool>& running,
      bool enable_viz,
      bool save_video,
-     const std::string& output_video_path
+     const std::string& output_video_path = "./assets/output_video.mp4"
  )
  {
      // Visualization setup
+     int window_width = 1600;
+     int window_height = 1080;
      if (enable_viz) {
-         cv::namedWindow("AutoSteer Inference", cv::WINDOW_NORMAL);
-         cv::resizeWindow("AutoSteer Inference", 960, 1080);
+         cv::namedWindow(
+             "AutoSteer Inference",
+             cv::WINDOW_NORMAL
+         );
+         cv::resizeWindow(
+             "AutoSteer Inference",
+             window_width,
+             window_height
+         );
      }
- 
+
      // Video writer setup
      cv::VideoWriter video_writer;
      bool video_writer_initialized = false;
- 
+
      if (save_video && enable_viz) {
          std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
      }
- 
+
+     // CSV logger for curve params metrics
+     std::ofstream csv_file;
+     csv_file.open("./assets/curve_params_metrics.csv");
+     if (csv_file.is_open()) {
+         // Write header
+         csv_file << "frame_id,timestamp_ms,"
+                  << "orig_lane_offset,orig_yaw_offset,orig_curvature,"
+                  << "bev_lane_offset,bev_yaw_offset,bev_curvature\n";
+
+         std::cout << "CSV logging enabled: curve_params_metrics.csv" << std::endl;
+     } else {
+         std::cerr << "Error: could not open curve_params_metrics.csv for writing" << std::endl;
+     }
+
      while (running.load()) {
          InferenceResult result;
          if (!queue.try_pop(result)) {
              std::this_thread::sleep_for(std::chrono::milliseconds(1));
              continue;
          }
- 
+
          auto t_display_start = steady_clock::now();
- 
+
          int count = metrics.frame_count.fetch_add(1) + 1;
- 
+
          // Console output: frame info
          std::cout << "[Frame " << result.frame_number << "] Processed" << std::endl;
- 
+
          // Visualization
          if (enable_viz) {
              // drawLanesInPlace(result.frame, result.lanes, 2);
              // drawFilteredLanesInPlace(result.frame, result.lanes);
- 
-             // 1. Init 2 views, raw masks (debugging) + polyfit lanes (final prod)
+
+             // 1. Init 3 views:
+             //  - Raw masks (debugging)
+             //  - Polyfit lanes (final prod)
+             //  - BEV vis
              cv::Mat view_debug = result.frame.clone();
              cv::Mat view_final = result.frame.clone();
- 
-             // 2. Draw 2 views
+             cv::Mat view_bev(
+                 640,
+                 640,
+                 CV_8UC3,
+                 cv::Scalar(0,0,0)
+             );
+
+             // 2. Draw 3 views
              drawRawMasksInPlace(
-                 view_debug, 
+                 view_debug,
                  result.lanes
              );
              drawPolyFitLanesInPlace(
-                 view_final, 
+                 view_final,
                  result.lanes
              );
- 
-             // 3. Stack vertically
-             cv::Mat stacked_view;
+             drawBEVVis(
+                 view_bev,
+                 result.frame,
+                 result.metrics.bev_visuals
+             );
+
+             // 3. View layout handling
+             // Layout:
+             // | [Debug] | [ BEV (640x640) ]
+             // | [Final] | [ Black Space   ]
+
+             // Left col: debug (top) + final (bottom)
+             cv::Mat left_col;
              cv::vconcat(
-                 view_debug, 
-                 view_final, 
+                 view_debug,
+                 view_final,
+                 left_col
+             );
+
+             float left_aspect = static_cast<float>(left_col.cols) / left_col.rows;
+             int target_left_w = static_cast<int>(window_height * left_aspect);
+             cv::resize(
+                 left_col,
+                 left_col,
+                 cv::Size(target_left_w, window_height)
+             );
+
+             // Right col: BEV (stretched to match height)
+             // Black canvas matching left col height
+             cv::Mat right_col = cv::Mat::zeros(
+                 window_height,
+                 640,
+                 view_bev.type()
+             );
+             // Prep BEV
+             cv::Rect top_roi(
+                 0, 0,
+                 view_bev.cols,
+                 view_bev.rows
+             );
+             view_bev.copyTo(right_col(top_roi));
+
+             // Final stacked view
+             cv::Mat stacked_view;
+             cv::hconcat(
+                 left_col,
+                 right_col,
                  stacked_view
              );
- 
+
              // Initialize video writer on first frame
              if (save_video && !video_writer_initialized) {
                  // Use H.264 for better performance and smaller file size
                  // XVID is slower and creates larger files
                  int fourcc = cv::VideoWriter::fourcc('a', 'v', 'c', '1');  // H.264
                  video_writer.open(
-                     output_video_path, 
-                     fourcc, 
-                     30.0,
+                     output_video_path,
+                     fourcc,
+                     10.0,
                      stacked_view.size(),
                      true
                  );
- 
+
                  if (video_writer.isOpened()) {
-                     std::cout << "Video writer initialized (H.264): " << stacked_view.cols 
-                               << "x" << stacked_view.rows << " @ 30 fps" << std::endl;
+                     std::cout << "Video writer initialized (H.264): " << stacked_view.cols
+                               << "x" << stacked_view.rows << " @ 10 fps" << std::endl;
                      video_writer_initialized = true;
                  } else {
                      std::cerr << "Warning: Failed to initialize video writer" << std::endl;
                  }
              }
- 
+
              // Write to video
              if (save_video && video_writer_initialized && video_writer.isOpened()) {
                  video_writer.write(stacked_view);
              }
- 
+
              // Display
              cv::imshow("AutoSteer Inference", stacked_view);
- 
+
              if (cv::waitKey(1) == 'q') {
                  running.store(false);
                  break;
              }
          }
- 
+
+         // CSV logging for curve params
+         if (
+             csv_file.is_open() &&
+             result.lanes.path_valid
+         ) {
+             // Timestamp calc, from captured time
+             auto ms_since_epoch = duration_cast<milliseconds>(
+                 result.capture_time.time_since_epoch()
+             ).count();
+
+             csv_file << result.frame_number << ","
+                      << ms_since_epoch << ","
+                      // Orig metrics
+                      << result.metrics.orig_lane_offset << ","
+                      << result.metrics.orig_yaw_offset << ","
+                      << result.metrics.orig_curvature << ","
+                      // BEV metrics
+                      << result.metrics.bev_lane_offset << ","
+                      << result.metrics.bev_yaw_offset << ","
+                      << result.metrics.bev_curvature << "\n";
+         }
+
          auto t_display_end = steady_clock::now();
- 
+
          // Calculate latencies
          long display_us = duration_cast<microseconds>(
              t_display_end - t_display_start).count();
          long end_to_end_us = duration_cast<microseconds>(
              t_display_end - result.capture_time).count();
- 
+
          metrics.total_display_us.fetch_add(display_us);
          metrics.total_end_to_end_us.fetch_add(end_to_end_us);
- 
+
          // Print metrics every 30 frames
          if (metrics.measure_latency && count % 30 == 0) {
              long avg_capture = metrics.total_capture_us.load() / count;
              long avg_inference = metrics.total_inference_us.load() / count;
              long avg_display = metrics.total_display_us.load() / count;
              long avg_e2e = metrics.total_end_to_end_us.load() / count;
- 
+
              std::cout << "\n========================================\n";
              std::cout << "Frames processed: " << count << "\n";
              std::cout << "Pipeline Latencies:\n";
@@ -480,18 +601,27 @@ void inferenceThread(
              std::cout << "========================================\n";
          }
      }
- 
-     // Cleanup
+
+     // Cleanups
+
+     // Video writer
      if (save_video && video_writer_initialized && video_writer.isOpened()) {
          video_writer.release();
          std::cout << "\nVideo saved to: " << output_video_path << std::endl;
      }
- 
+
+     // Vis
      if (enable_viz) {
          cv::destroyAllWindows();
      }
+
+     // CSV logger
+     if (csv_file.is_open()) {
+         csv_file.close();
+         std::cout << "CSV log saved." << std::endl;
+     }
  }
- 
+
  int main(int argc, char** argv)
  {
      if (argc < 2) {
@@ -526,28 +656,28 @@ void inferenceThread(
         std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
          return 1;
      }
-     
+
      std::string mode = argv[1];
      std::string source;
      std::string model_path;
      std::string provider;
      std::string precision;
      bool is_camera = false;
-     
+
      // Parse arguments based on mode
      if (mode == "camera") {
          if (argc < 5) {
              std::cerr << "Camera mode requires: camera <model> <provider> <precision>" << std::endl;
              return 1;
          }
-         
+
          // Interactive camera selection
          source = selectCamera();
          if (source.empty()) {
              std::cout << "No camera selected. Exiting." << std::endl;
              return 0;
          }
-         
+
          // Verify camera works
          if (!verifyCamera(source)) {
              std::cerr << "\nCamera verification failed." << std::endl;
@@ -555,30 +685,30 @@ void inferenceThread(
              printDriverInstructions();
              return 1;
          }
-         
+
          model_path = argv[2];
          provider = argv[3];
          precision = argv[4];
          is_camera = true;
-         
+
      } else if (mode == "video") {
          if (argc < 6) {
              std::cerr << "Video mode requires: video <video_file> <model> <provider> <precision>" << std::endl;
              return 1;
          }
-         
+
          source = argv[2];
          model_path = argv[3];
          provider = argv[4];
          precision = argv[5];
          is_camera = false;
-         
+
      } else {
          std::cerr << "Unknown mode: " << mode << std::endl;
          std::cerr << "Use 'camera' or 'video'" << std::endl;
          return 1;
      }
-     
+
      // Parse optional arguments (different offset for camera vs video)
      int base_idx = is_camera ? 5 : 6;
      int device_id = (argc >= base_idx + 1) ? std::atoi(argv[base_idx]) : 0;
@@ -621,39 +751,39 @@ void inferenceThread(
          std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
          enable_viz = true;
      }
- 
+
      // Initialize inference backend
      std::cout << "Loading model: " << model_path << std::endl;
      std::cout << "Provider: " << provider << " | Precision: " << precision << std::endl;
-     
+
      if (provider == "tensorrt") {
          std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
          std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
      }
- 
+
      AutoSteerOnnxEngine engine(model_path, provider, precision, device_id, cache_dir);
      std::cout << "Backend initialized!\n" << std::endl;
- 
+
      // Warm-up inference (builds TensorRT engine on first run)
      if (provider == "tensorrt") {
          std::cout << "Running warm-up inference to build TensorRT engine..." << std::endl;
          std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
-         
+
          cv::Mat dummy_frame(720, 1280, CV_8UC3, cv::Scalar(128, 128, 128));
          auto warmup_start = std::chrono::steady_clock::now();
-         
+
          // Run warm-up inference
          LaneSegmentation warmup_result = engine.inference(dummy_frame, threshold);
-         
+
          auto warmup_end = std::chrono::steady_clock::now();
          double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
              warmup_end - warmup_start).count() / 1000.0;
-         
-         std::cout << "Warm-up complete! (took " << std::fixed << std::setprecision(1) 
+
+         std::cout << "Warm-up complete! (took " << std::fixed << std::setprecision(1)
                    << warmup_time << "s)" << std::endl;
          std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
      }
-     
+
      std::cout << "Backend ready!\n" << std::endl;
  
 #ifdef ENABLE_RERUN
@@ -686,7 +816,7 @@ void inferenceThread(
      PerformanceMetrics metrics;
      metrics.measure_latency = measure_latency;
      std::atomic<bool> running{true};
- 
+
      // Launch threads
      std::cout << "========================================" << std::endl;
      std::cout << "Starting multi-threaded inference pipeline" << std::endl;
@@ -732,14 +862,13 @@ void inferenceThread(
 #endif
      std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                           std::ref(running), enable_viz, save_video, output_video_path);
- 
+
      // Wait for threads
      t_capture.join();
      t_inference.join();
      t_display.join();
- 
+
      std::cout << "\nInference pipeline stopped." << std::endl;
- 
+
      return 0;
  }
- 

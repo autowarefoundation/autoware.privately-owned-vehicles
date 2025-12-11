@@ -71,6 +71,7 @@ add_library(autosteer_lane_filtering
 )
 target_link_libraries(autosteer_lane_filtering
     autosteer_inference
+    ${OpenCV_LIBS}
 )
 
 # Camera utilities module
@@ -102,25 +103,25 @@ if(ENABLE_RERUN)
         set(ENABLE_RERUN OFF)
     else()
         set(RERUN_SDK_ROOT $ENV{RERUN_SDK_ROOT})
-        
+
         # Check if Rerun SDK exists (src/rerun.hpp for SDK bundle)
         if(NOT EXISTS ${RERUN_SDK_ROOT}/src/rerun.hpp)
             message(WARNING "Rerun SDK not found at ${RERUN_SDK_ROOT}. Disabling Rerun support.")
             set(ENABLE_RERUN OFF)
         else()
             message(STATUS "Rerun SDK: ${RERUN_SDK_ROOT}")
-            
+
             # Configure Rerun to use system-installed Arrow (no download)
             set(RERUN_DOWNLOAD_AND_BUILD_ARROW OFF CACHE BOOL "Use system Arrow" FORCE)
-            
+
             # Find Arrow (should be at /usr/local after manual install)
             set(CMAKE_PREFIX_PATH "/usr/local;${CMAKE_PREFIX_PATH}")
             find_package(Arrow REQUIRED)
             message(STATUS "  - Arrow found: ${Arrow_DIR}")
-            
+
             # Add Rerun SDK as subdirectory (will build rerun_cpp from source)
             add_subdirectory(${RERUN_SDK_ROOT} ${CMAKE_CURRENT_BINARY_DIR}/rerun_sdk_build EXCLUDE_FROM_ALL)
-            
+
             # Rerun logger module
             add_library(rerun_logger
                 src/rerun/rerun_logger.cpp
@@ -131,7 +132,7 @@ if(ENABLE_RERUN)
                 ${OpenCV_LIBS}
                 rerun_sdk
             )
-            
+
             set(RERUN_ENABLED TRUE)
             message(STATUS "Rerun support: ENABLED")
         endif()
@@ -141,6 +142,15 @@ endif()
 if(NOT RERUN_ENABLED)
     message(STATUS "Rerun support: DISABLED")
 endif()
+
+# Lane tracking module
+add_library(autosteer_lane_tracking
+    src/lane_tracking/lane_tracking.cpp
+)
+target_link_libraries(autosteer_lane_tracking
+    autosteer_inference
+    ${OpenCV_LIBS}
+)
 
 # Main executable
 add_executable(autosteer_pipeline
@@ -153,6 +163,7 @@ set(AUTOSTEER_LIBS
     autosteer_inference
     autosteer_visualization
     autosteer_lane_filtering
+    autosteer_lane_tracking
     camera_utils
     path_planning
     ${OpenCV_LIBS}
