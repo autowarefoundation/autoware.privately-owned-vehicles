@@ -1,11 +1,11 @@
 /**
- * @file path_planner.cpp
- * @brief Path planner implementation
+ * @file path_finder.cpp
+ * @brief PathFinder implementation
  * 
  * Adapted from PATHFINDER's cb_drivCorr() and timer_callback()
  */
 
-#include "path_planning/path_planner.hpp"
+#include "path_planning/path_finder.hpp"
 #include <iostream>
 #include <fstream>
 #include <random>
@@ -13,13 +13,13 @@
 
 namespace autoware_pov::vision::path_planning {
 
-PathPlanner::PathPlanner(double default_lane_width)
+PathFinder::PathFinder(double default_lane_width)
     : default_lane_width_(default_lane_width)
 {
     initializeBayesFilter();
 }
 
-void PathPlanner::initializeBayesFilter()
+void PathFinder::initializeBayesFilter()
 {
     // Configure fusion groups (from PATHFINDER pathfinder_node constructor)
     // Fusion rules: {start_idx, end_idx} → fuse indices in [start, end) → result at end_idx
@@ -40,16 +40,16 @@ void PathPlanner::initializeBayesFilter()
     
     bayes_filter_.initialize(init_state);
     
-    std::cout << "[PathPlanner] Initialized with default lane width: " 
+    std::cout << "[PathFinder] Initialized with default lane width: " 
               << default_lane_width_ << " m" << std::endl;
 }
 
 
-PathPlanningOutput PathPlanner::update(
+PathFinderOutput PathFinder::update(
     const std::vector<cv::Point2f>& left_pts_bev,
     const std::vector<cv::Point2f>& right_pts_bev)
 {
-    PathPlanningOutput output;
+    PathFinderOutput output;
     output.left_valid = false;
     output.right_valid = false;
     output.fused_valid = false;
@@ -190,12 +190,12 @@ PathPlanningOutput PathPlanner::update(
     return output;
 }
 
-const std::array<Gaussian, STATE_DIM>& PathPlanner::getState() const
+const std::array<Gaussian, STATE_DIM>& PathFinder::getState() const
 {
     return bayes_filter_.getState();
 }
 
-void PathPlanner::reset()
+void PathFinder::reset()
 {
     initializeBayesFilter();
 }
