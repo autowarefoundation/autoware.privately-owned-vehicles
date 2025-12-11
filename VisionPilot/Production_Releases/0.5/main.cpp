@@ -734,7 +734,7 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     bool enable_rerun = false;
     bool spawn_rerun_viewer = true;
     std::string rerun_save_path = "";
-    bool enable_path_planner = false;
+    bool enable_path_planner = true;
     
     for (int i = base_idx + 7; i < argc; ++i) {
         std::string arg = argv[i];
