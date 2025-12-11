@@ -1,6 +1,6 @@
 /**
- * @file path_planner.hpp
- * @brief Standalone path planning module (no ROS2)
+ * @file path_finder.hpp
+ * @brief Standalone PathFinder module (no ROS2)
  * 
  * Integrates polynomial fitting and Bayes filter for robust lane tracking
  */
@@ -17,9 +17,9 @@
 namespace autoware_pov::vision::path_planning {
 
 /**
- * @brief Output of path planning module
+ * @brief Output of PathFinder module
  */
-struct PathPlanningOutput
+struct PathFinderOutput
 {
     // Fused metrics from Bayes filter (temporally smoothed)
     double cte;          // Cross-track error (meters)
@@ -52,7 +52,7 @@ struct PathPlanningOutput
 };
 
 /**
- * @brief Path planner for lane tracking and trajectory estimation
+ * @brief PathFinder for lane tracking and trajectory estimation
  * 
  * Features:
  * - Polynomial fitting to BEV lane points (in meters)
@@ -61,23 +61,23 @@ struct PathPlanningOutput
  * 
  * Note: Expects BEV points already in metric coordinates (meters)
  */
-class PathPlanner
+class PathFinder
 {
 public:
     /**
-     * @brief Initialize path planner
+     * @brief Initialize PathFinder
      * @param default_lane_width Default lane width in meters (default: 4.0)
      */
-    explicit PathPlanner(double default_lane_width = 4.0);
+    explicit PathFinder(double default_lane_width = 4.0);
     
     /**
      * @brief Update with new lane detections
      * 
      * @param left_pts_bev Left lane points in BEV meters (x=lateral, y=longitudinal)
      * @param right_pts_bev Right lane points in BEV meters
-     * @return Path planning output (fused metrics + individual curves)
+     * @return PathFinder output (fused metrics + individual curves)
      */
-    PathPlanningOutput update(
+    PathFinderOutput update(
         const std::vector<cv::Point2f>& left_pts_bev,
         const std::vector<cv::Point2f>& right_pts_bev);
     
