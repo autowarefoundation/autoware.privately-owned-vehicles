@@ -426,186 +426,188 @@ void drawPolyFitLanesInPlace(
   const LaneSegmentation& lanes
 )
 {
-    cv::Scalar color_ego_left(255, 0, 0);     // Blue
-    cv::Scalar color_ego_right(255, 0, 200);  // Magenta
-    cv::Scalar color_center(0, 255, 255);     // Yellow
-    
-    // Draw vectors
+  cv::Scalar color_ego_left(255, 0, 0);     // Blue
+  cv::Scalar color_ego_right(255, 0, 200);  // Magenta
+  cv::Scalar color_center(0, 255, 255);     // Yellow
+  
+  // Draw vectors
 
-    // Egoleft
-    if (!lanes.left_coeffs.empty()) {
-        auto left_points = genSmoothCurve(
-          lanes.left_coeffs, 
-          image.cols, 
-          image.rows, 
-          lanes.width, 
-          lanes.height
-        );
-        if (left_points.size() > 1) {
-            cv::polylines(
-              image, 
-              left_points, 
-              false, 
-              color_ego_left, 
-              15, 
-              cv::LINE_AA
-            );
-            cv::polylines(
-              image, 
-              left_points, 
-              false, 
-              cv::Scalar(255, 200, 0), 
-              5, 
-              cv::LINE_AA
-            );
-        }
-    }
-
-    // Egoright
-    if (!lanes.right_coeffs.empty()) {
-        auto right_points = genSmoothCurve(
-          lanes.right_coeffs, 
-          image.cols, 
-          image.rows, 
-          lanes.width, 
-          lanes.height
-        );
-        if (right_points.size() > 1) {
-            cv::polylines(
-              image, 
-              right_points, 
-              false, 
-              color_ego_right, 
-              15, 
-              cv::LINE_AA
-            );
-            cv::polylines(
-              image, 
-              right_points, 
-              false, 
-              cv::Scalar(255, 150, 255), 
-              5, 
-              cv::LINE_AA
-            );
-        }
-    }
-
-    // Drivable path
-    if (
-      lanes.path_valid && 
-      !lanes.center_coeffs.empty()
-    ) {
-        std::vector<double> viz_coeffs = lanes.center_coeffs;
-        viz_coeffs[5] = static_cast<double>(lanes.height - 1);  // Extend to bottom
-
-        auto center_points = genSmoothCurve(
-          viz_coeffs, 
-          image.cols, 
-          image.rows, 
-          lanes.width, 
-          lanes.height
-        );
-        
-        if (center_points.size() > 1) {
-            cv::polylines(
-              image, 
-              center_points, 
-              false, 
-              color_center, 
-              15, 
-              cv::LINE_AA
-            );
-            cv::polylines(
-              image, 
-              center_points, 
-              false, 
-              cv::Scalar(255, 255, 255), 
-              5, 
-              cv::LINE_AA
-            );
-        }
-
-        // Params info as text for now
-        std::vector<std::string> lines;
-        lines.push_back(cv::format("Lane offset: %.2f px", lanes.lane_offset));
-        lines.push_back(cv::format("Yaw offset: %.2f rad", lanes.yaw_offset));
-        // lines.push_back(cv::format("Steering angle: %.2f deg", lanes.steering_angle));
-        lines.push_back(cv::format("Curvature: %.4f", lanes.curvature));
-
-        int font = cv::FONT_HERSHEY_SIMPLEX;
-        double scale = 1.2;
-        int thickness = 2;
-        int line_spacing = 10; // extra spacing
-        int margin = 50;
-        int y = margin;
-        
-        for (const auto& l : lines) {
-            cv::Size textSize = cv::getTextSize(
-              l, 
-              font, 
-              scale, 
-              thickness, 
-              nullptr
-            );
-            int x = image.cols - textSize.width - margin;  // Align right
-            cv::putText(
-              image, 
-              l, 
-              cv::Point(x, y), 
-              font, 
-              scale, 
-              color_center, 
-              thickness
-            );
-            y += textSize.height + line_spacing;
-        }
-    }
-    
-    cv::putText(
-      image, 
-      "FINAL: RANSAC polyfit", 
-      cv::Point(20, 40), 
-      cv::FONT_HERSHEY_SIMPLEX, 
-      1.0, 
-      cv::Scalar(0, 255, 0), 
-      2
+  // Egoleft
+  if (!lanes.left_coeffs.empty()) {
+    auto left_points = genSmoothCurve(
+      lanes.left_coeffs, 
+      image.cols, 
+      image.rows, 
+      lanes.width, 
+      lanes.height
     );
+    if (left_points.size() > 1) {
+      cv::polylines(
+        image, 
+        left_points, 
+        false, 
+        color_ego_left, 
+        15, 
+        cv::LINE_AA
+      );
+      cv::polylines(
+        image, 
+        left_points, 
+        false, 
+        cv::Scalar(255, 200, 0), 
+        5, 
+        cv::LINE_AA
+      );
+    }
+  }
+
+  // Egoright
+  if (!lanes.right_coeffs.empty()) {
+    auto right_points = genSmoothCurve(
+      lanes.right_coeffs, 
+      image.cols, 
+      image.rows, 
+      lanes.width, 
+      lanes.height
+    );
+    if (right_points.size() > 1) {
+      cv::polylines(
+        image, 
+        right_points, 
+        false, 
+        color_ego_right, 
+        15, 
+        cv::LINE_AA
+      );
+      cv::polylines(
+        image, 
+        right_points, 
+        false, 
+        cv::Scalar(255, 150, 255), 
+        5, 
+        cv::LINE_AA
+      );
+    }
+  }
+
+  // Drivable path
+  if (
+    lanes.path_valid && 
+    !lanes.center_coeffs.empty()
+  )
+  {
+    std::vector<double> viz_coeffs = lanes.center_coeffs;
+    viz_coeffs[5] = static_cast<double>(lanes.height - 1);  // Extend to bottom
+
+    auto center_points = genSmoothCurve(
+      viz_coeffs, 
+      image.cols, 
+      image.rows, 
+      lanes.width, 
+      lanes.height
+    );
+    
+    if (center_points.size() > 1) {
+      cv::polylines(
+        image, 
+        center_points, 
+        false, 
+        color_center, 
+        15, 
+        cv::LINE_AA
+      );
+      cv::polylines(
+        image, 
+        center_points, 
+        false, 
+        cv::Scalar(255, 255, 255), 
+        5, 
+        cv::LINE_AA
+      );
+    }
+
+    // Params info as text for now
+    std::vector<std::string> lines;
+    lines.push_back(cv::format("Lane offset: %.2f px", lanes.lane_offset));
+    lines.push_back(cv::format("Yaw offset: %.2f rad", lanes.yaw_offset));
+    // lines.push_back(cv::format("Steering angle: %.2f deg", lanes.steering_angle));
+    lines.push_back(cv::format("Curvature: %.4f", lanes.curvature));
+
+    int font = cv::FONT_HERSHEY_SIMPLEX;
+    double scale = 1.2;
+    int thickness = 2;
+    int line_spacing = 10; // extra spacing
+    int margin = 50;
+    int y = margin;
+    
+    for (const auto& l : lines) {
+      cv::Size textSize = cv::getTextSize(
+        l, 
+        font, 
+        scale, 
+        thickness, 
+        nullptr
+      );
+      int x = image.cols - textSize.width - margin;  // Align right
+      cv::putText(
+        image, 
+        l, 
+        cv::Point(x, y), 
+        font, 
+        scale, 
+        color_center, 
+        thickness
+      );
+      y += textSize.height + line_spacing;
+    }
+  }
+  
+  cv::putText(
+    image, 
+    "FINAL: RANSAC polyfit", 
+    cv::Point(20, 40), 
+    cv::FONT_HERSHEY_SIMPLEX, 
+    1.0, 
+    cv::Scalar(0, 255, 0), 
+    2
+  );
 }
 
 // ========================== ADDITIONAL VIS VIEW - BEV ========================== //
 
 // Helper func: gen points from coeffs directly in BEV space (no scaling needed)
 static std::vector<cv::Point> genBEVPoints(
-    const std::vector<double>& coeffs,
-    int bev_height = 640
+  const std::vector<double>& coeffs,
+  int bev_height = 640
 )
 {
-    std::vector<cv::Point> points;
-    // Now using quadratic coeffs: [0, a, b, c, min_y, max_y]
-    if (coeffs.size() < 6) return points;
+  std::vector<cv::Point> points;
+  // Now using quadratic coeffs: [0, a, b, c, min_y, max_y]
+  if (coeffs.size() < 6) return points;
 
-    double a = coeffs[1];
-    double b = coeffs[2];
-    double c = coeffs[3];
-    double min_y = coeffs[4];
-    double max_y = coeffs[5];
+  double a = coeffs[1];
+  double b = coeffs[2];
+  double c = coeffs[3];
+  double min_y = coeffs[4];
+  double max_y = coeffs[5];
 
-    for (int y = 0; y < bev_height; ++y) {
-        // Only draw within valid y-range defined by fitted points
-        if (y < min_y || y > max_y) continue;
+  for (int y = 0; y < bev_height; ++y) {
+    // Only draw within valid y-range defined by fitted points
+    if (y < min_y || y > max_y) continue;
 
-        // x = ay^2 + by + c
-        double x = a*y*y + b*y + c;
-        
-        // BEV grid is 640 wide
-        if (x >= 0 && x < 640) {
-            points.push_back(cv::Point(
-              static_cast<int>(x), 
-              y
-            ));
-        }
+    // x = ay^2 + by + c
+    double x = a*y*y + b*y + c;
+    
+    // BEV grid is 640 wide
+    if (x >= 0 && x < 640) {
+      points.push_back(cv::Point(
+        static_cast<int>(x), 
+        y
+      ));
     }
-    return points;
+  }
+
+  return points;
 }
 
 // Helper func: draw BEV vis
@@ -617,34 +619,34 @@ void drawBEVVis(
 {
     // 1. Warp orig frame to BEV (640 x 640)
     if (image.size() != cv::Size(640, 640)) {
-        image.create(
-          640, 
-          640, 
-          orig_frame.type()
-        );
+      image.create(
+        640, 
+        640, 
+        orig_frame.type()
+      );
     }
 
     cv::warpPerspective(
-        orig_frame,
-        image,
-        bev_data.H_orig_to_bev,
-        cv::Size(
-          640, 
-          640
-        )
+      orig_frame,
+      image,
+      bev_data.H_orig_to_bev,
+      cv::Size(
+        640, 
+        640
+      )
     );
 
     if (!bev_data.valid) {
-        cv::putText(
-          image, 
-          "BEV Tracking: Waiting...", 
-          cv::Point(20, 40), 
-          cv::FONT_HERSHEY_SIMPLEX, 
-          1.0, 
-          cv::Scalar(0, 0, 255), 
-          2
-        );
-        return;
+      cv::putText(
+        image, 
+        "BEV Tracking: Waiting...", 
+        cv::Point(20, 40), 
+        cv::FONT_HERSHEY_SIMPLEX, 
+        1.0, 
+        cv::Scalar(0, 0, 255), 
+        2
+      );
+      return;
     }
 
     int bev_h = 640;
@@ -652,6 +654,15 @@ void drawBEVVis(
     cv::Scalar color_right(255, 0, 200);  // Magenta
     cv::Scalar color_center(0, 255, 255); // Yellow
     int thickness = 4;
+
+    // 2. Egoleft
+    auto left_pts = genBEVPoints(
+      bev_data.bev_left_coeffs, 
+      bev_h
+    );
+    if (left_pts.size() > 1) {
+        cv::polylines(image, left_pts, false, color_left, thickness, cv::LINE_AA);
+    }
 
 }  // namespace autoware_pov::vision::autosteer
 
