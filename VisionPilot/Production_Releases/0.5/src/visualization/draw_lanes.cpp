@@ -687,5 +687,21 @@ void drawBEVVis(
       );
     }
 
+    // 4. Drivable corridor 
+    auto center_pts = genBEVPoints(
+      bev_data.bev_center_coeffs, 
+      bev_h
+    );
+    if (center_pts.size() > 1) {
+      cv::polylines(
+        image, 
+        center_pts, 
+        false, 
+        color_center, 
+        thickness, 
+        cv::LINE_AA
+      );
+    }
+
 }  // namespace autoware_pov::vision::autosteer
 
