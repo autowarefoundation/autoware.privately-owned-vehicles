@@ -223,6 +223,17 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
             640
         );
 
+        // Store coeffs for BEV vis later
+        metrics.bev_visuals.bev_center_coeffs = bev_coeffs;
+        metrics.bev_visuals.bev_left_coeffs = fitPoly2ndOrder(
+            left_pts_bev, 
+            640
+        );
+        metrics.bev_visuals.bev_right_coeffs = fitPoly2ndOrder(
+            right_pts_bev, 
+            640
+        );
+
         // BEV curve params at bottom of BEV grid (y = 640)
         // BEV center is x = 320
         double bev_car_y = 640.0;
