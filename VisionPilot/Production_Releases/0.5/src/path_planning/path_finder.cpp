@@ -166,6 +166,7 @@ PathFinderOutput PathFinder::update(
     output.cte_variance = state[3].variance;
     output.yaw_variance = state[7].variance;
     output.curv_variance = state[11].variance;
+    output.lane_width_variance = state[12].variance;
     
     output.fused_valid = !std::isnan(output.cte) && 
                          !std::isnan(output.yaw_error) && 
