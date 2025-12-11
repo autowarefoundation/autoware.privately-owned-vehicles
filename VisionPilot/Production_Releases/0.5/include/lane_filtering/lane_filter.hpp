@@ -33,17 +33,17 @@ private:
 
     // Sliding window params
     const int sliding_window_height = 4;
-    const int sliding_window_width = 8;
-    const int min_pixels_for_fit = 5;
+    const int sliding_window_width = 6;
+    const int min_pixels_for_fit = 4;
     const int consecutive_empty_threshold = 12;
 
     // Adaptive window width params
     const int min_window_width = 1;
-    const int max_window_width = 8;
-    const int height_threshold = 50;
+    const int max_window_width = 6;
+    const int height_threshold = 40;
 
     // Priority strategy params
-    const int priority_pixel_y_threshold = 60;
+    const int priority_pixel_y_threshold = 40;
 
     // RANSAC polyfit params
     const int ransac_iterations = 50;       // Combi of iterations
@@ -58,9 +58,9 @@ private:
 
     // GOOD state criteria
     // 1. Line must cover at least X% of image height
-    const float min_history_span_ratio = 0.25f; 
+    const float min_history_span_ratio = 0.30f; 
     // 2. Line must have at least X raw pixels (totally intuitive pls don't ask me how)
-    const size_t min_history_pixels = 10;
+    const size_t min_history_pixels = 30;
 
     // RANSAC helper func
     std::vector<double> fitPolySimple(
