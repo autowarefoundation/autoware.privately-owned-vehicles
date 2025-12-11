@@ -86,7 +86,7 @@ target_link_libraries(camera_utils
 add_library(path_planning
     src/path_planning/estimator.cpp
     src/path_planning/poly_fit.cpp
-    src/path_planning/path_planner.cpp
+    src/path_planning/path_finder.cpp
 )
 target_link_libraries(path_planning
     ${OpenCV_LIBS}
