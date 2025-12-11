@@ -1,5 +1,6 @@
 #include "visualization/draw_lanes.hpp"
 #include <opencv2/core/types.hpp>
+#include <opencv2/highgui.hpp>
 
 namespace autoware_pov::vision::autosteer
 {

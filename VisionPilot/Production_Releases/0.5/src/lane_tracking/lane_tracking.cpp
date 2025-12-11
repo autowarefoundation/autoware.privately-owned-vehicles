@@ -44,6 +44,8 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
     LaneSegmentation output_lanes = input_lanes;
     DualViewMetrics metrics;
 
+    metrics.bev_visuals.H_orig_to_bev = H_orig_to_bev.clone();
+
     // Coeffs in input_lanes are normalized to 160 x 80.
     // Must upscale em to image_size for warping.
     
@@ -282,7 +284,6 @@ std::pair<LaneSegmentation, DualViewMetrics> LaneTracker::update(
         output_lanes.curvature = metrics.orig_curvature;
 
         // Populate BEV vis data
-        metrics.bev_visuals.H_orig_to_bev = H_orig_to_bev.clone();
         metrics.bev_visuals.last_valid_width_pixels = last_valid_bev_width;
         metrics.bev_visuals.valid = true;
     }
