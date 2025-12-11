@@ -661,7 +661,14 @@ void drawBEVVis(
       bev_h
     );
     if (left_pts.size() > 1) {
-        cv::polylines(image, left_pts, false, color_left, thickness, cv::LINE_AA);
+      cv::polylines(
+        image, 
+        left_pts, 
+        false, 
+        color_left, 
+        thickness, 
+        cv::LINE_AA
+      );
     }
 
 }  // namespace autoware_pov::vision::autosteer
