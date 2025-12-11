@@ -271,6 +271,10 @@ void inferenceThread(
         long inference_us = duration_cast<microseconds>(
             t_inference_end - t_inference_start).count();
         metrics.total_inference_us.fetch_add(inference_us);
+        // lane_tracker.update( filtered_lanes, tf.frame.size() );
+        // filtered_bev_points = Lanefra
+        // get filtered_bev_points.ego_left, filtered_bev_points.ego_right
+        //TransformLanePoints(filtered_bev_points.ego_left);
 
         // ========================================
         // PATH PLANNING (Polynomial Fitting + Bayes Filter)
