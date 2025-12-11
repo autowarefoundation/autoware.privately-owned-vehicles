@@ -8,26 +8,28 @@
  * - Display Thread: Optionally visualizes and saves results
  */
 
- #include "inference/onnxruntime_engine.hpp"
- #include "visualization/draw_lanes.hpp"
- #include "lane_filtering/lane_filter.hpp"
- #include "camera/camera_utils.hpp"
- #ifdef ENABLE_RERUN
- #include "rerun/rerun_logger.hpp"
- #endif
- #include <opencv2/opencv.hpp>
- #include <thread>
- #include <queue>
- #include <mutex>
- #include <condition_variable>
- #include <atomic>
- #include <chrono>
- #include <iostream>
- #include <iomanip>
- 
- using namespace autoware_pov::vision::autosteer;
- using namespace autoware_pov::vision::camera;
- using namespace std::chrono;
+#include "inference/onnxruntime_engine.hpp"
+#include "visualization/draw_lanes.hpp"
+#include "lane_filtering/lane_filter.hpp"
+#include "camera/camera_utils.hpp"
+#include "path_planning/path_planner.hpp"
+#ifdef ENABLE_RERUN
+#include "rerun/rerun_logger.hpp"
+#endif
+#include <opencv2/opencv.hpp>
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <chrono>
+#include <iostream>
+#include <iomanip>
+
+using namespace autoware_pov::vision::autosteer;
+using namespace autoware_pov::vision::camera;
+using namespace autoware_pov::vision::path_planning;
+using namespace std::chrono;
  
  // Thread-safe queue with max size limit
  template<typename T>
@@ -106,19 +108,58 @@
      steady_clock::time_point inference_time;
  };
  
- // Performance metrics
- struct PerformanceMetrics {
-     std::atomic<long> total_capture_us{0};
-     std::atomic<long> total_inference_us{0};
-     std::atomic<long> total_display_us{0};
-     std::atomic<long> total_end_to_end_us{0};
-     std::atomic<int> frame_count{0};
-     bool measure_latency{true};
- };
- 
- /**
-  * @brief Unified capture thread - handles both video files and cameras
-  */
+// Performance metrics
+struct PerformanceMetrics {
+    std::atomic<long> total_capture_us{0};
+    std::atomic<long> total_inference_us{0};
+    std::atomic<long> total_display_us{0};
+    std::atomic<long> total_end_to_end_us{0};
+    std::atomic<int> frame_count{0};
+    bool measure_latency{true};
+};
+
+/**
+ * @brief Extract lane points from binary mask (PLACEHOLDER - TODO: Implement)
+ * 
+ * TODO: Implement lane point extraction from segmentation mask.
+ * Possible approaches:
+ *   1. Skeleton extraction (cv::ximgproc::thinning)
+ *   2. Contour tracing (cv::findContours)
+ *   3. Vertical scan (sample points at fixed y intervals)
+ *   4. Distance transform + peak detection
+ * 
+ * For now, returns empty vector (PathPlanner will handle NaN gracefully)
+ * 
+ * @param mask Lane segmentation mask (160x80, float 0-1)
+ * @return Vector of points in pixel coordinates (x=column, y=row)
+ */
+std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
+    // TODO: IMPLEMENT LANE POINT EXTRACTION
+    // This is a placeholder that returns empty vector
+    // PathPlanner will handle this as missing lane detection
+    
+    std::vector<cv::Point2f> points;
+    
+    // Example stub implementation (replace with your actual extraction logic):
+    // 1. Threshold mask if needed
+    // cv::Mat binary;
+    // cv::threshold(mask, binary, 0.5, 1.0, cv::THRESH_BINARY);
+    
+    // 2. Extract skeleton or centerline
+    // ... your implementation here ...
+    
+    // 3. Sample points along the lane
+    // for (int y = 0; y < mask.rows; y += sampling_interval) {
+    //     // Find x position of lane at this y
+    //     // points.push_back(cv::Point2f(x, y));
+    // }
+    
+    return points;  // Empty for now - PathPlanner handles NaN
+}
+
+/**
+ * @brief Unified capture thread - handles both video files and cameras
+ */
  void captureThread(
      const std::string& source,
      bool is_camera,
@@ -193,42 +234,70 @@
      cap.release();
  }
  
- /**
-  * @brief Inference thread - runs lane detection model
-  */
- void inferenceThread(
-     AutoSteerOnnxEngine& engine,
-     ThreadSafeQueue<TimestampedFrame>& input_queue,
-     ThreadSafeQueue<InferenceResult>& output_queue,
-     PerformanceMetrics& metrics,
-     std::atomic<bool>& running,
-     float threshold
- #ifdef ENABLE_RERUN
-     , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
- #endif
- )
- {
-     // Init lane filter
-     LaneFilter lane_filter(0.5f);
- 
-     while (running.load()) {
-         TimestampedFrame tf = input_queue.pop();
-         if (tf.frame.empty()) continue;
- 
-         auto t_inference_start = steady_clock::now();
- 
-         // Run inference
-         LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
- 
-         // Post-processing with lane filter
-         LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
- 
-         auto t_inference_end = steady_clock::now();
- 
-         // Calculate inference latency
-         long inference_us = duration_cast<microseconds>(
-             t_inference_end - t_inference_start).count();
-         metrics.total_inference_us.fetch_add(inference_us);
+/**
+ * @brief Inference thread - runs lane detection model
+ */
+void inferenceThread(
+    AutoSteerOnnxEngine& engine,
+    ThreadSafeQueue<TimestampedFrame>& input_queue,
+    ThreadSafeQueue<InferenceResult>& output_queue,
+    PerformanceMetrics& metrics,
+    std::atomic<bool>& running,
+    float threshold,
+    PathPlanner* path_planner = nullptr
+#ifdef ENABLE_RERUN
+    , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
+#endif
+)
+{
+    // Init lane filter
+    LaneFilter lane_filter(0.5f);
+
+    while (running.load()) {
+        TimestampedFrame tf = input_queue.pop();
+        if (tf.frame.empty()) continue;
+
+        auto t_inference_start = steady_clock::now();
+
+        // Run inference
+        LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
+
+        // Post-processing with lane filter
+        LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
+
+        auto t_inference_end = steady_clock::now();
+
+        // Calculate inference latency
+        long inference_us = duration_cast<microseconds>(
+            t_inference_end - t_inference_start).count();
+        metrics.total_inference_us.fetch_add(inference_us);
+
+        // ========================================
+        // PATH PLANNING (Polynomial Fitting + Bayes Filter)
+        // ========================================
+        if (path_planner != nullptr) {
+            // TODO: Extract lane points from masks (implement extractLanePoints function above)
+            std::vector<cv::Point2f> left_pts_pixel = extractLanePoints(filtered_lanes.ego_left);
+            std::vector<cv::Point2f> right_pts_pixel = extractLanePoints(filtered_lanes.ego_right);
+            
+            // Update path planner (handles BEV transform, polynomial fit, Bayes filter)
+            PathPlanningOutput path_output = path_planner->update(left_pts_pixel, right_pts_pixel);
+            
+            // Print output (cross-track error, yaw error, curvature, lane width)
+            if (path_output.fused_valid) {
+                std::cout << "[PathPlanner Frame " << tf.frame_number << "] "
+                          << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m, "
+                          << "Yaw: " << path_output.yaw_error << " rad, "
+                          << "Curvature: " << path_output.curvature << " 1/m, "
+                          << "Width: " << path_output.lane_width << " m" << std::endl;
+                
+                // Print polynomial coefficients (for control interface)
+                std::cout << "  Center polynomial: c0=" << path_output.center_coeff[0]
+                          << ", c1=" << path_output.center_coeff[1]
+                          << ", c2=" << path_output.center_coeff[2] << std::endl;
+            }
+        }
+        // ========================================
  
 #ifdef ENABLE_RERUN
         // Log to Rerun with downsampled frame (reduces data by 75%)
@@ -436,16 +505,21 @@
          std::cerr << "  enable_viz: (optional) 'true' for visualization (default: true)\n";
          std::cerr << "  save_video: (optional) 'true' to save video (default: false)\n";
          std::cerr << "  output_video: (optional) Output video path (default: output.avi)\n\n";
-         std::cerr << "Rerun Logging (optional):\n";
-         std::cerr << "  --rerun              : Enable Rerun live viewer\n";
-         std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n\n";
-         std::cerr << "Examples:\n";
-         std::cerr << "  # Camera with live Rerun viewer:\n";
-         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
-         std::cerr << "  # Camera saving to file:\n";
-         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun-save recording.rrd\n\n";
-         std::cerr << "  # Video without Rerun:\n";
-         std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
+        std::cerr << "Rerun Logging (optional):\n";
+        std::cerr << "  --rerun              : Enable Rerun live viewer\n";
+        std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n\n";
+        std::cerr << "Path Planning (optional):\n";
+        std::cerr << "  --homography <path>  : Path to homography matrix YAML file\n";
+        std::cerr << "  -H <path>            : (short form)\n\n";
+        std::cerr << "Examples:\n";
+        std::cerr << "  # Camera with live Rerun viewer:\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
+        std::cerr << "  # Video with path planning:\n";
+        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32 --homography H.yaml\n\n";
+        std::cerr << "  # Camera with path planning + Rerun:\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --homography H.yaml --rerun\n\n";
+        std::cerr << "  # Video without extras:\n";
+        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
          return 1;
      }
      
@@ -511,25 +585,33 @@
      bool save_video = (argc >= base_idx + 6) ? (std::string(argv[base_idx + 5]) == "true") : false;
      std::string output_video_path = (argc >= base_idx + 7) ? argv[base_idx + 6] : "output.avi";
  
-     // Parse Rerun flags (check all remaining arguments)
-     bool enable_rerun = false;
-     bool spawn_rerun_viewer = true;
-     std::string rerun_save_path = "";
-     
-     for (int i = base_idx + 7; i < argc; ++i) {
-         std::string arg = argv[i];
-         if (arg == "--rerun") {
-             enable_rerun = true;
-         } else if (arg == "--rerun-save") {
-             enable_rerun = true;
-             spawn_rerun_viewer = false;
-             if (i + 1 < argc && argv[i + 1][0] != '-') {
-                 rerun_save_path = argv[++i];
-             } else {
-                 rerun_save_path = "autosteer.rrd";
-             }
-         }
-     }
+    // Parse Rerun flags and PathPlanner flags (check all remaining arguments)
+    bool enable_rerun = false;
+    bool spawn_rerun_viewer = true;
+    std::string rerun_save_path = "";
+    std::string homography_path = "";
+    
+    for (int i = base_idx + 7; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--rerun") {
+            enable_rerun = true;
+        } else if (arg == "--rerun-save") {
+            enable_rerun = true;
+            spawn_rerun_viewer = false;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                rerun_save_path = argv[++i];
+            } else {
+                rerun_save_path = "autosteer.rrd";
+            }
+        } else if (arg == "--homography" || arg == "-H") {
+            if (i + 1 < argc) {
+                homography_path = argv[++i];
+            } else {
+                std::cerr << "Error: --homography requires a file path" << std::endl;
+                return 1;
+            }
+        }
+    }
  
      if (save_video && !enable_viz) {
          std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
@@ -570,18 +652,31 @@
      
      std::cout << "Backend ready!\n" << std::endl;
  
- #ifdef ENABLE_RERUN
-     // Initialize Rerun logger (optional)
-     std::unique_ptr<autoware_pov::vision::rerun_integration::RerunLogger> rerun_logger;
-     if (enable_rerun) {
-         rerun_logger = std::make_unique<autoware_pov::vision::rerun_integration::RerunLogger>(
-             "AutoSteer", spawn_rerun_viewer, rerun_save_path);
-     }
- #endif
- 
-     // Thread-safe queues with bounded size (prevents memory overflow)
-     ThreadSafeQueue<TimestampedFrame> capture_queue(5);   // Max 5 frames waiting for inference
-     ThreadSafeQueue<InferenceResult> display_queue(5);    // Max 5 frames waiting for display
+#ifdef ENABLE_RERUN
+    // Initialize Rerun logger (optional)
+    std::unique_ptr<autoware_pov::vision::rerun_integration::RerunLogger> rerun_logger;
+    if (enable_rerun) {
+        rerun_logger = std::make_unique<autoware_pov::vision::rerun_integration::RerunLogger>(
+            "AutoSteer", spawn_rerun_viewer, rerun_save_path);
+    }
+#endif
+
+    // Initialize PathPlanner (optional - requires homography matrix)
+    std::unique_ptr<PathPlanner> path_planner;
+    if (!homography_path.empty()) {
+        try {
+            cv::Mat H = loadHomographyFromYAML(homography_path);
+            path_planner = std::make_unique<PathPlanner>(H, 4.0);  // 4.0m default lane width
+            std::cout << "PathPlanner initialized with homography from: " << homography_path << "\n" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Failed to initialize PathPlanner: " << e.what() << std::endl;
+            std::cerr << "Continuing without path planning...\n" << std::endl;
+        }
+    }
+
+    // Thread-safe queues with bounded size (prevents memory overflow)
+    ThreadSafeQueue<TimestampedFrame> capture_queue(5);   // Max 5 frames waiting for inference
+    ThreadSafeQueue<InferenceResult> display_queue(5);    // Max 5 frames waiting for display
  
      // Performance metrics
      PerformanceMetrics metrics;
@@ -592,17 +687,20 @@
      std::cout << "========================================" << std::endl;
      std::cout << "Starting multi-threaded inference pipeline" << std::endl;
      std::cout << "========================================" << std::endl;
-     std::cout << "Source: " << (is_camera ? "Camera" : "Video") << std::endl;
-     std::cout << "Mode: " << (enable_viz ? "Visualization" : "Headless") << std::endl;
-     std::cout << "Threshold: " << threshold << std::endl;
- #ifdef ENABLE_RERUN
-     if (enable_rerun && rerun_logger && rerun_logger->isEnabled()) {
-         std::cout << "Rerun logging: ENABLED" << std::endl;
-     }
- #endif
-     if (measure_latency) {
-         std::cout << "Latency measurement: ENABLED (metrics every 30 frames)" << std::endl;
-     }
+    std::cout << "Source: " << (is_camera ? "Camera" : "Video") << std::endl;
+    std::cout << "Mode: " << (enable_viz ? "Visualization" : "Headless") << std::endl;
+    std::cout << "Threshold: " << threshold << std::endl;
+#ifdef ENABLE_RERUN
+    if (enable_rerun && rerun_logger && rerun_logger->isEnabled()) {
+        std::cout << "Rerun logging: ENABLED" << std::endl;
+    }
+#endif
+    if (path_planner) {
+        std::cout << "PathPlanner: ENABLED (polynomial fitting + Bayes filter)" << std::endl;
+    }
+    if (measure_latency) {
+        std::cout << "Latency measurement: ENABLED (metrics every 30 frames)" << std::endl;
+    }
      if (save_video && enable_viz) {
          std::cout << "Video saving: ENABLED -> " << output_video_path << std::endl;
      }
@@ -614,18 +712,20 @@
      }
      std::cout << "========================================\n" << std::endl;
  
-     std::thread t_capture(captureThread, source, is_camera, std::ref(capture_queue),
-                           std::ref(metrics), std::ref(running));
- #ifdef ENABLE_RERUN
-     std::thread t_inference(inferenceThread, std::ref(engine),
-                             std::ref(capture_queue), std::ref(display_queue),
-                             std::ref(metrics), std::ref(running), threshold,
-                             rerun_logger.get());
- #else
-     std::thread t_inference(inferenceThread, std::ref(engine),
-                             std::ref(capture_queue), std::ref(display_queue),
-                             std::ref(metrics), std::ref(running), threshold);
- #endif
+    std::thread t_capture(captureThread, source, is_camera, std::ref(capture_queue),
+                          std::ref(metrics), std::ref(running));
+#ifdef ENABLE_RERUN
+    std::thread t_inference(inferenceThread, std::ref(engine),
+                            std::ref(capture_queue), std::ref(display_queue),
+                            std::ref(metrics), std::ref(running), threshold,
+                            path_planner.get(),
+                            rerun_logger.get());
+#else
+    std::thread t_inference(inferenceThread, std::ref(engine),
+                            std::ref(capture_queue), std::ref(display_queue),
+                            std::ref(metrics), std::ref(running), threshold,
+                            path_planner.get());
+#endif
      std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                           std::ref(running), enable_viz, save_video, output_video_path);
  
