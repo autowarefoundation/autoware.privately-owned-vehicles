@@ -1,3 +1,6 @@
+#ifndef AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
+#define AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
+
 #include "inference/onnxruntime_engine.hpp"
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -121,3 +124,5 @@ private:
 };
 
 } // namespace autoware_pov::vision::autosteer
+
+#endif // AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
