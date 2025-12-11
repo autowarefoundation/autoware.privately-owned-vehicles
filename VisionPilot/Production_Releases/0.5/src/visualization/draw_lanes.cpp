@@ -703,5 +703,74 @@ void drawBEVVis(
       );
     }
 
+    // 5. Lane width bar (last known good width)
+    // Width bar vis
+    if (bev_data.last_valid_width_pixels > 0) {
+      int y_pos = 600;    // Near bottom
+      int center_x = 320; // BEV center
+      int half_width = static_cast<int>(bev_data.last_valid_width_pixels / 2.0);
+      
+      cv::Point p1(
+        center_x - half_width, 
+        y_pos
+      );
+      cv::Point p2(
+        center_x + half_width, 
+        y_pos
+      );
+      
+      // Main width line
+      cv::line(
+        image, 
+        p1, 
+        p2, 
+        cv::Scalar(255, 255, 255), 
+        2
+      );
+      
+      // End markers (2 ticks both ends)
+      cv::line(
+        image, 
+        cv::Point(p1.x, y_pos-10), 
+        cv::Point(p1.x, y_pos+10), 
+        cv::Scalar(255, 255, 255), 
+        2
+      );
+      cv::line(
+        image, 
+        cv::Point(p2.x, y_pos-10), 
+        cv::Point(p2.x, y_pos+10), 
+        cv::Scalar(255, 255, 255), 
+        2
+      );
+      
+      // Some texts
+      std::string width_txt = cv::format(
+        "Lane Width: %.0f px", 
+        bev_data.last_valid_width_pixels
+      );
+      int baseline = 0;
+      cv::Size sz = cv::getTextSize(
+        width_txt, 
+        cv::FONT_HERSHEY_SIMPLEX, 
+        0.6, 
+        1, 
+        &baseline
+      );
+      cv::Point text_org(
+        center_x - sz.width / 2, 
+        y_pos - 20
+      );
+      cv::putText(
+        image, 
+        width_txt, 
+        text_org, 
+        cv::FONT_HERSHEY_SIMPLEX, 
+        0.6, 
+        cv::Scalar(255, 255, 255), 
+        1
+      );
+    }
+
 }  // namespace autoware_pov::vision::autosteer
 
