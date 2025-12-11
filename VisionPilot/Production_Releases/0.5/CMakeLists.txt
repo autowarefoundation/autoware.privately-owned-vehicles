@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find dependencies
 find_package(OpenCV REQUIRED)
 find_package(Threads REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 # ONNX Runtime - user must set ONNXRUNTIME_ROOT
 if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
@@ -35,6 +36,7 @@ include_directories(
     include
     ${OpenCV_INCLUDE_DIRS}
     ${ONNXRUNTIME_INCLUDE_DIR}
+    ${EIGEN3_INCLUDE_DIR}
 )
 
 # AutoSteer inference backend
@@ -77,6 +79,17 @@ add_library(camera_utils
 )
 target_link_libraries(camera_utils
     ${OpenCV_LIBS}
+)
+
+# Path planning module (polynomial fitting + Bayes filter)
+add_library(path_planning
+    src/path_planning/estimator.cpp
+    src/path_planning/poly_fit.cpp
+    src/path_planning/path_planner.cpp
+)
+target_link_libraries(path_planning
+    ${OpenCV_LIBS}
+    Eigen3::Eigen
 )
 
 # Rerun SDK (optional, for visualization/logging)
@@ -141,6 +154,7 @@ set(AUTOSTEER_LIBS
     autosteer_visualization
     autosteer_lane_filtering
     camera_utils
+    path_planning
     ${OpenCV_LIBS}
     pthread
 )
