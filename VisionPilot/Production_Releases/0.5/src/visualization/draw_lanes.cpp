@@ -634,5 +634,24 @@ void drawBEVVis(
         )
     );
 
+    if (!bev_data.valid) {
+        cv::putText(
+          image, 
+          "BEV Tracking: Waiting...", 
+          cv::Point(20, 40), 
+          cv::FONT_HERSHEY_SIMPLEX, 
+          1.0, 
+          cv::Scalar(0, 0, 255), 
+          2
+        );
+        return;
+    }
+
+    int bev_h = 640;
+    cv::Scalar color_left(255, 0, 0);     // Blue
+    cv::Scalar color_right(255, 0, 200);  // Magenta
+    cv::Scalar color_center(0, 255, 255); // Yellow
+    int thickness = 4;
+
 }  // namespace autoware_pov::vision::autosteer
 
