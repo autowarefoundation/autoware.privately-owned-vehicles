@@ -122,42 +122,43 @@ struct PerformanceMetrics {
 };
 
 /**
- * @brief Extract lane points from binary mask (PLACEHOLDER - TODO: Implement)
+ * @brief Transform BEV pixel coordinates to BEV metric coordinates (meters)
  * 
- * TODO: Implement lane point extraction from segmentation mask.
- * Possible approaches:
- *   1. Skeleton extraction (cv::ximgproc::thinning)
- *   2. Contour tracing (cv::findContours)
- *   3. Vertical scan (sample points at fixed y intervals)
- *   4. Distance transform + peak detection
+ * TODO: Calibrate this transform for your specific camera setup
  * 
- * For now, returns empty vector (PathPlanner will handle NaN gracefully)
+ * Current stub implementation uses approximate scaling:
+ * - BEV image is 640x640 pixels
+ * - Represents approximately 6m width x 40m length
+ * - Origin at bottom-center (vehicle position)
  * 
- * @param mask Lane segmentation mask (160x80, float 0-1)
- * @return Vector of points in pixel coordinates (x=column, y=row)
+ * @param bev_pixels BEV points in pixel coordinates (from LaneTracker)
+ * @return BEV points in metric coordinates (meters, x=lateral, y=longitudinal)
  */
-std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
-    // TODO: IMPLEMENT LANE POINT EXTRACTION
-    // This is a placeholder that returns empty vector
-    // PathPlanner will handle this as missing lane detection
+std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>& bev_pixels) {
+    std::vector<cv::Point2f> bev_meters;
     
-    std::vector<cv::Point2f> points;
+    if (bev_pixels.empty()) {
+        return bev_meters;
+    }
     
-    // Example stub implementation (replace with your actual extraction logic):
-    // 1. Threshold mask if needed
-    // cv::Mat binary;
-    // cv::threshold(mask, binary, 0.5, 1.0, cv::THRESH_BINARY);
+    // TODO: Replace with calibrated transform
+    // These values are approximate and should be calibrated for your camera
+    const double scale_x = 6.0 / 640.0;   // pixels → meters (lateral), ~0.0094 m/pixel
+    const double scale_y = 40.0 / 640.0;  // pixels → meters (longitudinal), ~0.0625 m/pixel
+    const double center_x = 320.0;        // BEV center pixel (lateral)
+    const double origin_y = 640.0;        // BEV origin pixel (bottom = vehicle position)
     
-    // 2. Extract skeleton or centerline
-    // ... your implementation here ...
+    for (const auto& pt : bev_pixels) {
+        // Transform:
+        // - Center x-axis at vehicle (pt.x=320 → 0m)
+        // - Flip y-axis (image origin top-left → vehicle origin bottom)
+        bev_meters.push_back(cv::Point2f(
+            (pt.x - center_x) * scale_x,      // Lateral position (m)
+            (origin_y - pt.y) * scale_y       // Longitudinal position (m)
+        ));
+    }
     
-    // 3. Sample points along the lane
-    // for (int y = 0; y < mask.rows; y += sampling_interval) {
-    //     // Find x position of lane at this y
-    //     // points.push_back(cv::Point2f(x, y));
-    // }
-    
-    return points;  // Empty for now - PathPlanner handles NaN
+    return bev_meters;
 }
 
 /**
@@ -292,41 +293,43 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
 
          auto t_inference_end = steady_clock::now();
 
-         // Calculate inference latency
-         long inference_us = duration_cast<microseconds>(
-             t_inference_end - t_inference_start).count();
-         metrics.total_inference_us.fetch_add(inference_us);
-         // lane_tracker.update( filtered_lanes, tf.frame.size() );
-        // filtered_bev_points = Lanefra
-        // get filtered_bev_points.ego_left, filtered_bev_points.ego_right
-        //TransformLanePoints(filtered_bev_points.ego_left);
+          // Calculate inference latency
+          long inference_us = duration_cast<microseconds>(
+              t_inference_end - t_inference_start).count();
+          metrics.total_inference_us.fetch_add(inference_us);
 
-        // ========================================
-        // PATH PLANNING (Polynomial Fitting + Bayes Filter)
-        // ========================================
-        if (path_planner != nullptr) {
-            // TODO: Extract lane points from masks (implement extractLanePoints function above)
-            std::vector<cv::Point2f> left_pts_pixel = extractLanePoints(filtered_lanes.ego_left);
-            std::vector<cv::Point2f> right_pts_pixel = extractLanePoints(filtered_lanes.ego_right);
-            
-            // Update path planner (handles BEV transform, polynomial fit, Bayes filter)
-            PathPlanningOutput path_output = path_planner->update(left_pts_pixel, right_pts_pixel);
-            
-            // Print output (cross-track error, yaw error, curvature, lane width)
-            if (path_output.fused_valid) {
-                std::cout << "[PathPlanner Frame " << tf.frame_number << "] "
-                          << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m, "
-                          << "Yaw: " << path_output.yaw_error << " rad, "
-                          << "Curvature: " << path_output.curvature << " 1/m, "
-                          << "Width: " << path_output.lane_width << " m" << std::endl;
-                
-                // Print polynomial coefficients (for control interface)
-                std::cout << "  Center polynomial: c0=" << path_output.center_coeff[0]
-                          << ", c1=" << path_output.center_coeff[1]
-                          << ", c2=" << path_output.center_coeff[2] << std::endl;
-            }
-        }
-        // ========================================
+          // ========================================
+          // PATH PLANNING (Polynomial Fitting + Bayes Filter)
+          // ========================================
+          if (path_planner != nullptr && final_metrics.bev_visuals.valid) {
+              
+              // 1. Get BEV points in PIXEL space from LaneTracker
+              std::vector<cv::Point2f> left_bev_pixels = final_metrics.bev_visuals.bev_left_pts;
+              std::vector<cv::Point2f> right_bev_pixels = final_metrics.bev_visuals.bev_right_pts;
+              
+              // 2. Transform BEV pixels → BEV meters
+              // TODO: Calibrate transformPixelsToMeters() for your specific camera
+              std::vector<cv::Point2f> left_bev_meters = transformPixelsToMeters(left_bev_pixels);
+              std::vector<cv::Point2f> right_bev_meters = transformPixelsToMeters(right_bev_pixels);
+              
+              // 3. Update path planner (polynomial fit + Bayes filter in metric space)
+              PathPlanningOutput path_output = path_planner->update(left_bev_meters, right_bev_meters);
+              
+              // 4. Print output (cross-track error, yaw error, curvature, lane width)
+              if (path_output.fused_valid) {
+                  std::cout << "[PathPlanner Frame " << tf.frame_number << "] "
+                            << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m, "
+                            << "Yaw: " << path_output.yaw_error << " rad, "
+                            << "Curvature: " << path_output.curvature << " 1/m, "
+                            << "Width: " << path_output.lane_width << " m" << std::endl;
+                  
+                  // Print polynomial coefficients (for control interface)
+                  std::cout << "  Center polynomial: c0=" << path_output.center_coeff[0]
+                            << ", c1=" << path_output.center_coeff[1]
+                            << ", c2=" << path_output.center_coeff[2] << std::endl;
+              }
+          }
+          // ========================================
 
 #ifdef ENABLE_RERUN
         // Log to Rerun with downsampled frame (reduces data by 75%)
@@ -643,15 +646,15 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
         std::cerr << "  --rerun              : Enable Rerun live viewer\n";
         std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n\n";
         std::cerr << "Path Planning (optional):\n";
-        std::cerr << "  --homography <path>  : Path to homography matrix YAML file\n";
-        std::cerr << "  -H <path>            : (short form)\n\n";
+        std::cerr << "  --path-planner       : Enable PathFinder (Bayes filter + polynomial fitting)\n";
+        std::cerr << "  --pathfinder         : (alias)\n\n";
         std::cerr << "Examples:\n";
         std::cerr << "  # Camera with live Rerun viewer:\n";
         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
         std::cerr << "  # Video with path planning:\n";
-        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32 --homography H.yaml\n\n";
+        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32 --path-planner\n\n";
         std::cerr << "  # Camera with path planning + Rerun:\n";
-        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --homography H.yaml --rerun\n\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --path-planner --rerun\n\n";
         std::cerr << "  # Video without extras:\n";
         std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
          return 1;
@@ -723,7 +726,7 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
     bool enable_rerun = false;
     bool spawn_rerun_viewer = true;
     std::string rerun_save_path = "";
-    std::string homography_path = "";
+    bool enable_path_planner = false;
     
     for (int i = base_idx + 7; i < argc; ++i) {
         std::string arg = argv[i];
@@ -737,13 +740,8 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
             } else {
                 rerun_save_path = "autosteer.rrd";
             }
-        } else if (arg == "--homography" || arg == "-H") {
-            if (i + 1 < argc) {
-                homography_path = argv[++i];
-            } else {
-                std::cerr << "Error: --homography requires a file path" << std::endl;
-                return 1;
-            }
+        } else if (arg == "--path-planner" || arg == "--pathfinder") {
+            enable_path_planner = true;
         }
     }
  
@@ -795,17 +793,13 @@ std::vector<cv::Point2f> extractLanePoints(const cv::Mat& mask) {
     }
 #endif
 
-    // Initialize PathPlanner (optional - requires homography matrix)
+    // Initialize PathPlanner (optional - uses LaneTracker's BEV output)
     std::unique_ptr<PathPlanner> path_planner;
-    if (!homography_path.empty()) {
-        try {
-            cv::Mat H = loadHomographyFromYAML(homography_path);
-            path_planner = std::make_unique<PathPlanner>(H, 4.0);  // 4.0m default lane width
-            std::cout << "PathPlanner initialized with homography from: " << homography_path << "\n" << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "Warning: Failed to initialize PathPlanner: " << e.what() << std::endl;
-            std::cerr << "Continuing without path planning...\n" << std::endl;
-        }
+    if (enable_path_planner) {
+        path_planner = std::make_unique<PathPlanner>(4.0);  // 4.0m default lane width
+        std::cout << "PathPlanner initialized (Bayes filter + polynomial fitting)" << std::endl;
+        std::cout << "  - Using BEV points from LaneTracker" << std::endl;
+        std::cout << "  - Transform: BEV pixels → meters (TODO: calibrate)" << "\n" << std::endl;
     }
 
     // Thread-safe queues with bounded size (prevents memory overflow)
