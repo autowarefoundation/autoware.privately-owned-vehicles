@@ -31,6 +31,7 @@ struct PathFinderOutput
     double cte_variance;
     double yaw_variance;
     double curv_variance;
+    double lane_width_variance;
     
     // Raw polynomial coefficients (for debugging/visualization)
     std::array<double, 3> left_coeff;   // x = c0*y² + c1*y + c2
