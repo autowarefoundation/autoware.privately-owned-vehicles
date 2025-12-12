@@ -25,6 +25,7 @@
  #include <chrono>
  #include <iostream>
  #include <iomanip>
+ #include <fstream>
 
  using namespace autoware_pov::vision::autosteer;
  using namespace autoware_pov::vision::camera;
