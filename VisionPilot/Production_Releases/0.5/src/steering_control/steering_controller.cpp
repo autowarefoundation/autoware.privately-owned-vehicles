@@ -7,31 +7,32 @@
 
 namespace autoware_pov::vision::steering_control {
 
-SteeringController::SteeringController(double wheelbase,
+SteeringController::SteeringController(
                                        double K_p,
                                        double K_i,
-                                       double K_d)
-    : wheelbase_(wheelbase), K_p(K_p), K_i(K_i), K_d(K_d)
+                                       double K_d,
+                                       double K_S)
+    : K_p(K_p), K_i(K_i), K_d(K_d), K_S(K_S)
 {
     std::cout << "Steering controller initialized with parameters:\n"
-              << "  wheelbase: " << wheelbase_ << " m\n"
               << "  K_p: " << K_p << "\n"
               << "  K_i: " << K_i << "\n"
-              << "  K_d: " << K_d << std::endl;
+              << "  K_d: " << K_d << "\n"
+              << "  K_S: " << K_S << std::endl;
     prev_yaw_error = 0.0;
 }
 
-double SteeringController::computeSteering(double cte, double yaw_error, double forward_velocity, double curvature)
+double SteeringController::computeSteering(double cte, double yaw_error, double curvature)
 {
     // Combined controller:
     // - Derivative term: K_d * (yaw_error - prev_yaw_error)
-    // - Stanley controller: atan(K_i * cte / (forward_velocity + eps))
+    // - Stanley controller: atan(K_i * cte)
     // - Proportional term: K_p * yaw_error
-    // - Curvature feedforward: -atan(curvature * wheelbase_)
+    // - Curvature feedforward: -atan(curvature) * K_S
     double steering_angle = K_d * (yaw_error - prev_yaw_error) 
-                          + std::atan(K_i * cte / (forward_velocity + 1e-3)) 
+                          + std::atan(K_i * cte) 
                           + K_p * yaw_error 
-                          - std::atan(curvature * wheelbase_);
+                          - std::atan(curvature) * K_S;
     prev_yaw_error = yaw_error;
     return steering_angle;
 }
