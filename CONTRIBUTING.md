@@ -72,3 +72,19 @@ Examples of large changes include:
 Adding a new feature to Autoware
 Adding a new documentation page or section
 For more information on how to submit a good pull request, have a read of the [pull request guidelines](https://autowarefoundation.github.io/autoware-documentation/main/contributing/pull-request-guidelines/) and don't forget to review the required [license notations](https://autowarefoundation.github.io/autoware-documentation/main/contributing/license/)!
+
+## Pull request checks
+
+We have various CI workflow checks to ensure the quality of pull requests.
+
+### `semantic-pull-request`
+
+This workflow makes sure [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) is applied to the pull request title.
+Find more details in the [Autoware Documentation](https://autowarefoundation.github.io/autoware-documentation/main/contributing/pull-request-guidelines/#apply-conventional-commits-to-the-pull-request-title-required-automated).
+
+### `pre-commit`
+
+[pre-commit](https://pre-commit.ci/) is a tool to run formatters or linters when you commit.
+This workflow checks whether the pull request has no error with pre-commit.
+
+Find more info in the [Autoware Documentation](https://autowarefoundation.github.io/autoware-documentation/main/contributing/pull-request-guidelines/ci-checks/#pre-commit).
