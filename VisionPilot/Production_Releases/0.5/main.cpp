@@ -686,11 +686,16 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         std::cerr << "  --pathfinder         : (alias)\n\n";
         std::cerr << "Steering Control (optional, requires --path-planner):\n";
         std::cerr << "  --steering-control   : Enable steering controller\n";
-        std::cerr << "  --wheelbase [m]      : Vehicle wheelbase (default: 2.85)\n";
-        std::cerr << "  --Kp [val]          : Proportional gain (default: 0.8)\n";
-        std::cerr << "  --Ki [val]          : Integral gain (default: 1.6)\n";
-        std::cerr << "  --Kd [val]          : Derivative gain (default: 1.0)\n";
-        std::cerr << "  --velocity [m/s]    : Forward velocity (default: 10.0)\n\n";
+        std::cerr << "  --wheelbase [m]      : Vehicle wheelbase (default: " 
+                   << SteeringControllerDefaults::WHEELBASE << ")\n";
+        std::cerr << "  --Kp [val]          : Proportional gain (default: " 
+                   << SteeringControllerDefaults::K_P << ")\n";
+        std::cerr << "  --Ki [val]          : Integral gain (default: " 
+                   << SteeringControllerDefaults::K_I << ")\n";
+        std::cerr << "  --Kd [val]          : Derivative gain (default: " 
+                   << SteeringControllerDefaults::K_D << ")\n";
+        std::cerr << "  --velocity [m/s]    : Forward velocity (default: " 
+                   << SteeringControllerDefaults::FORWARD_VELOCITY << ")\n\n";
         std::cerr << "Examples:\n";
         std::cerr << "  # Camera with live Rerun viewer:\n";
         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
@@ -772,12 +777,12 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     bool enable_path_planner = false;
     bool enable_steering_control = false;
     
-    // Steering controller parameters (defaults from ROS2 node)
-    double wheelbase = 2.85;
-    double K_p = 0.8;
-    double K_i = 1.6;
-    double K_d = 1.0;
-    double forward_velocity = 10.0;
+    // Steering controller parameters (defaults from steering_controller.hpp)
+    double wheelbase = SteeringControllerDefaults::WHEELBASE;
+    double K_p = SteeringControllerDefaults::K_P;
+    double K_i = SteeringControllerDefaults::K_I;
+    double K_d = SteeringControllerDefaults::K_D;
+    double forward_velocity = SteeringControllerDefaults::FORWARD_VELOCITY;
     
     for (int i = base_idx + 7; i < argc; ++i) {
         std::string arg = argv[i];
