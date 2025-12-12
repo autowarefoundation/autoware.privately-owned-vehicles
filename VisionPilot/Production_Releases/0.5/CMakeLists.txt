@@ -93,6 +93,14 @@ target_link_libraries(path_planning
     Eigen3::Eigen
 )
 
+# Steering control module
+add_library(steering_control
+    src/steering_control/steering_controller.cpp
+)
+target_link_libraries(steering_control
+    # No external dependencies, pure C++ math
+)
+
 # Rerun SDK (optional, for visualization/logging)
 option(ENABLE_RERUN "Enable Rerun logging and visualization" OFF)
 
@@ -166,6 +174,7 @@ set(AUTOSTEER_LIBS
     autosteer_lane_tracking
     camera_utils
     path_planning
+    steering_control
     ${OpenCV_LIBS}
     pthread
 )
