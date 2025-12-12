@@ -1,0 +1,24 @@
+name: spell-check-differential
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spell-check-differential:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Run spell-check
+        uses: autowarefoundation/autoware-github-actions/spell-check@v1
+        with:
+          local-cspell-json: .cspell.json
+          cspell-json-url: https://raw.githubusercontent.com/autowarefoundation/autoware-spell-check-dict/main/.cspell.json
+          dict-packages: |
+            https://github.com/autowarefoundation/autoware-spell-check-dict
+            https://github.com/tier4/cspell-dicts
