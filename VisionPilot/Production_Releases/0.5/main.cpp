@@ -260,8 +260,7 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
      std::atomic<bool>& running,
      float threshold,
      PathFinder* path_finder = nullptr,
-     SteeringController* steering_controller = nullptr,
-     double forward_velocity = 10.0
+     SteeringController* steering_controller = nullptr
  #ifdef ENABLE_RERUN
      , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
  #endif
@@ -335,7 +334,6 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
                   steering_angle = steering_controller->computeSteering(
                       path_output.cte,
                       path_output.yaw_error,
-                      forward_velocity,
                       path_output.curvature
                   );
               }
@@ -686,16 +684,14 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         std::cerr << "  --pathfinder         : (alias)\n\n";
         std::cerr << "Steering Control (optional, requires --path-planner):\n";
         std::cerr << "  --steering-control   : Enable steering controller\n";
-        std::cerr << "  --wheelbase [m]      : Vehicle wheelbase (default: " 
-                   << SteeringControllerDefaults::WHEELBASE << ")\n";
+        std::cerr << "  --Ks [val]          : Proportionality constant for curvature feedforward (default: " 
+                   << SteeringControllerDefaults::K_S << ")\n";
         std::cerr << "  --Kp [val]          : Proportional gain (default: " 
                    << SteeringControllerDefaults::K_P << ")\n";
         std::cerr << "  --Ki [val]          : Integral gain (default: " 
                    << SteeringControllerDefaults::K_I << ")\n";
         std::cerr << "  --Kd [val]          : Derivative gain (default: " 
                    << SteeringControllerDefaults::K_D << ")\n";
-        std::cerr << "  --velocity [m/s]    : Forward velocity (default: " 
-                   << SteeringControllerDefaults::FORWARD_VELOCITY << ")\n\n";
         std::cerr << "Examples:\n";
         std::cerr << "  # Camera with live Rerun viewer:\n";
         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
@@ -778,11 +774,10 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     bool enable_steering_control = false;
     
     // Steering controller parameters (defaults from steering_controller.hpp)
-    double wheelbase = SteeringControllerDefaults::WHEELBASE;
     double K_p = SteeringControllerDefaults::K_P;
     double K_i = SteeringControllerDefaults::K_I;
     double K_d = SteeringControllerDefaults::K_D;
-    double forward_velocity = SteeringControllerDefaults::FORWARD_VELOCITY;
+    double K_S = SteeringControllerDefaults::K_S;
     
     for (int i = base_idx + 7; i < argc; ++i) {
         std::string arg = argv[i];
@@ -800,16 +795,14 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
             enable_path_planner = true;
         } else if (arg == "--steering-control") {
             enable_steering_control = true;
-        } else if (arg == "--wheelbase" && i + 1 < argc) {
-            wheelbase = std::atof(argv[++i]);
+        } else if (arg == "--Ks" && i + 1 < argc) {
+            K_S = std::atof(argv[++i]);
         } else if (arg == "--Kp" && i + 1 < argc) {
             K_p = std::atof(argv[++i]);
         } else if (arg == "--Ki" && i + 1 < argc) {
             K_i = std::atof(argv[++i]);
         } else if (arg == "--Kd" && i + 1 < argc) {
             K_d = std::atof(argv[++i]);
-        } else if (arg == "--velocity" && i + 1 < argc) {
-            forward_velocity = std::atof(argv[++i]);
         }
     }
     
@@ -879,9 +872,8 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     // Initialize Steering Controller (optional - requires PathFinder)
     std::unique_ptr<SteeringController> steering_controller;
     if (enable_steering_control) {
-        steering_controller = std::make_unique<SteeringController>(wheelbase, K_p, K_i, K_d);
+        steering_controller = std::make_unique<SteeringController>(K_p, K_i, K_d, K_S);
         std::cout << "Steering Controller initialized" << std::endl;
-        std::cout << "  - Forward velocity: " << forward_velocity << " m/s" << "\n" << std::endl;
     }
 
     // Thread-safe queues with bounded size (prevents memory overflow)
@@ -933,15 +925,13 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
                             std::ref(metrics), std::ref(running), threshold,
                             path_finder.get(),
                             steering_controller.get(),
-                            forward_velocity,
                             rerun_logger.get());
 #else
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
                             path_finder.get(),
-                            steering_controller.get(),
-                            forward_velocity);
+                            steering_controller.get());
 #endif
      std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                           std::ref(running), enable_viz, save_video, output_video_path);
