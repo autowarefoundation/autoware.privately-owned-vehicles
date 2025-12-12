@@ -14,6 +14,7 @@
  #include "lane_tracking/lane_tracking.hpp"
  #include "camera/camera_utils.hpp"
  #include "path_planning/path_finder.hpp"
+ #include "steering_control/steering_controller.hpp"
  #ifdef ENABLE_RERUN
  #include "rerun/rerun_logger.hpp"
  #endif
@@ -27,11 +28,16 @@
  #include <iostream>
  #include <iomanip>
  #include <fstream>
+ #include <cmath>
+ #ifndef M_PI
+ #define M_PI 3.14159265358979323846
+ #endif
 
- using namespace autoware_pov::vision::autosteer;
- using namespace autoware_pov::vision::camera;
- using namespace autoware_pov::vision::path_planning;
- using namespace std::chrono;
+using namespace autoware_pov::vision::autosteer;
+using namespace autoware_pov::vision::camera;
+using namespace autoware_pov::vision::path_planning;
+using namespace autoware_pov::vision::steering_control;
+using namespace std::chrono;
 
  // Thread-safe queue with max size limit
  template<typename T>
@@ -101,15 +107,16 @@
      steady_clock::time_point timestamp;
  };
 
- // Inference result
- struct InferenceResult {
-     cv::Mat frame;
-     LaneSegmentation lanes;
-     DualViewMetrics metrics;
-     int frame_number;
-     steady_clock::time_point capture_time;
-     steady_clock::time_point inference_time;
- };
+// Inference result
+struct InferenceResult {
+    cv::Mat frame;
+    LaneSegmentation lanes;
+    DualViewMetrics metrics;
+    int frame_number;
+    steady_clock::time_point capture_time;
+    steady_clock::time_point inference_time;
+    double steering_angle = 0.0;  // Steering angle from controller (radians)
+};
  
 // Performance metrics
 struct PerformanceMetrics {
@@ -252,7 +259,9 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
      PerformanceMetrics& metrics,
      std::atomic<bool>& running,
      float threshold,
-      PathFinder* path_finder = nullptr
+     PathFinder* path_finder = nullptr,
+     SteeringController* steering_controller = nullptr,
+     double forward_velocity = 10.0
  #ifdef ENABLE_RERUN
      , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
  #endif
@@ -303,8 +312,10 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
           metrics.total_inference_us.fetch_add(inference_us);
 
           // ========================================
-          // PATHFINDER (Polynomial Fitting + Bayes Filter)
+          // PATHFINDER (Polynomial Fitting + Bayes Filter) + STEERING CONTROL
           // ========================================
+          double steering_angle = 0.0;  // Initialize steering angle
+          
           if (path_finder != nullptr && final_metrics.bev_visuals.valid) {
               
               // 1. Get BEV points in PIXEL space from LaneTracker
@@ -319,7 +330,17 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
               // 3. Update PathFinder (polynomial fit + Bayes filter in metric space)
               PathFinderOutput path_output = path_finder->update(left_bev_meters, right_bev_meters);
               
-              // 4. Print output (cross-track error, yaw error, curvature, lane width + variances)
+              // 4. Compute steering angle (if controller available)
+              if (steering_controller != nullptr && path_output.fused_valid) {
+                  steering_angle = steering_controller->computeSteering(
+                      path_output.cte,
+                      path_output.yaw_error,
+                      forward_velocity,
+                      path_output.curvature
+                  );
+              }
+              
+              // 5. Print output (cross-track error, yaw error, curvature, lane width + variances + steering)
               if (path_output.fused_valid) {
                   std::cout << "[PathFinder Frame " << tf.frame_number << "] "
                             << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m "
@@ -329,7 +350,13 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
                             << "Curvature: " << path_output.curvature << " 1/m "
                             << "(var: " << path_output.curv_variance << "), "
                             << "Width: " << path_output.lane_width << " m "
-                            << "(var: " << path_output.lane_width_variance << ")" << std::endl;
+                            << "(var: " << path_output.lane_width_variance << ")";
+                  
+                  if (steering_controller != nullptr) {
+                      std::cout << ", Steering: " << std::setprecision(4) << steering_angle << " rad "
+                                << "(" << (steering_angle * 180.0 / M_PI) << " deg)";
+                  }
+                  std::cout << std::endl;
                   
                   // Print polynomial coefficients (for control interface)
                   std::cout << "  Center polynomial: c0=" << path_output.center_coeff[0]
@@ -377,6 +404,7 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
+        result.steering_angle = steering_angle;  // Store computed steering angle
         output_queue.push(result);
      }
 
@@ -656,6 +684,13 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         std::cerr << "PathFinder (optional):\n";
         std::cerr << "  --path-planner       : Enable PathFinder (Bayes filter + polynomial fitting)\n";
         std::cerr << "  --pathfinder         : (alias)\n\n";
+        std::cerr << "Steering Control (optional, requires --path-planner):\n";
+        std::cerr << "  --steering-control   : Enable steering controller\n";
+        std::cerr << "  --wheelbase [m]      : Vehicle wheelbase (default: 2.85)\n";
+        std::cerr << "  --Kp [val]          : Proportional gain (default: 0.8)\n";
+        std::cerr << "  --Ki [val]          : Integral gain (default: 1.6)\n";
+        std::cerr << "  --Kd [val]          : Derivative gain (default: 1.0)\n";
+        std::cerr << "  --velocity [m/s]    : Forward velocity (default: 10.0)\n\n";
         std::cerr << "Examples:\n";
         std::cerr << "  # Camera with live Rerun viewer:\n";
         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
@@ -730,11 +765,19 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
      bool save_video = (argc >= base_idx + 6) ? (std::string(argv[base_idx + 5]) == "true") : false;
      std::string output_video_path = (argc >= base_idx + 7) ? argv[base_idx + 6] : "output.avi";
  
-    // Parse Rerun flags and PathFinder flags (check all remaining arguments)
+    // Parse Rerun flags, PathFinder flags, and Steering Control flags (check all remaining arguments)
     bool enable_rerun = false;
     bool spawn_rerun_viewer = true;
     std::string rerun_save_path = "";
-    bool enable_path_planner = true;
+    bool enable_path_planner = false;
+    bool enable_steering_control = false;
+    
+    // Steering controller parameters (defaults from ROS2 node)
+    double wheelbase = 2.85;
+    double K_p = 0.8;
+    double K_i = 1.6;
+    double K_d = 1.0;
+    double forward_velocity = 10.0;
     
     for (int i = base_idx + 7; i < argc; ++i) {
         std::string arg = argv[i];
@@ -750,7 +793,25 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
             }
         } else if (arg == "--path-planner" || arg == "--pathfinder") {
             enable_path_planner = true;
+        } else if (arg == "--steering-control") {
+            enable_steering_control = true;
+        } else if (arg == "--wheelbase" && i + 1 < argc) {
+            wheelbase = std::atof(argv[++i]);
+        } else if (arg == "--Kp" && i + 1 < argc) {
+            K_p = std::atof(argv[++i]);
+        } else if (arg == "--Ki" && i + 1 < argc) {
+            K_i = std::atof(argv[++i]);
+        } else if (arg == "--Kd" && i + 1 < argc) {
+            K_d = std::atof(argv[++i]);
+        } else if (arg == "--velocity" && i + 1 < argc) {
+            forward_velocity = std::atof(argv[++i]);
         }
+    }
+    
+    // Steering control requires PathFinder
+    if (enable_steering_control && !enable_path_planner) {
+        std::cerr << "Warning: --steering-control requires --path-planner. Enabling PathFinder." << std::endl;
+        enable_path_planner = true;
     }
  
      if (save_video && !enable_viz) {
@@ -809,6 +870,14 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
         std::cout << "  - Using BEV points from LaneTracker" << std::endl;
         std::cout << "  - Transform: BEV pixels → meters (TODO: calibrate)" << "\n" << std::endl;
     }
+    
+    // Initialize Steering Controller (optional - requires PathFinder)
+    std::unique_ptr<SteeringController> steering_controller;
+    if (enable_steering_control) {
+        steering_controller = std::make_unique<SteeringController>(wheelbase, K_p, K_i, K_d);
+        std::cout << "Steering Controller initialized" << std::endl;
+        std::cout << "  - Forward velocity: " << forward_velocity << " m/s" << "\n" << std::endl;
+    }
 
     // Thread-safe queues with bounded size (prevents memory overflow)
     ThreadSafeQueue<TimestampedFrame> capture_queue(5);   // Max 5 frames waiting for inference
@@ -834,6 +903,9 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
     if (path_finder) {
         std::cout << "PathFinder: ENABLED (polynomial fitting + Bayes filter)" << std::endl;
     }
+    if (steering_controller) {
+        std::cout << "Steering Control: ENABLED" << std::endl;
+    }
     if (measure_latency) {
         std::cout << "Latency measurement: ENABLED (metrics every 30 frames)" << std::endl;
     }
@@ -855,12 +927,16 @@ std::vector<cv::Point2f> transformPixelsToMeters(const std::vector<cv::Point2f>&
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
                             path_finder.get(),
+                            steering_controller.get(),
+                            forward_velocity,
                             rerun_logger.get());
 #else
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
-                            path_finder.get());
+                            path_finder.get(),
+                            steering_controller.get(),
+                            forward_velocity);
 #endif
      std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                           std::ref(running), enable_viz, save_video, output_video_path);
