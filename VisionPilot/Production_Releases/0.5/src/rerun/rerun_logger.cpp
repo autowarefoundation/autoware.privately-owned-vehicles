@@ -82,8 +82,8 @@ RerunLogger::~RerunLogger() = default;
 void RerunLogger::logInference(
     int frame_number,
     const cv::Mat& input_frame,
-    const autoware_pov::vision::autosteer::LaneSegmentation& raw_lanes,
-    const autoware_pov::vision::autosteer::LaneSegmentation& filtered_lanes,
+    const autoware_pov::vision::egolanes::LaneSegmentation& raw_lanes,
+    const autoware_pov::vision::egolanes::LaneSegmentation& filtered_lanes,
     long inference_time_us)
 {
 #ifdef ENABLE_RERUN
