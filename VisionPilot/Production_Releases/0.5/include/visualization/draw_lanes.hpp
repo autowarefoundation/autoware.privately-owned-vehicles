@@ -1,11 +1,11 @@
-#ifndef AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
-#define AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
+#ifndef AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
+#define AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
 
 #include "../inference/onnxruntime_engine.hpp"
 #include "../lane_tracking/lane_tracking.hpp"
 #include <opencv2/opencv.hpp>
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 /**
@@ -87,6 +87,6 @@ void drawMetricVerification(
     const std::vector<double>& right_metric_coeffs
 );
 
-}  // namespace autoware_pov::vision::autosteer
+}  // namespace autoware_pov::vision::egolanes
 
-#endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
+#endif  // AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
