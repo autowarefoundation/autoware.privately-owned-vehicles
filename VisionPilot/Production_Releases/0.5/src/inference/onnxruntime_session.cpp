@@ -7,7 +7,7 @@
 #define LOG_INFO(...) printf("[INFO] "); printf(__VA_ARGS__); printf("\n")
 #define LOG_ERROR(...) printf("[ERROR] "); printf(__VA_ARGS__); printf("\n")
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createSession(
@@ -15,10 +15,12 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createSession(
   const std::string& provider,
   const std::string& precision,
   int device_id,
-  const std::string& cache_dir)
+  const std::string& cache_dir,
+  double workspace_size_gb,
+  const std::string& cache_prefix)
 {
   // Create ONNX Runtime environment (thread-safe singleton pattern)
-  static Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "AutoSteerOnnxRuntime");
+  static Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "EgoLanesOnnxRuntime");
   
   if (provider == "cpu") {
     LOG_INFO("[onnxrt] Creating CPU session for model: %s", model_path.c_str());
@@ -27,7 +29,7 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createSession(
   else if (provider == "tensorrt") {
     LOG_INFO("[onnxrt] Creating TensorRT session (%s) for model: %s", 
              precision.c_str(), model_path.c_str());
-    return createTensorRTSession(env, model_path, precision, device_id, cache_dir);
+    return createTensorRTSession(env, model_path, precision, device_id, cache_dir, workspace_size_gb, cache_prefix);
   }
   else {
     throw std::runtime_error("Unsupported provider: " + provider + 
@@ -56,7 +58,9 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
   const std::string& model_path,
   const std::string& precision,
   int device_id,
-  const std::string& cache_dir)
+  const std::string& cache_dir,
+  double workspace_size_gb,
+  const std::string& cache_prefix)
 {
   Ort::SessionOptions session_options;
   
@@ -72,12 +76,16 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
   Ort::ThrowOnError(api.CreateTensorRTProviderOptions(&tensorrt_options));
   
   // Create unique cache prefix for fp32 vs fp16
-  std::string cache_prefix = "autosteer_" + precision + "_";
+  std::string full_cache_prefix = cache_prefix + precision + "_";
+  
+  // Calculate workspace size in bytes
+  size_t workspace_size_bytes = static_cast<size_t>(workspace_size_gb * 1024.0 * 1024.0 * 1024.0);
+  std::string workspace_size_str = std::to_string(workspace_size_bytes);
   
   // Prepare option keys and values
   std::vector<const char*> option_keys = {
     "device_id",                        // GPU device ID
-    "trt_max_workspace_size",           // 2GB workspace
+    "trt_max_workspace_size",           // Configurable workspace size
     "trt_fp16_enable",                  // FP16 precision
     "trt_engine_cache_enable",          // Enable engine caching
     "trt_engine_cache_path",            // Cache directory
@@ -94,11 +102,11 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
   
   std::vector<const char*> option_values = {
     device_id_str.c_str(),     // GPU device
-    "2147483648",              // 2GB workspace
+    workspace_size_str.c_str(), // Configurable workspace size (in bytes)
     fp16_flag.c_str(),         // FP16 enable/disable
     "1",                       // Enable engine cache
     cache_dir.c_str(),         // Cache path
-    cache_prefix.c_str(),      // Unique prefix (fp16/fp32)
+    full_cache_prefix.c_str(), // Unique prefix (fp16/fp32)
     "1",                       // Enable timing cache
     cache_dir.c_str(),         // Timing cache path
     "5",                       // Max optimization level
@@ -130,10 +138,11 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createTensorRTSession(
   LOG_INFO("[onnxrt] TensorRT session created successfully");
   LOG_INFO("[onnxrt] - Precision: %s", precision.c_str());
   LOG_INFO("[onnxrt] - Device: %d", device_id);
-  LOG_INFO("[onnxrt] - Cache: %s/%s*.engine", cache_dir.c_str(), cache_prefix.c_str());
+  LOG_INFO("[onnxrt] - Workspace: %.1f GB", workspace_size_gb);
+  LOG_INFO("[onnxrt] - Cache: %s/%s*.engine", cache_dir.c_str(), full_cache_prefix.c_str());
   
   return session;
 }
 
-}  // namespace autoware_pov::vision::autosteer
+}  // namespace autoware_pov::vision::egolanes
 
