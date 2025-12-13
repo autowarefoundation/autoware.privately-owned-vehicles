@@ -339,13 +339,6 @@ void inferenceThread(
                 
                 // Run AutoSteer inference
                 autosteer_steering = autosteer_engine->inference(autosteer_input_buffer);
-                
-                std::cout << "[AutoSteer Frame " << tf.frame_number << "] "
-                          << "Steering: " << std::fixed << std::setprecision(2) 
-                          << autosteer_steering << " deg" << std::endl;
-            } else {
-                std::cout << "[AutoSteer Frame " << tf.frame_number << "] "
-                          << "Skipped (waiting for temporal buffer)" << std::endl;
             }
         }
         // ========================================
@@ -376,17 +369,6 @@ void inferenceThread(
           PathFinderOutput path_output; // Declare at higher scope for result storage
           path_output.fused_valid = false; // Initialize as invalid
           
-          // Compare AutoSteer with PID if both are available
-          if (autosteer_engine != nullptr && egolanes_tensor_buffer.full() && 
-              steering_controller != nullptr && path_output.fused_valid) {
-              double pid_deg = steering_angle * 180.0 / M_PI;
-              double diff = autosteer_steering - pid_deg;
-              std::cout << "[Comparison Frame " << tf.frame_number << "] "
-                        << "AutoSteer: " << std::fixed << std::setprecision(2) << autosteer_steering << " deg, "
-                        << "PID: " << std::setprecision(2) << pid_deg << " deg, "
-                        << "Diff: " << std::setprecision(2) << diff << " deg" << std::endl;
-          }
-          
           if (path_finder != nullptr && final_metrics.bev_visuals.valid) {
               
               // 1. Get BEV points in PIXEL space from LaneTracker
@@ -412,37 +394,40 @@ void inferenceThread(
               
               // 5. Print output (cross-track error, yaw error, curvature, lane width + variances + steering)
               if (path_output.fused_valid) {
-                  std::cout << "[PathFinder Frame " << tf.frame_number << "] "
+                  std::cout << "[Frame " << tf.frame_number << "] "
                             << "CTE: " << std::fixed << std::setprecision(3) << path_output.cte << " m "
                             << "(var: " << path_output.cte_variance << "), "
                             << "Yaw: " << path_output.yaw_error << " rad "
                             << "(var: " << path_output.yaw_variance << "), "
-                            << "Curvature: " << path_output.curvature << " 1/m "
+                            << "Curv: " << path_output.curvature << " 1/m "
                             << "(var: " << path_output.curv_variance << "), "
                             << "Width: " << path_output.lane_width << " m "
                             << "(var: " << path_output.lane_width_variance << ")";
                   
+                  // PID Steering output (if controller is enabled)
                   if (steering_controller != nullptr) {
-                      std::cout << ", Steering: " << std::setprecision(4) << steering_angle << " rad "
-                                << "(" << (steering_angle * 180.0 / M_PI) << " deg)";
+                      double pid_deg = steering_angle * 180.0 / M_PI;
+                      std::cout << " | PID: " << std::setprecision(2) << pid_deg << " deg";
                   }
-                  std::cout << std::endl;
                   
-                  // Print polynomial coefficients (for control interface)
-                  std::cout << "  Center polynomial: c0=" << path_output.center_coeff[0]
-                            << ", c1=" << path_output.center_coeff[1]
-                            << ", c2=" << path_output.center_coeff[2] << std::endl;
-              }
-              
-              // Compare AutoSteer with PID if both are available
-              if (autosteer_engine != nullptr && egolanes_tensor_buffer.full() && 
-                  steering_controller != nullptr && path_output.fused_valid) {
-                  double pid_deg = steering_angle * 180.0 / M_PI;
-                  double diff = autosteer_steering - pid_deg;
-                  std::cout << "[Comparison Frame " << tf.frame_number << "] "
-                            << "AutoSteer: " << std::fixed << std::setprecision(2) << autosteer_steering << " deg, "
-                            << "PID: " << std::setprecision(2) << pid_deg << " deg, "
-                            << "Diff: " << std::setprecision(2) << diff << " deg" << std::endl;
+                  // AutoSteer output (if enabled and valid)
+                  if (autosteer_engine != nullptr && egolanes_tensor_buffer.full()) {
+                      std::cout << " | AutoSteer: " << std::setprecision(2) << autosteer_steering << " deg";
+                      
+                      // Show difference if both are available
+                      if (steering_controller != nullptr) {
+                          double pid_deg = steering_angle * 180.0 / M_PI;
+                          double diff = autosteer_steering - pid_deg;
+                          std::cout << " (Δ: " << std::setprecision(2) << diff << " deg)";
+                      }
+                  }
+                  
+                  std::cout << std::endl;
+              } else if (autosteer_engine != nullptr && egolanes_tensor_buffer.full()) {
+                  // If PathFinder is not valid but AutoSteer is running, still log AutoSteer
+                  std::cout << "[Frame " << tf.frame_number << "] "
+                            << "AutoSteer: " << std::fixed << std::setprecision(2) << autosteer_steering << " deg "
+                            << "(PathFinder: invalid)" << std::endl;
               }
           }
           // ========================================
@@ -557,9 +542,6 @@ void displayThread(
         auto t_display_start = steady_clock::now();
 
         int count = metrics.frame_count.fetch_add(1) + 1;
-
-        // Console output: frame info
-        std::cout << "[Frame " << result.frame_number << "] Processed" << std::endl;
 
         // Visualization
         if (enable_viz) {
@@ -685,11 +667,9 @@ void displayThread(
             }
         }
 
-         // CSV logging for curve params (use PathFinder filtered outputs, not raw metrics)
-         if (
-             csv_file.is_open() &&
-             result.path_output.fused_valid  // Use PathFinder validity, not lanes.path_valid
-         ) {
+         // CSV logging: Log all frames to ensure PID and AutoSteer are captured
+         // Use 0.0 for invalid PathFinder values (can be filtered in post-processing)
+         if (csv_file.is_open()) {
              // Timestamp calc, from captured time
              auto ms_since_epoch = duration_cast<milliseconds>(
                  result.capture_time.time_since_epoch()
@@ -701,11 +681,11 @@ void displayThread(
                       << result.metrics.orig_lane_offset << ","
                       << result.metrics.orig_yaw_offset << ","
                       << result.metrics.orig_curvature << ","
-                      // PathFinder filtered metrics (CORRECT - these match console output)
-                      << result.path_output.cte << ","
-                      << result.path_output.yaw_error << ","
-                      << result.path_output.curvature << ","
-                      // PID Controller steering angle
+                      // PathFinder filtered metrics (NaN or 0.0 when invalid)
+                      << (result.path_output.fused_valid ? result.path_output.cte : 0.0) << ","
+                      << (result.path_output.fused_valid ? result.path_output.yaw_error : 0.0) << ","
+                      << (result.path_output.fused_valid ? result.path_output.curvature : 0.0) << ","
+                      // PID Controller steering angle (always log if controller exists)
                       << std::fixed << std::setprecision(6) << result.steering_angle << ","
                       << (result.steering_angle * 180.0 / M_PI) << ","
                       // AutoSteer steering angle (degrees) and validity
