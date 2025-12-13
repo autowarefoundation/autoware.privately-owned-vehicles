@@ -786,5 +786,67 @@ void drawBEVVis(
 
 }
 
-}  // namespace autoware_pov::vision::autosteer
+// Helper func to draw metric curves projected to pixel space
+void drawMetricVerification(
+    cv::Mat& bev_image,
+    const std::vector<double>& left_metric_coeffs,
+    const std::vector<double>& right_metric_coeffs
+)
+{
+    // Constants from main.cpp (MUST MATCH EXACTLY)
+    const double bev_range_m = 40.0;
+    const double bev_height_px = 640.0;
+    const double bev_width_px = 640.0;
+    const double scale = bev_range_m / bev_height_px; // 0.0625 m/px
+    const double center_x = bev_width_px / 2.0;       // 320.0
+    const double origin_y = bev_height_px;            // 640.0
 
+    auto drawCurve = [&](const std::vector<double>& coeffs, cv::Scalar color) {
+        if (coeffs.size() < 3) return;
+        
+        // coeffs are [c0, c1, c2] for x = c0*y^2 + c1*y + c2 (in METERS)
+        double c0 = coeffs[0];
+        double c1 = coeffs[1];
+        double c2 = coeffs[2];
+        
+        std::vector<cv::Point> points;
+        
+        for (int y_pix = 0; y_pix < 640; ++y_pix) {
+            // 1. Pixel Y -> Meter Y (Longitudinal distance)
+            // origin_y is bottom (0m), decreases upwards
+            double y_meter = (origin_y - y_pix) * scale;
+            
+            // 2. Evaluate Polynomial in Meters
+            double x_meter = c0 * y_meter * y_meter + c1 * y_meter + c2;
+            
+            // 3. Meter X -> Pixel X (Lateral offset)
+            // x_meter = (x_pix - center_x) * scale
+            // x_pix = x_meter / scale + center_x
+            double x_pix = (x_meter / scale) + center_x;
+            
+            if (x_pix >= 0 && x_pix < 640) {
+                points.push_back(cv::Point(static_cast<int>(x_pix), y_pix));
+            }
+        }
+        
+        if (points.size() > 1) {
+            // Draw thicker line for visibility (5px) and add outline
+            cv::polylines(bev_image, points, false, cv::Scalar(255, 255, 255), 7, cv::LINE_AA); // White outline
+            cv::polylines(bev_image, points, false, color, 5, cv::LINE_AA); // Colored line
+        }
+    };
+
+    // Draw Left in Orange
+    if (!left_metric_coeffs.empty()) {
+        drawCurve(left_metric_coeffs, cv::Scalar(0, 165, 255)); 
+        cv::putText(bev_image, "Metric L (Orange)", cv::Point(20, 580), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 165, 255), 2);
+    }
+
+    // Draw Right in Red
+    if (!right_metric_coeffs.empty()) {
+        drawCurve(right_metric_coeffs, cv::Scalar(0, 0, 255));
+        cv::putText(bev_image, "Metric R (Red)", cv::Point(20, 610), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
+    }
+}
+
+}  // namespace autoware_pov::vision::autosteer

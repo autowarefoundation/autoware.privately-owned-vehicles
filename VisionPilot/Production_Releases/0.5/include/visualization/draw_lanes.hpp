@@ -77,6 +77,16 @@ void drawBEVVis(
   const BEVVisuals& bev_data
 );
 
+/**
+ * @brief Debug function to verify Pixel -> Meter conversion
+ * Draws the metric polynomials (projected back to pixels) on top of the BEV image.
+ */
+void drawMetricVerification(
+    cv::Mat& bev_image,
+    const std::vector<double>& left_metric_coeffs,
+    const std::vector<double>& right_metric_coeffs
+);
+
 }  // namespace autoware_pov::vision::autosteer
 
 #endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
