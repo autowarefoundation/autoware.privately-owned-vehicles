@@ -6,24 +6,25 @@ import onnx
 from argparse import ArgumentParser
 import sys
 sys.path.append('..')
-from model_components.scene_seg_network import SceneSegNetwork
-from model_components.scene_3d_network import Scene3DNetwork
-from model_components.domain_seg_network import DomainSegNetwork
-from model_components.auto_speed_network import AutoSpeedNetwork
-from model_components.ego_lanes_network import EgoLanesNetwork
+from Models.model_components.scene_seg_network import SceneSegNetwork
+from Models.model_components.scene_3d_network import Scene3DNetwork
+from Models.model_components.domain_seg_network import DomainSegNetwork
+from Models.model_components.auto_speed_network import AutoSpeedNetwork
+from Models.model_components.ego_lanes_network import EgoLanesNetwork
+from Models.model_components.auto_steer_network import AutoSteerNetwork
 def main():
 
     # Argument parser for data root path and save path
     parser = ArgumentParser()
     parser.add_argument("-n", "--name", dest="network_name", required=True, \
                         help="specify the name of the network which will be benchmarked")
-    
+
     parser.add_argument("-p", "--model_checkpoint_path", dest="model_checkpoint_path", required=True, \
                         help="path to pytorch checkpoint file to load model dict")
-    
+
     parser.add_argument("-o", "--onnx_model_path", dest="onnx_model_path", required=True, \
                         help="path to converted ONNX model, must include output file name with .onnx extension")
-    
+
     args = parser.parse_args()
 
     # Get input arguments
@@ -56,9 +57,12 @@ def main():
     elif (model_name == 'EgoLanes'):
         print('Processing EgoLanes Network')
         model = EgoLanesNetwork()
+    elif (model_name == 'AutoSteer'):
+        print('Processing AutoSteer Network')
+        model = AutoSteerNetwork()
     else:
         raise Exception("Model name not specified correctly, please check")
-    
+
     # Loading Pytorch checkpoint
     print('Loading Network')
     if(len(model_checkpoint_path) > 0):
@@ -80,6 +84,8 @@ def main():
     # Fake input data (AutoSpeed uses 640x640)
     if model_name == 'AutoSpeed':
         input_shape=(1, 3, 640, 640)
+    if model_name == 'AutoSteer':
+        input_shape=(1, 6, 80, 160)
     else:
         input_shape=(1, 3, 320, 640)
     input_data = torch.randn(input_shape)
@@ -106,7 +112,7 @@ def main():
     ONNX_network = onnx.load(onnx_model_path)
     onnx.checker.check_model(ONNX_network)
     print('Checks passed - export complete')
-   
+
 if __name__ == '__main__':
   main()
 # %%
