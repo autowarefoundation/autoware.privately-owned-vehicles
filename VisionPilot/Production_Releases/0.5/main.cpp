@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Multi-threaded AutoSteer lane detection inference pipeline
+ * @brief Multi-threaded EgoLanes lane detection inference pipeline
  * 
  * Architecture:
  * - Capture Thread: Reads frames from video source or camera
@@ -9,6 +9,7 @@
  */
 
 #include "inference/onnxruntime_engine.hpp"
+#include "inference/autosteer_engine.hpp"
 #include "visualization/draw_lanes.hpp"
 #include "lane_filtering/lane_filter.hpp"
  #include "lane_tracking/lane_tracking.hpp"
@@ -34,7 +35,7 @@
  #define M_PI 3.14159265358979323846
  #endif
 
-using namespace autoware_pov::vision::autosteer;
+using namespace autoware_pov::vision::egolanes;
 using namespace autoware_pov::vision::camera;
 using namespace autoware_pov::vision::path_planning;
 using namespace autoware_pov::vision::steering_control;
@@ -116,8 +117,10 @@ struct InferenceResult {
     int frame_number;
     steady_clock::time_point capture_time;
     steady_clock::time_point inference_time;
-    double steering_angle = 0.0;  // Steering angle from controller (radians)
+    double steering_angle = 0.0;  // Steering angle from PID controller (radians)
     PathFinderOutput path_output; // Added for metric debug
+    float autosteer_angle = 0.0f;  // Steering angle from AutoSteer (degrees)
+    bool autosteer_valid = false;  // Whether AutoSteer ran (skips first frame)
 };
 
 // Performance metrics
@@ -255,14 +258,15 @@ void captureThread(
  * @brief Inference thread - runs lane detection model
  */
 void inferenceThread(
-    AutoSteerOnnxEngine& engine,
+    EgoLanesOnnxEngine& engine,
     ThreadSafeQueue<TimestampedFrame>& input_queue,
     ThreadSafeQueue<InferenceResult>& output_queue,
     PerformanceMetrics& metrics,
     std::atomic<bool>& running,
      float threshold,
      PathFinder* path_finder = nullptr,
-     SteeringController* steering_controller = nullptr
+     SteeringController* steering_controller = nullptr,
+     AutoSteerOnnxEngine* autosteer_engine = nullptr
  #ifdef ENABLE_RERUN
      , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
  #endif
@@ -274,8 +278,19 @@ void inferenceThread(
      // Init lane tracker
      LaneTracker lane_tracker;
 
-     //Buffer for last 2 frames'
-     boost::circular_buffer<cv::Mat> image_buffer(2); 
+     // Buffer for last 2 frames (for temporal models)
+     boost::circular_buffer<cv::Mat> image_buffer(2);
+     
+     // AutoSteer: Circular buffer for raw EgoLanes tensors [1, 3, 80, 160]
+     // Stores copies of last 2 frames for temporal inference
+     const int EGOLANES_TENSOR_SIZE = 3 * 80 * 160;  // 38,400 floats per frame
+     boost::circular_buffer<std::vector<float>> egolanes_tensor_buffer(2);
+     
+     // Pre-allocated concatenation buffer for AutoSteer input [1, 6, 80, 160]
+     std::vector<float> autosteer_input_buffer;
+     if (autosteer_engine != nullptr) {
+         autosteer_input_buffer.resize(6 * 80 * 160);  // 76,800 floats
+     } 
 
 
     while (running.load()) {
@@ -297,10 +312,43 @@ void inferenceThread(
         // Run Ego Lanes inference 
         LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
 
-        // if( image_buffer.full()) {
-        //     // Do inference on AutoSteer with 2 frames (current + previous)
-        //     continue;
-        // }
+        // ========================================
+        // AUTOSTEER INTEGRATION
+        // ========================================
+        float autosteer_steering = 0.0f;
+        
+        if (autosteer_engine != nullptr) {
+            // 1. Copy raw EgoLanes tensor [1, 3, 80, 160] for temporal buffer
+            const float* raw_tensor = engine.getRawTensorData();
+            std::vector<float> current_tensor(EGOLANES_TENSOR_SIZE);
+            std::memcpy(current_tensor.data(), raw_tensor, EGOLANES_TENSOR_SIZE * sizeof(float));
+            
+            // 2. Store in circular buffer (auto-deletes oldest when full)
+            egolanes_tensor_buffer.push_back(std::move(current_tensor));
+            
+            // 3. Run AutoSteer only when buffer is full (skip first frame)
+            if (egolanes_tensor_buffer.full()) {
+                // Concatenate t-1 and t into pre-allocated buffer
+                std::memcpy(autosteer_input_buffer.data(), 
+                           egolanes_tensor_buffer[0].data(),  // t-1
+                           EGOLANES_TENSOR_SIZE * sizeof(float));
+                
+                std::memcpy(autosteer_input_buffer.data() + EGOLANES_TENSOR_SIZE,
+                           egolanes_tensor_buffer[1].data(),  // t
+                           EGOLANES_TENSOR_SIZE * sizeof(float));
+                
+                // Run AutoSteer inference
+                autosteer_steering = autosteer_engine->inference(autosteer_input_buffer);
+                
+                std::cout << "[AutoSteer Frame " << tf.frame_number << "] "
+                          << "Steering: " << std::fixed << std::setprecision(2) 
+                          << autosteer_steering << " deg" << std::endl;
+            } else {
+                std::cout << "[AutoSteer Frame " << tf.frame_number << "] "
+                          << "Skipped (waiting for temporal buffer)" << std::endl;
+            }
+        }
+        // ========================================
         // Post-processing with lane filter
         LaneSegmentation filtered_lanes = lane_filter.update(raw_lanes);
 
@@ -324,9 +372,20 @@ void inferenceThread(
           // ========================================
           // PATHFINDER (Polynomial Fitting + Bayes Filter) + STEERING CONTROL
           // ========================================
-          double steering_angle = 0.0;  // Initialize steering angle
+          double steering_angle = 0.0;  // Initialize steering angle (PID controller output)
           PathFinderOutput path_output; // Declare at higher scope for result storage
           path_output.fused_valid = false; // Initialize as invalid
+          
+          // Compare AutoSteer with PID if both are available
+          if (autosteer_engine != nullptr && egolanes_tensor_buffer.full() && 
+              steering_controller != nullptr && path_output.fused_valid) {
+              double pid_deg = steering_angle * 180.0 / M_PI;
+              double diff = autosteer_steering - pid_deg;
+              std::cout << "[Comparison Frame " << tf.frame_number << "] "
+                        << "AutoSteer: " << std::fixed << std::setprecision(2) << autosteer_steering << " deg, "
+                        << "PID: " << std::setprecision(2) << pid_deg << " deg, "
+                        << "Diff: " << std::setprecision(2) << diff << " deg" << std::endl;
+          }
           
           if (path_finder != nullptr && final_metrics.bev_visuals.valid) {
               
@@ -374,6 +433,17 @@ void inferenceThread(
                             << ", c1=" << path_output.center_coeff[1]
                             << ", c2=" << path_output.center_coeff[2] << std::endl;
               }
+              
+              // Compare AutoSteer with PID if both are available
+              if (autosteer_engine != nullptr && egolanes_tensor_buffer.full() && 
+                  steering_controller != nullptr && path_output.fused_valid) {
+                  double pid_deg = steering_angle * 180.0 / M_PI;
+                  double diff = autosteer_steering - pid_deg;
+                  std::cout << "[Comparison Frame " << tf.frame_number << "] "
+                            << "AutoSteer: " << std::fixed << std::setprecision(2) << autosteer_steering << " deg, "
+                            << "PID: " << std::setprecision(2) << pid_deg << " deg, "
+                            << "Diff: " << std::setprecision(2) << diff << " deg" << std::endl;
+              }
           }
           // ========================================
 
@@ -386,12 +456,12 @@ void inferenceThread(
             cv::resize(tf.frame, frame_small, cv::Size(), 0.5, 0.5, cv::INTER_AREA);
 
             // Deep clone lane masks (synchronous, safe for zero-copy borrow in logger)
-            autoware_pov::vision::autosteer::LaneSegmentation raw_clone;
+            autoware_pov::vision::egolanes::LaneSegmentation raw_clone;
             raw_clone.ego_left = raw_lanes.ego_left.clone();
             raw_clone.ego_right = raw_lanes.ego_right.clone();
             raw_clone.other_lanes = raw_lanes.other_lanes.clone();
 
-            autoware_pov::vision::autosteer::LaneSegmentation filtered_clone;
+            autoware_pov::vision::egolanes::LaneSegmentation filtered_clone;
             filtered_clone.ego_left = filtered_lanes.ego_left.clone();
             filtered_clone.ego_right = filtered_lanes.ego_right.clone();
             filtered_clone.other_lanes = filtered_lanes.other_lanes.clone();
@@ -415,8 +485,10 @@ void inferenceThread(
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
-        result.steering_angle = steering_angle;  // Store computed steering angle
+        result.steering_angle = steering_angle;  // Store PID steering angle
         result.path_output = path_output;        // Store for viz
+        result.autosteer_angle = autosteer_steering;  // Store AutoSteer angle
+        result.autosteer_valid = (autosteer_engine != nullptr && egolanes_tensor_buffer.full());
         output_queue.push(result);
     }
 
@@ -441,11 +513,11 @@ void displayThread(
      int window_height = 1080;
     if (enable_viz) {
          cv::namedWindow(
-             "AutoSteer Inference",
+             "EgoLanes Inference",
              cv::WINDOW_NORMAL
          );
          cv::resizeWindow(
-             "AutoSteer Inference",
+             "EgoLanes Inference",
              window_width,
              window_height
          );
@@ -459,7 +531,7 @@ void displayThread(
         std::cout << "Video saving enabled. Output: " << output_video_path << std::endl;
     }
 
-     // CSV logger for curve params metrics
+     // CSV logger for all steering outputs (PathFinder + PID + AutoSteer)
      std::ofstream csv_file;
      csv_file.open(csv_log_path);
      if (csv_file.is_open()) {
@@ -467,12 +539,13 @@ void displayThread(
          csv_file << "frame_id,timestamp_ms,"
                   << "orig_lane_offset,orig_yaw_offset,orig_curvature,"
                   << "pathfinder_cte,pathfinder_yaw_error,pathfinder_curvature,"
-                  << "steering_angle_rad,steering_angle_deg\n";
+                  << "pid_steering_rad,pid_steering_deg,"
+                  << "autosteer_angle_deg,autosteer_valid\n";
 
          std::cout << "CSV logging enabled: " << csv_log_path << std::endl;
      } else {
          std::cerr << "Error: could not open " << csv_log_path << " for writing" << std::endl;
-     }
+    }
 
     while (running.load()) {
         InferenceResult result;
@@ -525,7 +598,7 @@ void displayThread(
              if (result.path_output.fused_valid) {
                  std::vector<double> left_coeffs(result.path_output.left_coeff.begin(), result.path_output.left_coeff.end());
                  std::vector<double> right_coeffs(result.path_output.right_coeff.begin(), result.path_output.right_coeff.end());
-                 autoware_pov::vision::autosteer::drawMetricVerification(
+                 autoware_pov::vision::egolanes::drawMetricVerification(
                      view_bev,
                      left_coeffs,
                      right_coeffs
@@ -604,7 +677,7 @@ void displayThread(
             }
 
             // Display
-            cv::imshow("AutoSteer Inference", stacked_view);
+            cv::imshow("EgoLanes Inference", stacked_view);
 
             if (cv::waitKey(1) == 'q') {
                 running.store(false);
@@ -632,10 +705,13 @@ void displayThread(
                       << result.path_output.cte << ","
                       << result.path_output.yaw_error << ","
                       << result.path_output.curvature << ","
-                      // Steering angle
+                      // PID Controller steering angle
                       << std::fixed << std::setprecision(6) << result.steering_angle << ","
-                      << (result.steering_angle * 180.0 / M_PI) << "\n";
-         }
+                      << (result.steering_angle * 180.0 / M_PI) << ","
+                      // AutoSteer steering angle (degrees) and validity
+                      << result.autosteer_angle << ","
+                      << (result.autosteer_valid ? 1 : 0) << "\n";
+        }
 
         auto t_display_end = steady_clock::now();
 
@@ -686,7 +762,7 @@ void displayThread(
      if (csv_file.is_open()) {
          csv_file.close();
          std::cout << "CSV log saved." << std::endl;
-     }
+    }
 }
 
 int main(int argc, char** argv)
@@ -708,7 +784,7 @@ int main(int argc, char** argv)
          std::cerr << "  output_video: (optional) Output video path (default: output.avi)\n\n";
         std::cerr << "Rerun Logging (optional):\n";
         std::cerr << "  --rerun              : Enable Rerun live viewer\n";
-        std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: autosteer.rrd)\n\n";
+        std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: egolanes.rrd)\n\n";
         std::cerr << "PathFinder (optional):\n";
         std::cerr << "  --path-planner       : Enable PathFinder (Bayes filter + polynomial fitting)\n";
         std::cerr << "  --pathfinder         : (alias)\n\n";
@@ -722,7 +798,9 @@ int main(int argc, char** argv)
                    << SteeringControllerDefaults::K_I << ")\n";
         std::cerr << "  --Kd [val]          : Derivative gain (default: " 
                    << SteeringControllerDefaults::K_D << ")\n";
-        std::cerr << "  --csv-log [path]    : CSV log file path (default: ./assets/curve_params_metrics.csv)\n";
+        std::cerr << "  --csv-log [path]    : CSV log file path (default: ./assets/curve_params_metrics.csv)\n\n";
+        std::cerr << "AutoSteer (optional - temporal steering prediction):\n";
+        std::cerr << "  --autosteer [model]  : Enable AutoSteer with model path\n";
         std::cerr << "Examples:\n";
         std::cerr << "  # Camera with live Rerun viewer:\n";
         std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
@@ -803,6 +881,8 @@ int main(int argc, char** argv)
     std::string rerun_save_path = "";
     bool enable_path_planner = false;
     bool enable_steering_control = false;
+    bool enable_autosteer = false;
+    std::string autosteer_model_path = "";
     
     // Steering controller parameters (defaults from steering_controller.hpp)
     double K_p = SteeringControllerDefaults::K_P;
@@ -821,12 +901,15 @@ int main(int argc, char** argv)
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 rerun_save_path = argv[++i];
             } else {
-                rerun_save_path = "autosteer.rrd";
+                rerun_save_path = "egolanes.rrd";
             }
         } else if (arg == "--path-planner" || arg == "--pathfinder") {
             enable_path_planner = true;
         } else if (arg == "--steering-control") {
             enable_steering_control = true;
+        } else if (arg == "--autosteer" && i + 1 < argc) {
+            enable_autosteer = true;
+            autosteer_model_path = argv[++i];
         } else if (arg == "--Ks" && i + 1 < argc) {
             K_S = std::atof(argv[++i]);
         } else if (arg == "--Kp" && i + 1 < argc) {
@@ -860,7 +943,7 @@ int main(int argc, char** argv)
         std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
     }
 
-    AutoSteerOnnxEngine engine(model_path, provider, precision, device_id, cache_dir);
+    EgoLanesOnnxEngine engine(model_path, provider, precision, device_id, cache_dir);
     std::cout << "Backend initialized!\n" << std::endl;
 
     // Warm-up inference (builds TensorRT engine on first run)
@@ -890,7 +973,7 @@ int main(int argc, char** argv)
     std::unique_ptr<autoware_pov::vision::rerun_integration::RerunLogger> rerun_logger;
     if (enable_rerun) {
         rerun_logger = std::make_unique<autoware_pov::vision::rerun_integration::RerunLogger>(
-            "AutoSteer", spawn_rerun_viewer, rerun_save_path);
+            "EgoLanes", spawn_rerun_viewer, rerun_save_path);
     }
 #endif
 
@@ -908,6 +991,46 @@ int main(int argc, char** argv)
     if (enable_steering_control) {
         steering_controller = std::make_unique<SteeringController>(K_p, K_i, K_d, K_S);
         std::cout << "Steering Controller initialized" << std::endl;
+    }
+    
+    // Initialize AutoSteer (optional - temporal steering prediction)
+    std::unique_ptr<AutoSteerOnnxEngine> autosteer_engine;
+    if (enable_autosteer) {
+        std::cout << "\nLoading AutoSteer model: " << autosteer_model_path << std::endl;
+        std::cout << "Provider: " << provider << " | Precision: " << precision << std::endl;
+        
+        if (provider == "tensorrt") {
+            std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
+            std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
+        }
+        
+        autosteer_engine = std::make_unique<AutoSteerOnnxEngine>(
+            autosteer_model_path, provider, precision, device_id, cache_dir);
+        
+        // Warm-up AutoSteer inference (builds TensorRT engine on first run)
+        if (provider == "tensorrt") {
+            std::cout << "Running AutoSteer warm-up inference to build TensorRT engine..." << std::endl;
+            std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
+            
+            auto warmup_start = std::chrono::steady_clock::now();
+            
+            // Create dummy concatenated input [1, 6, 80, 160]
+            std::vector<float> dummy_input(6 * 80 * 160, 0.5f);
+            float warmup_result = autosteer_engine->inference(dummy_input);
+            
+            auto warmup_end = std::chrono::steady_clock::now();
+            double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                warmup_end - warmup_start).count() / 1000.0;
+            
+            std::cout << "AutoSteer warm-up complete! (took " << std::fixed << std::setprecision(1) 
+                      << warmup_time << "s)" << std::endl;
+            std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
+        }
+        
+        std::cout << "AutoSteer initialized (temporal steering prediction)" << std::endl;
+        std::cout << "  - Input: [1, 6, 80, 160] (concatenated EgoLanes t-1, t)" << std::endl;
+        std::cout << "  - Output: Steering angle (degrees, -30 to +30)" << std::endl;
+        std::cout << "  - Note: First frame will be skipped (requires temporal buffer)\n" << std::endl;
     }
 
     // Thread-safe queues with bounded size (prevents memory overflow)
@@ -937,6 +1060,9 @@ int main(int argc, char** argv)
     if (steering_controller) {
         std::cout << "Steering Control: ENABLED" << std::endl;
     }
+    if (autosteer_engine) {
+        std::cout << "AutoSteer: ENABLED (temporal steering prediction)" << std::endl;
+    }
     if (measure_latency) {
         std::cout << "Latency measurement: ENABLED (metrics every 30 frames)" << std::endl;
     }
@@ -959,13 +1085,15 @@ int main(int argc, char** argv)
                             std::ref(metrics), std::ref(running), threshold,
                             path_finder.get(),
                             steering_controller.get(),
+                            autosteer_engine.get(),
                             rerun_logger.get());
 #else
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
                             path_finder.get(),
-                            steering_controller.get());
+                            steering_controller.get(),
+                            autosteer_engine.get());
 #endif
     std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                           std::ref(running), enable_viz, save_video, output_video_path, csv_log_path);
