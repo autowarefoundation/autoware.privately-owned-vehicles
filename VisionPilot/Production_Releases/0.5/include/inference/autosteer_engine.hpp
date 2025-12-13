@@ -57,6 +57,12 @@ public:
   int getInputChannels() const { return model_input_channels_; }
   int getInputHeight() const { return model_input_height_; }
   int getInputWidth() const { return model_input_width_; }
+  
+  /**
+   * @brief Get raw output logits for debugging
+   * @return Vector of 61 logit values (one per steering class)
+   */
+  std::vector<float> getRawOutputLogits() const;
 
 private:
   /**
@@ -77,7 +83,8 @@ private:
   
   // Input/Output tensor names (storage + pointers)
   std::string input_name_storage_;
-  std::string output_name_storage_;
+  std::string output_name_storage_;  // Kept for backward compatibility (points to second output)
+  std::vector<std::string> output_names_storage_;  // Stores both output names
   std::vector<const char*> input_names_;
   std::vector<const char*> output_names_;
   
