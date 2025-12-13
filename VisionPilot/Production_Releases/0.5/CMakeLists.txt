@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(autosteer_pipeline LANGUAGES CXX)
+project(egolanes_pipeline LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,38 +39,39 @@ include_directories(
     ${EIGEN3_INCLUDE_DIR}
 )
 
-# AutoSteer inference backend
-add_library(autosteer_inference
+# EgoLanes inference backend
+add_library(egolanes_inference
     src/inference/onnxruntime_session.cpp
     src/inference/onnxruntime_engine.cpp
+    src/inference/autosteer_engine.cpp
 )
-target_compile_definitions(autosteer_inference PRIVATE LOG_TYPE=0)  # Use non-ROS logging
-target_link_libraries(autosteer_inference
+target_compile_definitions(egolanes_inference PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_link_libraries(egolanes_inference
     ${OpenCV_LIBS}
     ${ONNXRUNTIME_LIBRARY}
 )
 # Add RPATH so executable can find libonnxruntime.so at runtime
-set_target_properties(autosteer_inference PROPERTIES
+set_target_properties(egolanes_inference PROPERTIES
     BUILD_RPATH ${ONNXRUNTIME_LIB_DIR}
     INSTALL_RPATH ${ONNXRUNTIME_LIB_DIR}
 )
 
 # Visualization module
-add_library(autosteer_visualization
+add_library(egolanes_visualization
     src/visualization/draw_lanes.cpp
 )
-target_compile_definitions(autosteer_visualization PRIVATE LOG_TYPE=0)  # Use non-ROS logging
-target_link_libraries(autosteer_visualization
-    autosteer_inference
+target_compile_definitions(egolanes_visualization PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_link_libraries(egolanes_visualization
+    egolanes_inference
     ${OpenCV_LIBS}
 )
 
 # Lane filtering module
-add_library(autosteer_lane_filtering
+add_library(egolanes_lane_filtering
     src/lane_filtering/lane_filter.cpp
 )
-target_link_libraries(autosteer_lane_filtering
-    autosteer_inference
+target_link_libraries(egolanes_lane_filtering
+    egolanes_inference
     ${OpenCV_LIBS}
 )
 
@@ -135,8 +136,8 @@ if(ENABLE_RERUN)
                 src/rerun/rerun_logger.cpp
             )
             target_compile_definitions(rerun_logger PRIVATE ENABLE_RERUN)
-            target_link_libraries(rerun_logger
-                autosteer_inference
+target_link_libraries(rerun_logger
+    egolanes_inference
                 ${OpenCV_LIBS}
                 rerun_sdk
             )
@@ -152,26 +153,26 @@ if(NOT RERUN_ENABLED)
 endif()
 
 # Lane tracking module
-add_library(autosteer_lane_tracking
+add_library(egolanes_lane_tracking
     src/lane_tracking/lane_tracking.cpp
 )
-target_link_libraries(autosteer_lane_tracking
-    autosteer_inference
+target_link_libraries(egolanes_lane_tracking
+    egolanes_inference
     ${OpenCV_LIBS}
 )
 
 # Main executable
-add_executable(autosteer_pipeline
+add_executable(egolanes_pipeline
     main.cpp
 )
-target_compile_definitions(autosteer_pipeline PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_compile_definitions(egolanes_pipeline PRIVATE LOG_TYPE=0)  # Use non-ROS logging
 
 # Link libraries
-set(AUTOSTEER_LIBS
-    autosteer_inference
-    autosteer_visualization
-    autosteer_lane_filtering
-    autosteer_lane_tracking
+set(EGOLANES_LIBS
+    egolanes_inference
+    egolanes_visualization
+    egolanes_lane_filtering
+    egolanes_lane_tracking
     camera_utils
     path_planning
     steering_control
@@ -180,14 +181,21 @@ set(AUTOSTEER_LIBS
 )
 
 if(ENABLE_RERUN AND RERUN_ENABLED)
-    target_compile_definitions(autosteer_pipeline PRIVATE ENABLE_RERUN)
-    list(APPEND AUTOSTEER_LIBS rerun_logger)
+    target_compile_definitions(egolanes_pipeline PRIVATE ENABLE_RERUN)
+    list(APPEND EGOLANES_LIBS rerun_logger)
 endif()
 
-target_link_libraries(autosteer_pipeline ${AUTOSTEER_LIBS})
+target_link_libraries(egolanes_pipeline ${EGOLANES_LIBS})
+
+# Test executable for AutoSteer
+add_executable(test_autosteer
+    test/test_autosteer.cpp
+)
+target_compile_definitions(test_autosteer PRIVATE LOG_TYPE=0)
+target_link_libraries(test_autosteer ${EGOLANES_LIBS})
 
 # Installation
-install(TARGETS autosteer_pipeline
+install(TARGETS egolanes_pipeline
     RUNTIME DESTINATION bin
 )
 
