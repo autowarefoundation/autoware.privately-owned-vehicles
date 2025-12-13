@@ -22,7 +22,7 @@ SteeringController::SteeringController(
     prev_yaw_error = 0.0;
 }
 
-double SteeringController::computeSteering(double cte, double yaw_error, double curvature)
+double SteeringController::computeSteering(double cte, double yaw_error, double feed_forward_steering_estimate)
 {
     // Combined controller:
     // - Derivative term: K_d * (yaw_error - prev_yaw_error)
@@ -32,7 +32,7 @@ double SteeringController::computeSteering(double cte, double yaw_error, double 
     double steering_angle = K_d * (yaw_error - prev_yaw_error) 
                           + std::atan(K_i * cte) 
                           + K_p * yaw_error 
-                          - std::atan(curvature) * K_S;
+                          + (feed_forward_steering_estimate) * K_S;
     prev_yaw_error = yaw_error;
     return steering_angle;
 }

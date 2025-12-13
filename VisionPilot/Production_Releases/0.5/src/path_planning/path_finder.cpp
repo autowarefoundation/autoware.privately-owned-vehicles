@@ -84,10 +84,10 @@ PathFinderOutput PathFinder::update(
     // Store individual metrics
     output.left_cte = left_curve.cte;
     output.left_yaw_error = left_curve.yaw_error;
-    output.left_curvature = left_curve.curvature;
+    output.left_curvature = left_curve.curvature; // Pass in AutoSteer units
     output.right_cte = right_curve.cte;
     output.right_yaw_error = right_curve.yaw_error;
-    output.right_curvature = right_curve.curvature;
+    output.right_curvature = right_curve.curvature;     // Pass in AutoSteer units
     
     // 4. Create measurement (adapted from cb_drivCorr)
     std::array<Gaussian, STATE_DIM> measurement;

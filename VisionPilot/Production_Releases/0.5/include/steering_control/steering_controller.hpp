@@ -46,10 +46,10 @@ public:
      * @brief Compute steering angle
      * @param cte Cross-track error (meters)
      * @param yaw_error Yaw error (radians)
-     * @param curvature Path curvature (1/meters)
+     * @param feed_forward_steering_estimate (angle in degrees)
      * @return Steering angle (radians)
      */
-    double computeSteering(double cte, double yaw_error, double curvature);
+    double computeSteering(double cte, double yaw_error, double feed_forward_steering_estimate);
 
 private:
     double K_p, K_i, K_d, K_S;
