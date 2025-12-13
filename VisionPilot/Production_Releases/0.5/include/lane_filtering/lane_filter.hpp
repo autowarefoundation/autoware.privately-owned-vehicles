@@ -3,7 +3,7 @@
 #include <vector>
 #include <random>
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 /**
@@ -103,4 +103,4 @@ private:
     float smoothing_factor;
 };
 
-}  // namespace autoware_pov::vision::autosteer
+}  // namespace autoware_pov::vision::egolanes

@@ -1,11 +1,11 @@
-#ifndef AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
-#define AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
+#ifndef AUTOWARE_POV_VISION_EGOLANES_LANE_TRACKING_HPP_
+#define AUTOWARE_POV_VISION_EGOLANES_LANE_TRACKING_HPP_
 
 #include "inference/onnxruntime_engine.hpp"
 #include <opencv2/opencv.hpp>
 #include <vector>
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 // BEV-specific visualization data
@@ -128,6 +128,6 @@ private:
 
 };
 
-} // namespace autoware_pov::vision::autosteer
+} // namespace autoware_pov::vision::egolanes
 
-#endif // AUTOWARE_POV_VISION_AUTOSTEER_LANE_TRACKING_HPP_
+#endif // AUTOWARE_POV_VISION_EGOLANES_LANE_TRACKING_HPP_
