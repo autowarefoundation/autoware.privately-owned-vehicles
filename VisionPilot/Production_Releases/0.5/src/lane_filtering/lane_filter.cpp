@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <random>
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 LaneFilter::LaneFilter(float smoothing_factor) 
@@ -593,4 +593,4 @@ std::vector<cv::Point> LaneFilter::slidingWindowSearch(
     return lane_points;
 }
 
-}  // namespace autoware_pov::vision::autosteer
+}  // namespace autoware_pov::vision::egolanes
