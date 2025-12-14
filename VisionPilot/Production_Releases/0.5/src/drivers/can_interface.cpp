@@ -91,3 +91,20 @@ void CanInterface::parseFrame(
         current_state_.is_valid = true;
     }
 }
+
+// ABSSP1 (Speed) : Start Bit 39 | Length 16 | Signed | Factor 0.01
+// Format: Motorola (Big Endian: https://en.wikipedia.org/wiki/Endianness)
+// Bit 39 is in byte 4. (0-indexed). 
+// 16 bits -> spans byte 4 (high) and byte 5 (low) or 4 and 3?
+// We assume [byte 4] is MSB, [byte 5] is LSB based on standard layout.
+double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
+
+    if (data.size() < 8) return 0.0;
+
+    // Combine byte 4 and byte 5
+    // Note: DBC bit numbering can be tricky. If start is 39 (0x27), that is bit 7 of byte 4.
+    // We assume standard Big Endian placement.
+    int16_t raw = (static_cast<int16_t>(data[4]) << 8) | static_cast<int16_t>(data[5]);
+    
+    return static_cast<double>(raw) * 0.01;
+}
