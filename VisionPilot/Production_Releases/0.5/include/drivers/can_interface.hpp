@@ -32,4 +32,11 @@ public:
     
     ~CanInterface();
 
-    
+    /**
+     * @brief Read available CAN frames and update state
+     * * Call this once per cycle in main loop.
+     * In real-time inference : reads all frames currently in the socket buffer.
+     * In fie replay : reads the next line from the ASC file.
+     * * @return true if new data was processed, false otherwise
+     */
+    bool update();
