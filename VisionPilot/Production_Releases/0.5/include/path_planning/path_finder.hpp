@@ -13,6 +13,7 @@
 #include <vector>
 #include <array>
 #include <string>
+#include <limits>
 
 namespace autoware_pov::vision::path_planning {
 
@@ -76,11 +77,13 @@ public:
      * 
      * @param left_pts_bev Left lane points in BEV meters (x=lateral, y=longitudinal)
      * @param right_pts_bev Right lane points in BEV meters
+     * @param autosteer_steering_deg Optional AutoSteer steering angle in degrees (replaces computed curvature)
      * @return PathFinder output (fused metrics + individual curves)
      */
     PathFinderOutput update(
         const std::vector<cv::Point2f>& left_pts_bev,
-        const std::vector<cv::Point2f>& right_pts_bev);
+        const std::vector<cv::Point2f>& right_pts_bev,
+        double autosteer_steering_rad = std::numeric_limits<double>::quiet_NaN());
     
     /**
      * @brief Get current tracked state
