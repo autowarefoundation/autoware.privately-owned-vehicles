@@ -77,5 +77,9 @@ private:
         int can_id, 
         const std::vector<uint8_t>& data
     );
+
+    double decodeSpeed(const std::vector<uint8_t>& data);
+
+    
     
 };
