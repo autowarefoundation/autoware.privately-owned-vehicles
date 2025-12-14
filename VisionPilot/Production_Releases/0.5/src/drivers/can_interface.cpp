@@ -249,3 +249,67 @@ bool CanInterface::readFileLine() {
         while (iss >> token) {
             parts.push_back(token);
         }
+
+        // Simple parser for .asc line:
+        // 0.022530 1 A1 Rx d 8 00 00 ...
+        // Index: 0=Time, 1=Chan, 2=ID, ... 5=DLC, 6+=Data
+        
+        if (parts.size() >= 7) {
+            try {
+                // Check if it's a data frame
+                bool is_rx = false;
+                for (const auto& p : parts) { 
+                    if (p == "Rx") {
+                        is_rx = true; 
+                    }
+                }
+                
+                if (is_rx) {
+                    // Extract ID (Hex)
+                    int id = std::stoi(
+                        parts[2], 
+                        nullptr, 
+                        16
+                    );
+                    
+                    // Extract data
+                    std::vector<uint8_t> data;
+                    // Find where data starts (after 'd' and '8')
+                    // Usually data starts at index 6 or 7 depending on format variation
+                    // We scan from end or look for hex bytes
+                    
+                    int dlc_idx = -1;
+                    for(size_t i = 0; i < parts.size(); ++i) {
+                        if (parts[i] == "d") {
+                            dlc_idx = i + 1; // Next is DLC length
+                            break;
+                        }
+                    }
+
+                    if (
+                        dlc_idx != -1 && 
+                        dlc_idx + 1 < (int)parts.size()
+                    ) {
+                        int dlc = std::stoi(parts[dlc_idx]);
+                        for (int i = 0; i < dlc; ++i) {
+                            if (dlc_idx + 1 + i < (int)parts.size()) {
+                                data.push_back(std::stoi(
+                                    parts[dlc_idx + 1 + i], 
+                                    nullptr, 
+                                    16
+                                ));
+                            }
+                        }
+                        parseFrame(id, data);
+                        return true;
+                    }
+                }
+            } catch (...) {
+                // Ignore parsing errors for comments/header lines
+            }
+        }
+        return true; // Line read successfully (even if empty/comment)
+    } 
+    
+    return false; // End of file
+}
