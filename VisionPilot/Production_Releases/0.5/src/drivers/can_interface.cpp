@@ -70,3 +70,24 @@ CanVehicleState CanInterface::getState() const {
     return current_state_;
 }
 
+// Decoding from CAN frame
+void CanInterface::parseFrame(
+    int can_id, 
+    const std::vector<uint8_t>& data
+) {
+
+    if (data.empty()) return;
+
+    // ID 0xA1 (A1, 161) => Speed
+    if (can_id == ID_SPEED) {
+        double val = decodeSpeed(data);
+        current_state_.speed_kmph = val;
+        current_state_.is_valid = true;
+    } 
+    // ID 0xA4 (A4, 164) => Steering angle
+    else if (can_id == ID_STEERING) {
+        double val = decodeSteering(data);
+        current_state_.steering_angle_deg = val;
+        current_state_.is_valid = true;
+    }
+}
