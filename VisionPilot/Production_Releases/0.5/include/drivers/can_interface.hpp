@@ -47,6 +47,11 @@ public:
     CanVehicleState getState() const;
 
     /**
-     * @brief Check if we are in file replay mode
+     * @brief Check if in file replay
      */
     bool isReplayMode() const { return is_file_mode_; }
+
+private:
+    // State
+    CanVehicleState current_state_;
+    bool is_file_mode_ = false;
