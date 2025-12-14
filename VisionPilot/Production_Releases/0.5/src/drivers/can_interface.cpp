@@ -178,3 +178,40 @@ void CanInterface::setupSocket(
     int flags = fcntl(socket_fd_, F_GETFL, 0);
     fcntl(socket_fd_, F_SETFL, flags | O_NONBLOCK);
 }
+
+// Read socket
+bool CanInterface::readSocket() {
+    
+    if (socket_fd_ < 0) return false;
+
+    struct can_frame frame;
+    bool data_received = false;
+
+    // Read all pending frames in the buffer
+    while (true) {
+        int nbytes = read(
+            socket_fd_, 
+            &frame, 
+            sizeof(struct can_frame)
+        );
+        if (nbytes < 0) {
+            // No more data (EAGAIN) or error
+            break;
+        }
+        if (nbytes < (int)sizeof(struct can_frame)) {
+            continue; // Incomplete frame
+        }
+
+        // Vector conversion for safe handling
+        std::vector<uint8_t> data_vec(
+            frame.data, 
+            frame.data + frame.can_dlc
+        );
+        parseFrame(
+            frame.can_id, 
+            data_vec
+        );
+        data_received = true;
+    }
+    return data_received;
+}
