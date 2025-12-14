@@ -72,3 +72,10 @@ private:
     // Decoding IDs
     static constexpr int ID_SPEED = 0xA1;    // Or A1, 161
     static constexpr int ID_STEERING = 0xA4; // Or A4, 164
+
+    void parseFrame(
+        int can_id, 
+        const std::vector<uint8_t>& data
+    );
+    
+};
