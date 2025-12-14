@@ -28,8 +28,9 @@ FittedCurve::FittedCurve(const std::array<double, 3> &coeff) : coeff(coeff)
     cte = -coeff[2];  // Lateral offset
     yaw_error = -std::atan2(coeff[1], 1.0);  // Heading angle
     
-    // Curvature formula: κ = 2*c0 / (1 + c1²)^(3/2)
-    curvature = 2 * coeff[0] / std::pow(1 - (coeff[1] * coeff[1]), 1.5);
+    // Curvature is no longer computed here - we use AutoSteer steering angle instead
+    // Keep curvature field for backward compatibility with Bayes filter (will use AutoSteer when available)
+    curvature = std::numeric_limits<double>::quiet_NaN();
 }
 
 std::array<double, 3> fitQuadPoly(const std::vector<cv::Point2f> &points)
