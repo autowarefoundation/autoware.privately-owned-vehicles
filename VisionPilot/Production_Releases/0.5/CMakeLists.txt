@@ -162,6 +162,9 @@ target_link_libraries(egolanes_lane_tracking
 )
 
 # Main executable
+file(COPY ${CMAKE_SOURCE_DIR}/images
+        DESTINATION ${CMAKE_BINARY_DIR})
+
 add_executable(egolanes_pipeline
     main.cpp
 )

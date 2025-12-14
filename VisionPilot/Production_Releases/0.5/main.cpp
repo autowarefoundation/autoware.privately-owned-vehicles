@@ -300,13 +300,13 @@ void inferenceThread(
 
         auto t_inference_start = steady_clock::now();
 
-         // Crop tf.frame 420 pixels top
-         tf.frame = tf.frame(cv::Rect(
-             0,
-             420,
-             tf.frame.cols,
-             tf.frame.rows - 420
-         ));
+         // // Crop tf.frame 420 pixels top
+         // tf.frame = tf.frame(cv::Rect(
+         //     0,
+         //     420,
+         //     tf.frame.cols,
+         //     tf.frame.rows - 420
+         // ));
          
         image_buffer.push_back(tf.frame.clone()); // Store a copy of the cropped frame
 
@@ -477,7 +477,7 @@ void inferenceThread(
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
-        result.steering_angle = steering_angle;  // Store PID steering angle
+        result.steering_angle = steering_angle * 180.0 / M_PI;  // Store PID steering angle
         result.path_output = path_output;        // Store for viz
         result.autosteer_angle = autosteer_steering;  // Store AutoSteer angle
         result.autosteer_valid = (autosteer_engine != nullptr && egolanes_tensor_buffer.full());
@@ -501,8 +501,8 @@ void displayThread(
 )
 {
     // Visualization setup
-     int window_width = 1600;
-     int window_height = 1080;
+     int window_width = 640;
+     int window_height = 320;
     if (enable_viz) {
          cv::namedWindow(
              "EgoLanes Inference",
@@ -539,6 +539,9 @@ void displayThread(
          std::cerr << "Error: could not open " << csv_log_path << " for writing" << std::endl;
     }
 
+  std::string image_path = "images/wheel_green.png";
+  cv::Mat steeringWheelImg = cv::imread(image_path, cv::IMREAD_UNCHANGED);
+
     while (running.load()) {
         InferenceResult result;
         if (!queue.try_pop(result)) {
@@ -560,113 +563,118 @@ void displayThread(
              //  - Polyfit lanes (final prod)
              //  - BEV vis
             cv::Mat view_debug = result.frame.clone();
-            cv::Mat view_final = result.frame.clone();
-             cv::Mat view_bev(
-                 640,
-                 640,
-                 CV_8UC3,
-                 cv::Scalar(0,0,0)
-             );
+            // cv::Mat view_final = result.frame.clone();
+            //  cv::Mat view_bev(
+            //      640,
+            //      640,
+            //      CV_8UC3,
+            //      cv::Scalar(0,0,0)
+            //  );
+
+            cv::Mat rotatedSteeringWheelImg = rotateSteeringWheel(steeringWheelImg, result.steering_angle);
+            visualizeSteering(view_debug, result.steering_angle, rotatedSteeringWheelImg);
+
+            // std::cout<< "************ " << result.steering_angle << std::endl;
 
              // 2. Draw 3 views
             drawRawMasksInPlace(
                 view_debug, 
                 result.lanes
             );
-            drawPolyFitLanesInPlace(
-                view_final, 
-                result.lanes
-            );
-             drawBEVVis(
-                 view_bev,
-                 result.frame,
-                 result.metrics.bev_visuals
-             );
-
-             // Draw Metric Debug (projected back to pixels) - only if path is valid
-             if (result.path_output.fused_valid) {
-                 std::vector<double> left_coeffs(result.path_output.left_coeff.begin(), result.path_output.left_coeff.end());
-                 std::vector<double> right_coeffs(result.path_output.right_coeff.begin(), result.path_output.right_coeff.end());
-                 autoware_pov::vision::egolanes::drawMetricVerification(
-                     view_bev,
-                     left_coeffs,
-                     right_coeffs
-                 );
-             }
-
-             // 3. View layout handling
-             // Layout:
-             // | [Debug] | [ BEV (640x640) ]
-             // | [Final] | [ Black Space   ]
-
-             // Left col: debug (top) + final (bottom)
-             cv::Mat left_col;
-            cv::vconcat(
-                view_debug, 
-                view_final, 
-                 left_col
-             );
-
-             float left_aspect = static_cast<float>(left_col.cols) / left_col.rows;
-             int target_left_w = static_cast<int>(window_height * left_aspect);
-             cv::resize(
-                 left_col,
-                 left_col,
-                 cv::Size(target_left_w, window_height)
-             );
-
-             // Right col: BEV (stretched to match height)
-             // Black canvas matching left col height
-             cv::Mat right_col = cv::Mat::zeros(
-                 window_height,
-                 640,
-                 view_bev.type()
-             );
-             // Prep BEV
-             cv::Rect top_roi(
-                 0, 0,
-                 view_bev.cols,
-                 view_bev.rows
-             );
-             view_bev.copyTo(right_col(top_roi));
-
-             // Final stacked view
-             cv::Mat stacked_view;
-             cv::hconcat(
-                 left_col,
-                 right_col,
-                stacked_view
-            );
-
-            // Initialize video writer on first frame
-            if (save_video && !video_writer_initialized) {
-                // Use H.264 for better performance and smaller file size
-                // XVID is slower and creates larger files
-                int fourcc = cv::VideoWriter::fourcc('a', 'v', 'c', '1');  // H.264
-                video_writer.open(
-                    output_video_path, 
-                    fourcc, 
-                     10.0,
-                    stacked_view.size(),
-                    true
-                );
-
-                if (video_writer.isOpened()) {
-                    std::cout << "Video writer initialized (H.264): " << stacked_view.cols 
-                               << "x" << stacked_view.rows << " @ 10 fps" << std::endl;
-                    video_writer_initialized = true;
-                } else {
-                    std::cerr << "Warning: Failed to initialize video writer" << std::endl;
-                }
-            }
-
-            // Write to video
-            if (save_video && video_writer_initialized && video_writer.isOpened()) {
-                video_writer.write(stacked_view);
-            }
+            // drawPolyFitLanesInPlace(
+            //     view_final,
+            //     result.lanes
+            // );
+            //  drawBEVVis(
+            //      view_bev,
+            //      result.frame,
+            //      result.metrics.bev_visuals
+            //  );
+            //
+            //  // Draw Metric Debug (projected back to pixels) - only if path is valid
+            //  if (result.path_output.fused_valid) {
+            //      std::vector<double> left_coeffs(result.path_output.left_coeff.begin(), result.path_output.left_coeff.end());
+            //      std::vector<double> right_coeffs(result.path_output.right_coeff.begin(), result.path_output.right_coeff.end());
+            //      autoware_pov::vision::egolanes::drawMetricVerification(
+            //          view_bev,
+            //          left_coeffs,
+            //          right_coeffs
+            //      );
+            //  }
+            //
+            //  // 3. View layout handling
+            //  // Layout:
+            //  // | [Debug] | [ BEV (640x640) ]
+            //  // | [Final] | [ Black Space   ]
+            //
+            //  // Left col: debug (top) + final (bottom)
+            //  cv::Mat left_col;
+            // cv::vconcat(
+            //     view_debug,
+            //     view_final,
+            //      left_col
+            //  );
+            //
+            //  float left_aspect = static_cast<float>(left_col.cols) / left_col.rows;
+            //  int target_left_w = static_cast<int>(window_height * left_aspect);
+            //  cv::resize(
+            //      left_col,
+            //      left_col,
+            //      cv::Size(target_left_w, window_height)
+            //  );
+            //
+            //  // Right col: BEV (stretched to match height)
+            //  // Black canvas matching left col height
+            //  cv::Mat right_col = cv::Mat::zeros(
+            //      window_height,
+            //      640,
+            //      view_bev.type()
+            //  );
+            //  // Prep BEV
+            //  cv::Rect top_roi(
+            //      0, 0,
+            //      view_bev.cols,
+            //      view_bev.rows
+            //  );
+            //  view_bev.copyTo(right_col(top_roi));
+            //
+            //  // Final stacked view
+            //  cv::Mat stacked_view;
+            //  cv::hconcat(
+            //      left_col,
+            //      right_col,
+            //     stacked_view
+            // );
+            //
+            // // Initialize video writer on first frame
+            // if (save_video && !video_writer_initialized) {
+            //     // Use H.264 for better performance and smaller file size
+            //     // XVID is slower and creates larger files
+            //     int fourcc = cv::VideoWriter::fourcc('a', 'v', 'c', '1');  // H.264
+            //     video_writer.open(
+            //         output_video_path,
+            //         fourcc,
+            //          10.0,
+            //         stacked_view.size(),
+            //         true
+            //     );
+            //
+            //     if (video_writer.isOpened()) {
+            //         std::cout << "Video writer initialized (H.264): " << stacked_view.cols
+            //                    << "x" << stacked_view.rows << " @ 10 fps" << std::endl;
+            //         video_writer_initialized = true;
+            //     } else {
+            //         std::cerr << "Warning: Failed to initialize video writer" << std::endl;
+            //     }
+            // }
+            //
+            // // Write to video
+            // if (save_video && video_writer_initialized && video_writer.isOpened()) {
+            //     video_writer.write(stacked_view);
+            // }
 
             // Display
-            cv::imshow("EgoLanes Inference", stacked_view);
+            cv::imshow("EgoLanes Inference", view_debug);
 
             if (cv::waitKey(1) == 'q') {
                 running.store(false);
