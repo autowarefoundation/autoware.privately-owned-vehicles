@@ -17,6 +17,7 @@
 
 namespace autoware_pov::drivers {
 
+// Constructor
 CanInterface::CanInterface(
     const std::string& interface_name
 ) {
@@ -32,5 +33,15 @@ CanInterface::CanInterface(
         std::cout << "[CanInterface] Initializing real-time inference mode (SocketCAN): " 
                   << interface_name << std::endl;
         setupSocket(interface_name);
+    }
+}
+
+// Destructor
+CanInterface::~CanInterface() {
+    if (!is_file_mode_ && socket_fd_ >= 0) {
+        close(socket_fd_);
+    }
+    if (is_file_mode_ && file_stream_.is_open()) {
+        file_stream_.close();
     }
 }
