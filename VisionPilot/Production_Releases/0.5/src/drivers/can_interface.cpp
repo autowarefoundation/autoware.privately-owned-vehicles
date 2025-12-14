@@ -313,3 +313,5 @@ bool CanInterface::readFileLine() {
     
     return false; // End of file
 }
+
+} // namespace autoware_pov::drivers
