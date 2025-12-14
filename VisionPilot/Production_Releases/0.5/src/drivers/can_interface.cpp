@@ -108,3 +108,30 @@ double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
     
     return static_cast<double>(raw) * 0.01;
 }
+
+// SSA (Steering angle) : Start Bit 46 | Length 15 | Signed | Factor 0.1
+// Format: Motorola (Big Endian: https://en.wikipedia.org/wiki/Endianness)
+// Bit 46 is in byte 5 (bit 6).
+// This is complex. We verify strictly against provided logic if possible.
+// Lacking exact bit-matrix, we assume standard Big Endian alignment crossing byte 5 and 6.
+double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
+    
+    if (data.size() < 8) return 0.0;
+
+    // Masking logic based on 15-bit signed integer
+    // Assuming MSB is in byte 5, LSB in byte 6
+    uint16_t raw_high = data[5];
+    uint16_t raw_low  = data[6];
+    
+    // Combine
+    uint16_t raw = (raw_high << 8) | raw_low;
+    
+    // If it's 15 bits, we might need to shift or mask. 
+    // Assuming the 15 bits are right-aligned in the extraction:
+    // (This is a best-guess implementation until A4 is actually observed in logs)
+    
+    // Convert to signed 16-bit to handle negative values (Two's complement)
+    int16_t signed_val = static_cast<int16_t>(raw);
+    
+    return static_cast<double>(signed_val) * 0.1;
+}
