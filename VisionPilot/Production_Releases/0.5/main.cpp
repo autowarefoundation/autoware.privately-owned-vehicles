@@ -388,13 +388,13 @@ void inferenceThread(
               double autosteer_input_rad = (autosteer_engine != nullptr && egolanes_tensor_buffer.full()) 
                                       ? (autosteer_steering * M_PI / 180.0)  // Convert degrees to radians
                                       : std::numeric_limits<double>::quiet_NaN();
-              path_output = path_finder->update(left_bev_meters, right_bev_meters, autosteer_input_rad);
-              
+              path_output = path_finder->update(left_bev_meters, right_bev_meters, autosteer_steering);
+
               // 4. Compute steering angle (if controller available)
               if (steering_controller != nullptr && path_output.fused_valid) {
                   steering_angle = steering_controller->computeSteering(
                       path_output.cte,
-                      path_output.yaw_error,
+                      path_output.yaw_error * 180 / M_PI,
                       path_output.curvature
                   );
               }
@@ -413,7 +413,7 @@ void inferenceThread(
                   
                   // PID Steering output (if controller is enabled)
                   if (steering_controller != nullptr) {
-                      double pid_deg = steering_angle * 180.0 / M_PI;
+                      double pid_deg = steering_angle;
                       std::cout << " | PID: " << std::setprecision(2) << pid_deg << " deg";
                   }
                   
@@ -423,7 +423,7 @@ void inferenceThread(
                       
                       // Show difference if both are available
                       if (steering_controller != nullptr) {
-                          double pid_deg = steering_angle * 180.0 / M_PI;
+                          double pid_deg = steering_angle;
                           double diff = autosteer_steering - pid_deg;
                           std::cout << " (Δ: " << std::setprecision(2) << diff << " deg)";
                       }
@@ -477,7 +477,7 @@ void inferenceThread(
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
-        result.steering_angle = steering_angle * 180.0 / M_PI;  // Store PID steering angle
+        result.steering_angle = steering_angle;  // Store PID steering angle
         result.path_output = path_output;        // Store for viz
         result.autosteer_angle = autosteer_steering;  // Store AutoSteer angle
         result.autosteer_valid = (autosteer_engine != nullptr && egolanes_tensor_buffer.full());
@@ -571,8 +571,9 @@ void displayThread(
             //      cv::Scalar(0,0,0)
             //  );
 
-            cv::Mat rotatedSteeringWheelImg = rotateSteeringWheel(steeringWheelImg, result.steering_angle);
-            visualizeSteering(view_debug, result.steering_angle, rotatedSteeringWheelImg);
+            float steering_angle = result.steering_angle;
+            cv::Mat rotatedSteeringWheelImg = rotateSteeringWheel(steeringWheelImg, steering_angle);
+            visualizeSteering(view_debug, steering_angle, rotatedSteeringWheelImg);
 
             // std::cout<< "************ " << result.steering_angle << std::endl;
 

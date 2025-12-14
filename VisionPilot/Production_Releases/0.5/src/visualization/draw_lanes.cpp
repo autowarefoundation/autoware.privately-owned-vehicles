@@ -852,7 +852,7 @@ void drawMetricVerification(
 cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg)
 {
   cv::Point2f center(img.cols/2.0f, img.rows/2.0f);
-  cv::Mat rot = cv::getRotationMatrix2D(center, -steering_angle_deg, 1.0);
+  cv::Mat rot = cv::getRotationMatrix2D(center, steering_angle_deg, 1.0);
 
   cv::Mat rotated;
   cv::warpAffine(
@@ -909,7 +909,7 @@ void visualizeSteering(cv::Mat& img, const float steering_angle, const cv::Mat& 
 
   std::ostringstream oss;
   oss << std::fixed << std::setprecision(2) << steering_angle;
-  std::string steeringAngleText = "Steering angle: " + oss.str();
+  std::string steeringAngleText = "Predicted angle: " + oss.str();
 
   cv::putText(
     img,
@@ -917,8 +917,8 @@ void visualizeSteering(cv::Mat& img, const float steering_angle, const cv::Mat& 
     cv::Point(20, 220),
     cv::FONT_HERSHEY_SIMPLEX,
     1.4,
-    cv::Scalar(0, 255, 255),
-    2
+    cv::Scalar(62, 202, 130),
+    3
   );
 }
 
