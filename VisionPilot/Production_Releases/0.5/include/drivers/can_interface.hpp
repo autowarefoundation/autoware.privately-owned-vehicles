@@ -83,3 +83,7 @@ private:
     double decodeSteering(const std::vector<uint8_t>& data);
     
 };
+
+} // namespace autoware_pov::drivers
+
+#endif // AUTOWARE_POV_DRIVERS_CAN_INTERFACE_HPP_
