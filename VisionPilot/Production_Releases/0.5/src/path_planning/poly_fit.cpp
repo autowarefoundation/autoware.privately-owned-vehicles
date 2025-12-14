@@ -74,15 +74,5 @@ std::array<double, 3> fitQuadPoly(const std::vector<cv::Point2f> &points)
     return coeffs;
 }
 
-FittedCurve calculateEgoPath(const FittedCurve &left_lane, const FittedCurve &right_lane)
-{
-    // Average the polynomial coefficients
-    return FittedCurve({
-        (left_lane.coeff[0] + right_lane.coeff[0]) / 2.0,
-        (left_lane.coeff[1] + right_lane.coeff[1]) / 2.0,
-        (left_lane.coeff[2] + right_lane.coeff[2]) / 2.0
-    });
-}
-
 } // namespace autoware_pov::vision::path_planning
 

@@ -178,22 +178,6 @@ PathFinderOutput PathFinder::update(
                          !std::isnan(output.yaw_error) && 
                          !std::isnan(output.curvature);
     
-    // 7. Calculate center polynomial coefficients (average left/right)
-    if (output.left_valid && output.right_valid) {
-        FittedCurve center = calculateEgoPath(left_curve, right_curve);
-        output.center_coeff = center.coeff;
-    } else if (output.left_valid) {
-        output.center_coeff = left_coeff;
-    } else if (output.right_valid) {
-        output.center_coeff = right_coeff;
-    } else {
-        output.center_coeff = {
-            std::numeric_limits<double>::quiet_NaN(),
-            std::numeric_limits<double>::quiet_NaN(),
-            std::numeric_limits<double>::quiet_NaN()
-        };
-    }
-    
     return output;
 }
 
