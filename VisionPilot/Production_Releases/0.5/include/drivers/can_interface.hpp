@@ -63,3 +63,8 @@ private:
     int socket_fd_ = -1;
     void setupSocket(const std::string& iface_name);
     bool readSocket();
+
+    // File replay (.asc)
+    std::ifstream file_stream_;
+    void setupFile(const std::string& file_path);
+    bool readFileLine();
