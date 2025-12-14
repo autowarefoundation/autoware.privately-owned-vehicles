@@ -16,3 +16,20 @@ struct CanVehicleState {
     double steering_angle_deg = std::numeric_limits<double>::quiet_NaN();   // Steering, CAN ID 0xA4
     bool is_valid = false;
 };
+
+/**
+ * @brief CAN Interface for hardware (SocketCAN) and file replay (.asc)
+ * - If interface_name ends with ".asc" : file replay.
+ * - Otherwise : open a SocketCAN interface (real-time inference).
+ */
+class CanInterface {
+public:
+    /**
+     * @brief Constructor
+     * @param interface_name "can0", "vcan0", or path to .asc file (e.g. "./assets/test.asc")
+     */
+    explicit CanInterface(const std::string& interface_name);
+    
+    ~CanInterface();
+
+    
