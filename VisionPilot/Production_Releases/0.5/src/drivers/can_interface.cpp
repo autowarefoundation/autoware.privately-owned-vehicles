@@ -136,6 +136,8 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     return static_cast<double>(signed_val) * 0.1;
 }
 
+// ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
+
 // SocketCAN setup during real-time inference
 void CanInterface::setupSocket(
     const std::string& iface_name
@@ -214,4 +216,17 @@ bool CanInterface::readSocket() {
         data_received = true;
     }
     return data_received;
+}
+
+// ============================== FILE REPLAY (.asc) ============================== //
+
+void CanInterface::setupFile(
+    const std::string& file_path
+) {
+    
+    is_file_mode_ = true;
+    file_stream_.open(file_path);
+    if (!file_stream_.is_open()) {
+        std::cerr << "[CanInterface] Failed to open file: " << file_path << std::endl;
+    }
 }
