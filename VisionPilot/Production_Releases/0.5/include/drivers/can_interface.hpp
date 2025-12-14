@@ -45,3 +45,8 @@ public:
      * @brief Get latest decoded vehicle state
      */
     CanVehicleState getState() const;
+
+    /**
+     * @brief Check if we are in file replay mode
+     */
+    bool isReplayMode() const { return is_file_mode_; }
