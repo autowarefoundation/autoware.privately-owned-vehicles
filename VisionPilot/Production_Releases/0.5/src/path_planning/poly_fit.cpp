@@ -28,8 +28,9 @@ FittedCurve::FittedCurve(const std::array<double, 3> &coeff) : coeff(coeff)
     cte = -coeff[2];  // Lateral offset
     yaw_error = -std::atan2(coeff[1], 1.0);  // Heading angle
     
-    // Curvature formula: κ = 2*c0 / (1 + c1²)^(3/2)
-    curvature = 2 * coeff[0] / std::pow(1 - (coeff[1] * coeff[1]), 1.5);
+    // Curvature is no longer computed here - we use AutoSteer steering angle instead
+    // Keep curvature field for backward compatibility with Bayes filter (will use AutoSteer when available)
+    curvature = std::numeric_limits<double>::quiet_NaN();
 }
 
 std::array<double, 3> fitQuadPoly(const std::vector<cv::Point2f> &points)
@@ -71,16 +72,6 @@ std::array<double, 3> fitQuadPoly(const std::vector<cv::Point2f> &points)
     }
     
     return coeffs;
-}
-
-FittedCurve calculateEgoPath(const FittedCurve &left_lane, const FittedCurve &right_lane)
-{
-    // Average the polynomial coefficients
-    return FittedCurve({
-        (left_lane.coeff[0] + right_lane.coeff[0]) / 2.0,
-        (left_lane.coeff[1] + right_lane.coeff[1]) / 2.0,
-        (left_lane.coeff[2] + right_lane.coeff[2]) / 2.0
-    });
 }
 
 } // namespace autoware_pov::vision::path_planning

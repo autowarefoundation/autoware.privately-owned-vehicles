@@ -1,4 +1,4 @@
-# VisionPilot 0.5 - AutoSteer Production Release
+# VisionPilot 0.5 - EgoLanes Production Release
 
 This release enables autonomous steering using the EgoLanes neural network to detect lane lines and navigate roads at a predetermined, desired speed.
 

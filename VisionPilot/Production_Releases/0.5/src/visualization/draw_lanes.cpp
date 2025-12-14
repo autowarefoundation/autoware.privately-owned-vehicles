@@ -2,7 +2,7 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 cv::Mat drawLanes(
@@ -849,4 +849,4 @@ void drawMetricVerification(
     }
 }
 
-}  // namespace autoware_pov::vision::autosteer
+}  // namespace autoware_pov::vision::egolanes

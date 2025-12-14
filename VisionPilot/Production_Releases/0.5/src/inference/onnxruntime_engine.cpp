@@ -7,10 +7,10 @@
 #define LOG_INFO(...) printf("[INFO] "); printf(__VA_ARGS__); printf("\n")
 #define LOG_ERROR(...) printf("[ERROR] "); printf(__VA_ARGS__); printf("\n")
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
-AutoSteerOnnxEngine::AutoSteerOnnxEngine(
+EgoLanesOnnxEngine::EgoLanesOnnxEngine(
   const std::string& model_path,
   const std::string& provider,
   const std::string& precision,
@@ -18,8 +18,9 @@ AutoSteerOnnxEngine::AutoSteerOnnxEngine(
   const std::string& cache_dir)
 {
   // Create session using factory (all provider logic is there)
+  // Use 1GB workspace for EgoLanes
   session_ = OnnxRuntimeSessionFactory::createSession(
-    model_path, provider, precision, device_id, cache_dir
+    model_path, provider, precision, device_id, cache_dir, 1.0, "egolanes_"
   );
   
   // Create memory info for CPU tensors
@@ -58,17 +59,17 @@ AutoSteerOnnxEngine::AutoSteerOnnxEngine(
   size_t input_size = model_input_width_ * model_input_height_ * 3;
   input_buffer_.resize(input_size);
   
-  LOG_INFO("[onnxrt_engine] AutoSteer engine initialized successfully");
+  LOG_INFO("[onnxrt_engine] EgoLanes engine initialized successfully");
   LOG_INFO("[onnxrt_engine] - Input: %dx%d", model_input_width_, model_input_height_);
   LOG_INFO("[onnxrt_engine] - Output: %dx%d (3 channels)", model_output_width_, model_output_height_);
 }
 
-AutoSteerOnnxEngine::~AutoSteerOnnxEngine()
+EgoLanesOnnxEngine::~EgoLanesOnnxEngine()
 {
   // Smart pointers handle cleanup automatically
 }
 
-void AutoSteerOnnxEngine::preprocessAutoSteer(const cv::Mat& input_image, float* buffer)
+void EgoLanesOnnxEngine::preprocessEgoLanes(const cv::Mat& input_image, float* buffer)
 {
   // Step 1: Resize to model input size (320x640)
   cv::Mat resized;
@@ -100,10 +101,10 @@ void AutoSteerOnnxEngine::preprocessAutoSteer(const cv::Mat& input_image, float*
   }
 }
 
-bool AutoSteerOnnxEngine::doInference(const cv::Mat& input_image)
+bool EgoLanesOnnxEngine::doInference(const cv::Mat& input_image)
 {
   // Preprocess image
-  preprocessAutoSteer(input_image, input_buffer_.data());
+  preprocessEgoLanes(input_image, input_buffer_.data());
   
   // Create input tensor
   std::vector<int64_t> input_shape = {1, 3, model_input_height_, model_input_width_};
@@ -133,7 +134,7 @@ bool AutoSteerOnnxEngine::doInference(const cv::Mat& input_image)
   return true;
 }
 
-LaneSegmentation AutoSteerOnnxEngine::inference(
+LaneSegmentation EgoLanesOnnxEngine::inference(
   const cv::Mat& input_image,
   float threshold)
 {
@@ -147,7 +148,7 @@ LaneSegmentation AutoSteerOnnxEngine::inference(
   return postProcess(threshold);
 }
 
-LaneSegmentation AutoSteerOnnxEngine::postProcess(float threshold)
+LaneSegmentation EgoLanesOnnxEngine::postProcess(float threshold)
 {
   LaneSegmentation result;
   result.height = model_output_height_;
@@ -190,7 +191,7 @@ LaneSegmentation AutoSteerOnnxEngine::postProcess(float threshold)
   return result;
 }
 
-const float* AutoSteerOnnxEngine::getRawTensorData() const
+const float* EgoLanesOnnxEngine::getRawTensorData() const
 {
   if (output_tensors_.empty()) {
     throw std::runtime_error("Inference has not been run yet. Call inference() first.");
@@ -198,7 +199,7 @@ const float* AutoSteerOnnxEngine::getRawTensorData() const
   return output_tensors_[0].GetTensorData<float>();
 }
 
-std::vector<int64_t> AutoSteerOnnxEngine::getTensorShape() const
+std::vector<int64_t> EgoLanesOnnxEngine::getTensorShape() const
 {
   if (output_tensors_.empty()) {
     throw std::runtime_error("Inference has not been run yet. Call inference() first.");
@@ -206,5 +207,5 @@ std::vector<int64_t> AutoSteerOnnxEngine::getTensorShape() const
   return output_tensors_[0].GetTensorTypeAndShapeInfo().GetShape();
 }
 
-}  // namespace autoware_pov::vision::autosteer
+}  // namespace autoware_pov::vision::egolanes
 

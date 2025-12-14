@@ -41,16 +41,5 @@ struct FittedCurve
  */
 std::array<double, 3> fitQuadPoly(const std::vector<cv::Point2f> &points);
 
-/**
- * @brief Calculate center lane from left and right lanes
- * 
- * Averages the polynomial coefficients
- * 
- * @param left_lane Left lane curve
- * @param right_lane Right lane curve
- * @return Center lane curve
- */
-FittedCurve calculateEgoPath(const FittedCurve &left_lane, const FittedCurve &right_lane);
-
 } // namespace autoware_pov::vision::path_planning
 

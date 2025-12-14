@@ -47,7 +47,8 @@ void PathFinder::initializeBayesFilter()
 
 PathFinderOutput PathFinder::update(
     const std::vector<cv::Point2f>& left_pts_bev,
-    const std::vector<cv::Point2f>& right_pts_bev)
+    const std::vector<cv::Point2f>& right_pts_bev,
+    double autosteer_steering_rad)
 {
     PathFinderOutput output;
     output.left_valid = false;
@@ -84,10 +85,13 @@ PathFinderOutput PathFinder::update(
     // Store individual metrics
     output.left_cte = left_curve.cte;
     output.left_yaw_error = left_curve.yaw_error;
-    output.left_curvature = left_curve.curvature; // Pass in AutoSteer units
+    output.left_curvature = left_curve.curvature;
     output.right_cte = right_curve.cte;
     output.right_yaw_error = right_curve.yaw_error;
-    output.right_curvature = right_curve.curvature;     // Pass in AutoSteer units
+    output.right_curvature = right_curve.curvature;
+    
+    // Use AutoSteer steering angle (in radians) instead of computed curvature if provided
+    double steering_value =  autosteer_steering_rad ;
     
     // 4. Create measurement (adapted from cb_drivCorr)
     std::array<Gaussian, STATE_DIM> measurement;
@@ -123,12 +127,12 @@ PathFinderOutput PathFinder::update(
     // [1,5,9] = left lane (offset CTE to lane center)
     measurement[1].mean = left_curve.cte + width / 2.0;
     measurement[5].mean = left_curve.yaw_error;
-    measurement[9].mean = left_curve.curvature;
+    measurement[9].mean =  steering_value ;
     
     // [2,6,10] = right lane (offset CTE to lane center)
     measurement[2].mean = right_curve.cte - width / 2.0;
     measurement[6].mean = right_curve.yaw_error;
-    measurement[10].mean = right_curve.curvature;
+    measurement[10].mean =  steering_value ;
     
     // [3,7,11] = fused (computed by Bayes filter)
     measurement[3].mean = std::numeric_limits<double>::quiet_NaN();
@@ -160,7 +164,8 @@ PathFinderOutput PathFinder::update(
     
     output.cte = state[3].mean;
     output.yaw_error = state[7].mean;
-    output.curvature = state[11].mean;
+    // Use AutoSteer steering angle (radians) if provided, otherwise use fused curvature from Bayes filter
+    output.curvature =  autosteer_steering_rad ;
     output.lane_width = state[12].mean;
     
     output.cte_variance = state[3].variance;
@@ -171,22 +176,6 @@ PathFinderOutput PathFinder::update(
     output.fused_valid = !std::isnan(output.cte) && 
                          !std::isnan(output.yaw_error) && 
                          !std::isnan(output.curvature);
-    
-    // 7. Calculate center polynomial coefficients (average left/right)
-    if (output.left_valid && output.right_valid) {
-        FittedCurve center = calculateEgoPath(left_curve, right_curve);
-        output.center_coeff = center.coeff;
-    } else if (output.left_valid) {
-        output.center_coeff = left_coeff;
-    } else if (output.right_valid) {
-        output.center_coeff = right_coeff;
-    } else {
-        output.center_coeff = {
-            std::numeric_limits<double>::quiet_NaN(),
-            std::numeric_limits<double>::quiet_NaN(),
-            std::numeric_limits<double>::quiet_NaN()
-        };
-    }
     
     return output;
 }

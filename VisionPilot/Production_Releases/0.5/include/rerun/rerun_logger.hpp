@@ -33,7 +33,7 @@ public:
      * @param spawn_viewer If true, spawn viewer; if false, save to file
      * @param save_path Path to .rrd file (used if !spawn_viewer)
      */
-    RerunLogger(const std::string& app_id = "AutoSteer", 
+    RerunLogger(const std::string& app_id = "EgoLanes", 
                 bool spawn_viewer = true,
                 const std::string& save_path = "");
     
@@ -50,8 +50,8 @@ public:
     void logInference(
         int frame_number,
         const cv::Mat& input_frame,
-        const autoware_pov::vision::autosteer::LaneSegmentation& raw_lanes,
-        const autoware_pov::vision::autosteer::LaneSegmentation& filtered_lanes,
+        const autoware_pov::vision::egolanes::LaneSegmentation& raw_lanes,
+        const autoware_pov::vision::egolanes::LaneSegmentation& filtered_lanes,
         long inference_time_us);
     
     /**

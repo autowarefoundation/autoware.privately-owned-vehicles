@@ -13,7 +13,7 @@
 #include <algorithm>
 
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 LaneTracker::LaneTracker() {
@@ -450,4 +450,4 @@ double LaneTracker::calcCurvature(
     return std::abs(d2x_dy2) / denom;
 }
 
-} // namespace autoware_pov::vision::autosteer
+} // namespace autoware_pov::vision::egolanes
