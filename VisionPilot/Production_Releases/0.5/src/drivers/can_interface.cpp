@@ -38,10 +38,28 @@ CanInterface::CanInterface(
 
 // Destructor
 CanInterface::~CanInterface() {
-    if (!is_file_mode_ && socket_fd_ >= 0) {
+
+    if (
+        !is_file_mode_ && 
+        socket_fd_ >= 0
+    ) {
         close(socket_fd_);
     }
-    if (is_file_mode_ && file_stream_.is_open()) {
+
+    if (
+        is_file_mode_ && 
+        file_stream_.is_open()
+    ) {
         file_stream_.close();
+    }
+}
+
+// Main update loop
+bool CanInterface::update() {
+    
+    if (is_file_mode_) {
+        return readFileLine();
+    } else {
+        return readSocket();
     }
 }
