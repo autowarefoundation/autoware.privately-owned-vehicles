@@ -68,3 +68,7 @@ private:
     std::ifstream file_stream_;
     void setupFile(const std::string& file_path);
     bool readFileLine();
+
+    // Decoding IDs
+    static constexpr int ID_SPEED = 0xA1;    // Or A1, 161
+    static constexpr int ID_STEERING = 0xA4; // Or A4, 164
