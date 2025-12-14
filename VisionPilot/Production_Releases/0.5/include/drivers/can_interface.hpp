@@ -40,3 +40,8 @@ public:
      * * @return true if new data was processed, false otherwise
      */
     bool update();
+
+    /**
+     * @brief Get latest decoded vehicle state
+     */
+    CanVehicleState getState() const;
