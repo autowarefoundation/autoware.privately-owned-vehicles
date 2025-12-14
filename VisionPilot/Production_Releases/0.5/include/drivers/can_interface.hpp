@@ -80,6 +80,6 @@ private:
 
     double decodeSpeed(const std::vector<uint8_t>& data);
 
-    
+    double decodeSteering(const std::vector<uint8_t>& data);
     
 };
