@@ -223,10 +223,29 @@ bool CanInterface::readSocket() {
 void CanInterface::setupFile(
     const std::string& file_path
 ) {
-    
+
     is_file_mode_ = true;
     file_stream_.open(file_path);
     if (!file_stream_.is_open()) {
         std::cerr << "[CanInterface] Failed to open file: " << file_path << std::endl;
     }
 }
+
+bool CanInterface::readFileLine() {
+
+    if (!file_stream_.is_open()) return false;
+
+    std::string line;
+    // We assume update() is called frequently.
+    // We read ONE line per update to simulate a stream.
+    // In a real replay tool we'd respect timestamps.
+    // But for simple integration testing, line-by-line is sufficient.
+    
+    if (std::getline(file_stream_, line)) {
+        std::istringstream iss(line);
+        std::string token;
+        std::vector<std::string> parts;
+        
+        while (iss >> token) {
+            parts.push_back(token);
+        }
