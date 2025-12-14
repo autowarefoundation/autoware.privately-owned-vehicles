@@ -14,3 +14,23 @@
 #include <linux/can/raw.h>
 #include <fcntl.h>
 
+
+namespace autoware_pov::drivers {
+
+CanInterface::CanInterface(
+    const std::string& interface_name
+) {
+
+    // If file path (.asc) : file replay
+    if (interface_name.find(".asc") != std::string::npos) {
+        std::cout << "[CanInterface] Detected .asc file extension. Initializing file replay mode: " 
+                  << interface_name << std::endl;
+        setupFile(interface_name);
+    } 
+    // Else : real-time inference via SocketCAN
+    else {
+        std::cout << "[CanInterface] Initializing real-time inference mode (SocketCAN): " 
+                  << interface_name << std::endl;
+        setupSocket(interface_name);
+    }
+}
