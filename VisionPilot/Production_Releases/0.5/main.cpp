@@ -31,6 +31,7 @@
 #include <iomanip>
  #include <fstream>
  #include <cmath>
+ #include <limits>
  #ifndef M_PI
  #define M_PI 3.14159265358979323846
  #endif
@@ -381,7 +382,13 @@ void inferenceThread(
               std::vector<cv::Point2f> right_bev_meters = transformPixelsToMeters(right_bev_pixels);
               
               // 3. Update PathFinder (polynomial fit + Bayes filter in metric space)
-              path_output = path_finder->update(left_bev_meters, right_bev_meters);
+              // Pass AutoSteer steering angle if available (replaces computed curvature)
+              // Convert AutoSteer from degrees to radians for controller
+              // AutoSteer outputs steering angle in degrees, controller expects radians
+              double autosteer_input_rad = (autosteer_engine != nullptr && egolanes_tensor_buffer.full()) 
+                                      ? (autosteer_steering * M_PI / 180.0)  // Convert degrees to radians
+                                      : std::numeric_limits<double>::quiet_NaN();
+              path_output = path_finder->update(left_bev_meters, right_bev_meters, autosteer_input_rad);
               
               // 4. Compute steering angle (if controller available)
               if (steering_controller != nullptr && path_output.fused_valid) {
