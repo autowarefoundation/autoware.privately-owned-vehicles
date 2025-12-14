@@ -161,6 +161,8 @@ void CanInterface::setupSocket(
     );
     if (ioctl(socket_fd_, SIOCGIFINDEX, &ifr) < 0) {
         perror("[CanInterface] Error finding interface index");
+        close(socket_fd_); // Close socket on failure
+        socket_fd_ = -1;   // Mark as invalid
         return;
     }
 
@@ -172,6 +174,8 @@ void CanInterface::setupSocket(
 
     if (bind(socket_fd_, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("[CanInterface] Error binding socket");
+        close(socket_fd_); // Close socket on failure
+        socket_fd_ = -1;   // Mark as invalid
         return;
     }
 
