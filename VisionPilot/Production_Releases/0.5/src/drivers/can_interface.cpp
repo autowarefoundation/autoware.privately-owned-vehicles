@@ -56,10 +56,17 @@ CanInterface::~CanInterface() {
 
 // Main update loop
 bool CanInterface::update() {
-    
+
     if (is_file_mode_) {
         return readFileLine();
     } else {
         return readSocket();
     }
 }
+
+// Get latest vehicle state
+CanVehicleState CanInterface::getState() const {
+
+    return current_state_;
+}
+
