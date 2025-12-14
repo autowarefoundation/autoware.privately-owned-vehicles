@@ -135,3 +135,46 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     
     return static_cast<double>(signed_val) * 0.1;
 }
+
+// SocketCAN setup during real-time inference
+void CanInterface::setupSocket(
+    const std::string& iface_name
+) {
+
+    is_file_mode_ = false;
+
+    // 1. Open socket
+    socket_fd_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+    if (socket_fd_ < 0) {
+        perror("[CanInterface] Error opening socket");
+        return;
+    }
+
+    // 2. Resolve interface index
+    struct ifreq ifr;
+    std::strncpy(
+        ifr.ifr_name, 
+        iface_name.c_str(), 
+        IFNAMSIZ - 1
+    );
+    if (ioctl(socket_fd_, SIOCGIFINDEX, &ifr) < 0) {
+        perror("[CanInterface] Error finding interface index");
+        return;
+    }
+
+    // 3. Bind
+    struct sockaddr_can addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.can_family = AF_CAN;
+    addr.can_ifindex = ifr.ifr_ifindex;
+
+    if (bind(socket_fd_, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("[CanInterface] Error binding socket");
+        return;
+    }
+
+    // 4. Set non-blocking
+    // This ensures update() doesn't hang the whole Autoware pipeline if no data comes
+    int flags = fcntl(socket_fd_, F_GETFL, 0);
+    fcntl(socket_fd_, F_SETFL, flags | O_NONBLOCK);
+}
