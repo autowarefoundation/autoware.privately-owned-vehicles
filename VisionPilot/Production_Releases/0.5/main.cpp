@@ -16,7 +16,8 @@
  #include "camera/camera_utils.hpp"
  #include "path_planning/path_finder.hpp"
  #include "steering_control/steering_controller.hpp"
- #ifdef ENABLE_RERUN
+ #include "steering_control/steering_filter.hpp"
+#ifdef ENABLE_RERUN
  #include "rerun/rerun_logger.hpp"
  #endif
 #include <opencv2/opencv.hpp>
@@ -279,6 +280,9 @@ void inferenceThread(
      // Init lane tracker
      LaneTracker lane_tracker;
 
+     // Init SteeringFilter
+     SteeringFilter steering_filter(0.05f);
+
      // Buffer for last 2 frames (for temporal models)
      boost::circular_buffer<cv::Mat> image_buffer(2);
      
@@ -398,6 +402,8 @@ void inferenceThread(
                       path_output.curvature
                   );
               }
+
+              steering_angle = steering_filter.filter(steering_angle, 0.1);
               
               // 5. Print output (cross-track error, yaw error, curvature, lane width + variances + steering)
               if (path_output.fused_valid) {

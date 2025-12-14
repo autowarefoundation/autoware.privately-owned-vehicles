@@ -97,6 +97,8 @@ target_link_libraries(path_planning
 # Steering control module
 add_library(steering_control
     src/steering_control/steering_controller.cpp
+        src/steering_control/steering_filter.cpp
+        include/steering_control/steering_filter.hpp
 )
 target_link_libraries(steering_control
     # No external dependencies, pure C++ math
