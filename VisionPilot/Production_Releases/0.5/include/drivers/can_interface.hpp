@@ -23,7 +23,9 @@ struct CanVehicleState {
  * - Otherwise : open a SocketCAN interface (real-time inference).
  */
 class CanInterface {
+
 public:
+
     /**
      * @brief Constructor
      * @param interface_name "can0", "vcan0", or path to .asc file (e.g. "./assets/test.asc")
@@ -52,6 +54,12 @@ public:
     bool isReplayMode() const { return is_file_mode_; }
 
 private:
+
     // State
     CanVehicleState current_state_;
     bool is_file_mode_ = false;
+
+    // Real-time inference (SocketCAN)
+    int socket_fd_ = -1;
+    void setupSocket(const std::string& iface_name);
+    bool readSocket();
