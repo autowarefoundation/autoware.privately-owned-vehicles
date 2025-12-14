@@ -102,6 +102,14 @@ target_link_libraries(steering_control
     # No external dependencies, pure C++ math
 )
 
+# CAN Drivers module
+add_library(can_drivers
+    src/drivers/can_interface.cpp
+)
+target_link_libraries(can_drivers
+    # Uses standard Linux headers (socketcan)
+)
+
 # Rerun SDK (optional, for visualization/logging)
 option(ENABLE_RERUN "Enable Rerun logging and visualization" OFF)
 
@@ -176,6 +184,7 @@ set(EGOLANES_LIBS
     camera_utils
     path_planning
     steering_control
+    can_drivers
     ${OpenCV_LIBS}
     pthread
 )
