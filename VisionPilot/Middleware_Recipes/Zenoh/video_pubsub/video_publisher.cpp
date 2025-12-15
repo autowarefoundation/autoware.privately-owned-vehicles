@@ -81,6 +81,11 @@ int main(int argc, char* argv[]) {
             int input_bytes[] = {frame.rows, frame.cols, frame.type()};
             z_bytes_copy_from_buf(&attachment, (const uint8_t*)input_bytes, sizeof(input_bytes));
             options.attachment = z_move(attachment);
+            
+            // Add timestamp
+            z_timestamp_t ts;
+            z_timestamp_new(&ts, z_loan(s));
+            options.timestamp = &ts;
 
             // Publish images
             unsigned char* pixelPtr = frame.data; 

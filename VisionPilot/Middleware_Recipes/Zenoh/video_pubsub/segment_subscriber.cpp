@@ -107,6 +107,29 @@ int main(int argc, char** argv) {
         std::cout << "Processing video... Press ESC to stop." << std::endl;
         z_owned_sample_t sample;
         while (Z_OK == z_recv(z_loan(handler), &sample)) {
+
+            // loan sample for timestamp
+            const z_loaned_sample_t* loaned = z_loan(sample);
+
+            // read timestamp and accumulate delay
+            const z_timestamp_t* sent_ts = z_sample_timestamp(loaned);
+            static double latency_ms = 0.0;
+
+            // calculate delay
+            z_timestamp_t now_ts;
+            z_timestamp_new(&now_ts, z_loan(s));
+
+            uint64_t sent_ntp = z_timestamp_ntp64_time(sent_ts);
+            uint64_t now_ntp  = z_timestamp_ntp64_time(&now_ts);
+
+            uint64_t diff = now_ntp - sent_ntp;
+
+            double diff_sec =
+                static_cast<double>(diff >> 32) +
+                static_cast<double>(diff & 0xffffffffu) / static_cast<double>(1ULL << 32);
+
+            latency_ms += diff_sec * 1000.0;
+            
             int row, col, type;
             z_owned_slice_t zslice = decode_frame_from_sample(sample, row, col, type);
             const uint8_t* ptr = z_slice_data(z_loan(zslice));
@@ -139,7 +162,7 @@ int main(int argc, char** argv) {
                 break;
             }
 
-            // Print frame rate
+            // Print frame rate and average delay
             static int frame_count = 0;
             static auto start_time = std::chrono::steady_clock::now();
             frame_count++;
@@ -147,9 +170,11 @@ int main(int argc, char** argv) {
             auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
             if (elapsed_time > 0) {
                 double fps = static_cast<double>(frame_count) / elapsed_time;
-                std::cout << "Current FPS: " << fps << std::endl;
+                double avg_latency = latency_ms / frame_count;
+                printf("FPS: %.2f | Avg image transport latency: %.3f ms\n", fps, avg_latency);
                 frame_count = 0;
                 start_time = current_time;
+                latency_ms = 0.0;
             }
         }
 

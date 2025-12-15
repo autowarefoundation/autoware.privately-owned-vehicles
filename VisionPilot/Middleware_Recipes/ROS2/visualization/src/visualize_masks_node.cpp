@@ -35,6 +35,16 @@ void VisualizeMasksNode::onImageData(const sensor_msgs::msg::Image::ConstSharedP
   // Simply cache the latest image - no processing here
   cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
   latest_image_ = image_ptr->image.clone();
+  
+  // Calculate latency from raw image
+  if (measure_latency_ && (frame_count_ % LATENCY_SAMPLE_INTERVAL == 0)) {
+    rclcpp::Time latest_image_stamp = msg->header.stamp;
+    rclcpp::Time now = this->get_clock()->now();
+    double latency_ms = (now - latest_image_stamp).seconds() * 1000.0;
+    RCLCPP_INFO(
+      this->get_logger(), "Frame %zu: Image transport latency: %.2f ms",
+      frame_count_, latency_ms);
+  }
 }
 
 void VisualizeMasksNode::onMaskData(const sensor_msgs::msg::Image::ConstSharedPtr& msg)
