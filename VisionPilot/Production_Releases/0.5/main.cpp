@@ -463,9 +463,8 @@ void inferenceThread(
         // std::cout<< "Frame size: " << tf.frame.size() << std::endl;
         result.frame = tf.frame.clone();  // Clone for display thread safety
         
-        // Resize frame to 320x640 for Rerun logging (only if Rerun enabled, but prepare anyway)
-        cv::resize(tf.frame, result.resized_frame_320x640, cv::Size(320, 640), 0, 0, cv::INTER_AREA);
-        
+        // Resize frame to 640x320 for Rerun logging (only if Rerun enabled, but prepare anyway)
+        cv::resize(tf.frame, result.resized_frame_320x640, cv::Size(640, 320), 0, 0, cv::INTER_AREA);
         result.lanes = final_lanes;
         result.metrics = final_metrics;
         result.frame_number = tf.frame_number;
@@ -590,11 +589,12 @@ void displayThread(
                 ).count();
                 
                 // Log all data using rerun::borrow (no copying - data still in scope)
+                // view_debug contains the final visualization with steering wheel overlay and lane masks
                 rerun_logger->logData(
                     result.frame_number,
                     result.resized_frame_320x640,  // 320x640 resized frame
                     result.lanes,                   // Lane masks
-                    stacked_view,                   // Final visualization
+                    view_debug,                     // Final visualization (with steering wheel + lane masks)
                     result.vehicle_state,           // CAN bus data
                     result.steering_angle,          // PID steering (radians)
                     result.autosteer_angle,         // AutoSteer steering (degrees)
