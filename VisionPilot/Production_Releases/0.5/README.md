@@ -1,6 +1,7 @@
-# VisionPilot 0.5 - EgoLanes Production Release
+# VisionPilot 0.5 - AutoSteer Production Release
 
-This release enables autonomous steering using the EgoLanes neural network to detect lane lines and navigate roads at a predetermined, desired speed.
+This release enables autonomous steering using the EgoLanes and AutoSteer neural networks to detect lane lines determine
+steering angle and navigate roads at a predetermined, desired speed.
 
 This includes autonomous lane keeping with cruise control.
 
@@ -10,26 +11,22 @@ Multi-threaded lane detection inference system with ONNX Runtime backend.
 
 ### Quick Start
 
-1. **Set ONNX Runtime path**:
+[Download](https://github.com/microsoft/onnxruntime/releases) ONNX Runtime for the appropriate CUDA version and OS.
+
+**Set ONNX Runtime path**
+
+Unpack the ONNX runtime archive and set `ONNXRUNTIME_ROOT` to point to the directory as for example:
+
 ```bash
 export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0
 ```
 
-2. **Build**:
-```bash
-mkdir -p build && cd build
-cmake ..
-make -j$(nproc)
-cd ..
-```
+_Note_: For Jetson AGX download appropriate ONNX runetime from [Jetson Zoo](https://elinux.org/Jetson_Zoo#ONNX_Runtime).
 
-3. **Configure and Run**:
-```bash
-# Edit run.sh to set paths and options
-./run.sh
-```
+**Build**
 
-### Directory Structure
+[Download](https://github.com/autowarefoundation/autoware.privately-owned-vehicles.git) VisionPilot source code.
+Navigate to `VisionPilot/Production_Releases/0.5` subdirectory  which looks like:
 
 ```
 0.5/
@@ -44,6 +41,27 @@ cd ..
 ├── main.cpp                # Multi-threaded pipeline
 ├── CMakeLists.txt          # Build configuration
 └── run.sh                  # Runner script
+```
+
+and create `build` subdirectory:
+
+```bash
+mkdir -p build && cd build
+```
+
+build the code
+
+```bash
+cmake ../
+make -j$(nproc)
+cd ..
+```
+
+**Configure and Run**
+
+```bash
+# Edit run.sh to set paths and options
+./run.sh
 ```
 
 ### Configuration (run.sh)
