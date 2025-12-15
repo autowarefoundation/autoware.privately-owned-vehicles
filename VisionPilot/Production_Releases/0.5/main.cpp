@@ -8,8 +8,23 @@
  * - Display Thread: Optionally visualizes and saves results
  */
 
+#ifdef SKIP_ORT
+// Use TensorRT directly
+#include "inference/tensorrt_engine.hpp"
+#include "inference/tensorrt_autosteer_engine.hpp"
+using EgoLanesEngine =
+  autoware_pov::vision::egolanes::EgoLanesTensorRTEngine;
+using AutoSteerEngine =
+  autoware_pov::vision::egolanes::AutoSteerTensorRTEngine;
+#else
+// Use ONNX Runtime
 #include "inference/onnxruntime_engine.hpp"
 #include "inference/autosteer_engine.hpp"
+using EgoLanesEngine =
+  autoware_pov::vision::egolanes::EgoLanesOnnxEngine;
+using AutoSteerEngine =
+  autoware_pov::vision::egolanes::AutoSteerOnnxEngine;
+#endif
 #include "visualization/draw_lanes.hpp"
 #include "lane_filtering/lane_filter.hpp"
 #include "lane_tracking/lane_tracking.hpp"
@@ -275,7 +290,7 @@ void captureThread(
  * @brief Inference thread - runs lane detection model
  */
 void inferenceThread(
-    EgoLanesOnnxEngine& engine,
+    EgoLanesEngine& engine,
     ThreadSafeQueue<TimestampedFrame>& input_queue,
     ThreadSafeQueue<InferenceResult>& output_queue,
     PerformanceMetrics& metrics,
@@ -283,7 +298,7 @@ void inferenceThread(
      float threshold,
      PathFinder* path_finder = nullptr,
      SteeringController* steering_controller = nullptr,
-     AutoSteerOnnxEngine* autosteer_engine = nullptr
+     AutoSteerEngine* autosteer_engine = nullptr
 )
 {
     // Init lane filter
@@ -958,17 +973,55 @@ int main(int argc, char** argv)
 
     // Initialize inference backend
     std::cout << "Loading model: " << model_path << std::endl;
+#ifdef SKIP_ORT
+    std::cout << "Precision: " << precision << std::endl;
+    std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
+    std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
+#else
+#ifdef SKIP_ORT
+    std::cout << "Precision: " << precision << std::endl;
+    std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
+    std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
+#else
     std::cout << "Provider: " << provider << " | Precision: " << precision << std::endl;
     
     if (provider == "tensorrt") {
         std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
         std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
     }
+#endif
+#endif
 
-    EgoLanesOnnxEngine engine(model_path, provider, precision, device_id, cache_dir);
+#ifdef SKIP_ORT
+    // TensorRT: precision is fp16 or fp32, no provider needed
+    EgoLanesEngine engine(model_path, precision, device_id, cache_dir);
+#else
+    // ONNX Runtime: provider and precision
+    EgoLanesEngine engine(model_path, provider, precision, device_id, cache_dir);
+#endif
     std::cout << "Backend initialized!\n" << std::endl;
 
     // Warm-up inference (builds TensorRT engine on first run)
+#ifdef SKIP_ORT
+    // TensorRT always needs warm-up
+    std::cout << "Running warm-up inference to build TensorRT engine..." << std::endl;
+    std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
+    
+    cv::Mat dummy_frame(720, 1280, CV_8UC3, cv::Scalar(128, 128, 128));
+    auto warmup_start = std::chrono::steady_clock::now();
+    
+    // Run warm-up inference
+    LaneSegmentation warmup_result = engine.inference(dummy_frame, threshold);
+    
+    auto warmup_end = std::chrono::steady_clock::now();
+    double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        warmup_end - warmup_start).count() / 1000.0;
+    
+    std::cout << "Warm-up complete! (took " << std::fixed << std::setprecision(1) 
+              << warmup_time << "s)" << std::endl;
+    std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
+#else
+    // ONNX Runtime: only warm-up if using TensorRT provider
     if (provider == "tensorrt") {
         std::cout << "Running warm-up inference to build TensorRT engine..." << std::endl;
         std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
@@ -987,6 +1040,7 @@ int main(int argc, char** argv)
                   << warmup_time << "s)" << std::endl;
         std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
     }
+#endif
     
     std::cout << "Backend ready!\n" << std::endl;
  
@@ -1016,9 +1070,38 @@ int main(int argc, char** argv)
     }
     
     // Initialize AutoSteer (optional - temporal steering prediction)
-    std::unique_ptr<AutoSteerOnnxEngine> autosteer_engine;
+    std::unique_ptr<AutoSteerEngine> autosteer_engine;
     if (enable_autosteer) {
         std::cout << "\nLoading AutoSteer model: " << autosteer_model_path << std::endl;
+        
+#ifdef SKIP_ORT
+        // TensorRT: precision is fp16 or fp32, no provider needed
+        std::cout << "Precision: " << precision << std::endl;
+        std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
+        std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
+        
+        autosteer_engine = std::make_unique<AutoSteerEngine>(
+            autosteer_model_path, precision, device_id, cache_dir);
+        
+        // Warm-up AutoSteer inference (builds TensorRT engine on first run)
+        std::cout << "Running AutoSteer warm-up inference to build TensorRT engine..." << std::endl;
+        std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
+        
+        auto warmup_start = std::chrono::steady_clock::now();
+        
+        // Create dummy concatenated input [1, 6, 80, 160]
+        std::vector<float> dummy_input(6 * 80 * 160, 0.5f);
+        float warmup_result = autosteer_engine->inference(dummy_input);
+        
+        auto warmup_end = std::chrono::steady_clock::now();
+        double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+            warmup_end - warmup_start).count() / 1000.0;
+        
+        std::cout << "AutoSteer warm-up complete! (took " << std::fixed << std::setprecision(1) 
+                  << warmup_time << "s)" << std::endl;
+        std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
+#else
+        // ONNX Runtime: provider and precision
         std::cout << "Provider: " << provider << " | Precision: " << precision << std::endl;
         
         if (provider == "tensorrt") {
@@ -1026,8 +1109,13 @@ int main(int argc, char** argv)
             std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
         }
         
-        autosteer_engine = std::make_unique<AutoSteerOnnxEngine>(
+#ifdef SKIP_ORT
+        autosteer_engine = std::make_unique<AutoSteerEngine>(
+            autosteer_model_path, precision, device_id, cache_dir);
+#else
+        autosteer_engine = std::make_unique<AutoSteerEngine>(
             autosteer_model_path, provider, precision, device_id, cache_dir);
+#endif
         
         // Warm-up AutoSteer inference (builds TensorRT engine on first run)
         if (provider == "tensorrt") {
@@ -1048,6 +1136,7 @@ int main(int argc, char** argv)
                       << warmup_time << "s)" << std::endl;
             std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
         }
+#endif
         
         std::cout << "AutoSteer initialized (temporal steering prediction)" << std::endl;
         std::cout << "  - Input: [1, 6, 80, 160] (concatenated EgoLanes t-1, t)" << std::endl;
