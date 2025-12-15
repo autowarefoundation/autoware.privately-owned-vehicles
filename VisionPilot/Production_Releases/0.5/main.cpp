@@ -116,6 +116,7 @@ struct TimestampedFrame {
 // Inference result
 struct InferenceResult {
     cv::Mat frame;
+    cv::Mat resized_frame_320x640;  // Resized frame for Rerun logging (320x640)
     LaneSegmentation lanes;
     DualViewMetrics metrics;
     int frame_number;
@@ -125,6 +126,7 @@ struct InferenceResult {
     PathFinderOutput path_output; // Added for metric debug
     float autosteer_angle = 0.0f;  // Steering angle from AutoSteer (degrees)
     bool autosteer_valid = false;  // Whether AutoSteer ran (skips first frame)
+    CanVehicleState vehicle_state; // CAN bus data from capture thread
 };
 
 // Performance metrics
@@ -281,10 +283,7 @@ void inferenceThread(
      PathFinder* path_finder = nullptr,
      SteeringController* steering_controller = nullptr,
      AutoSteerOnnxEngine* autosteer_engine = nullptr
- #ifdef ENABLE_RERUN
-     , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
- #endif
- )
+)
 {
     // Init lane filter
     LaneFilter lane_filter(0.5f);
@@ -312,7 +311,7 @@ void inferenceThread(
         if (tf.frame.empty()) continue;
 
         auto t_inference_start = steady_clock::now();
-
+        // std::cout<< "Frame size before cropping: " << tf.frame.size() << std::endl;
          // Crop tf.frame 420 pixels top
          tf.frame = tf.frame(cv::Rect(
              0,
@@ -320,6 +319,7 @@ void inferenceThread(
              tf.frame.cols,
              tf.frame.rows - 420
          ));
+        //  std::cout<< "Frame size: " << tf.frame.size() << std::endl;
          
         image_buffer.push_back(tf.frame.clone()); // Store a copy of the cropped frame
 
@@ -452,39 +452,14 @@ void inferenceThread(
           }
           // ========================================
 
-#ifdef ENABLE_RERUN
-        // Log to Rerun with downsampled frame (reduces data by 75%)
-        if (rerun_logger && rerun_logger->isEnabled()) {
-            // Downsample frame to 1/2 scale (1/4 data size) for Rerun viewer
-            // Full-res inference already completed, this is just for visualization
-            cv::Mat frame_small;
-            cv::resize(tf.frame, frame_small, cv::Size(), 0.5, 0.5, cv::INTER_AREA);
-
-            // Deep clone lane masks (synchronous, safe for zero-copy borrow in logger)
-            autoware_pov::vision::egolanes::LaneSegmentation raw_clone;
-            raw_clone.ego_left = raw_lanes.ego_left.clone();
-            raw_clone.ego_right = raw_lanes.ego_right.clone();
-            raw_clone.other_lanes = raw_lanes.other_lanes.clone();
-
-            autoware_pov::vision::egolanes::LaneSegmentation filtered_clone;
-            filtered_clone.ego_left = filtered_lanes.ego_left.clone();
-            filtered_clone.ego_right = filtered_lanes.ego_right.clone();
-            filtered_clone.other_lanes = filtered_lanes.other_lanes.clone();
-
-            // Now safe to log (data cloned, lifetime guaranteed, zero-copy borrow in logger)
-            rerun_logger->logInference(
-                tf.frame_number,
-                frame_small,      // Downsampled (1/4 data)
-                raw_clone,        // Cloned masks
-                filtered_clone,   // Cloned masks
-                inference_us
-            );
-        }
-#endif
-
         // Package result (clone frame to avoid race with capture thread reusing buffer)
         InferenceResult result;
+        // std::cout<< "Frame size: " << tf.frame.size() << std::endl;
         result.frame = tf.frame.clone();  // Clone for display thread safety
+        
+        // Resize frame to 320x640 for Rerun logging (only if Rerun enabled, but prepare anyway)
+        cv::resize(tf.frame, result.resized_frame_320x640, cv::Size(320, 640), 0, 0, cv::INTER_AREA);
+        
         result.lanes = final_lanes;
         result.metrics = final_metrics;
         result.frame_number = tf.frame_number;
@@ -494,6 +469,7 @@ void inferenceThread(
         result.path_output = path_output;        // Store for viz
         result.autosteer_angle = autosteer_steering;  // Store AutoSteer angle
         result.autosteer_valid = (autosteer_engine != nullptr && egolanes_tensor_buffer.full());
+        result.vehicle_state = tf.vehicle_state;  // Copy CAN bus data
         output_queue.push(result);
     }
 
@@ -511,6 +487,9 @@ void displayThread(
     bool save_video,
      const std::string& output_video_path,
      const std::string& csv_log_path
+#ifdef ENABLE_RERUN
+    , autoware_pov::vision::rerun_integration::RerunLogger* rerun_logger = nullptr
+#endif
 )
 {
     // Visualization setup
@@ -650,6 +629,29 @@ void displayThread(
                  right_col,
                 stacked_view
             );
+
+#ifdef ENABLE_RERUN
+            // Log to Rerun (only if visualization enabled and Rerun enabled)
+            if (rerun_logger && rerun_logger->isEnabled()) {
+                // Calculate inference time (from capture to inference end)
+                long inference_time_us = duration_cast<microseconds>(
+                    result.inference_time - result.capture_time
+                ).count();
+                
+                // Log all data using rerun::borrow (no copying - data still in scope)
+                rerun_logger->logData(
+                    result.frame_number,
+                    result.resized_frame_320x640,  // 320x640 resized frame
+                    result.lanes,                   // Lane masks
+                    stacked_view,                   // Final visualization
+                    result.vehicle_state,           // CAN bus data
+                    result.steering_angle,          // PID steering (radians)
+                    result.autosteer_angle,         // AutoSteer steering (degrees)
+                    result.path_output,             // PathFinder outputs
+                    inference_time_us               // Inference time
+                );
+            }
+#endif
 
             // Initialize video writer on first frame
             if (save_video && !video_writer_initialized) {
@@ -1099,24 +1101,20 @@ int main(int argc, char** argv)
 
     std::thread t_capture(captureThread, source, is_camera, std::ref(capture_queue),
                           std::ref(metrics), std::ref(running), can_interface.get());
-#ifdef ENABLE_RERUN
-    std::thread t_inference(inferenceThread, std::ref(engine),
-                            std::ref(capture_queue), std::ref(display_queue),
-                            std::ref(metrics), std::ref(running), threshold,
-                            path_finder.get(),
-                            steering_controller.get(),
-                            autosteer_engine.get(),
-                            rerun_logger.get());
-#else
     std::thread t_inference(inferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
                             path_finder.get(),
                             steering_controller.get(),
                             autosteer_engine.get());
-#endif
+#ifdef ENABLE_RERUN
+    std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
+                          std::ref(running), enable_viz, save_video, output_video_path, csv_log_path,
+                          rerun_logger.get());
+#else
     std::thread t_display(displayThread, std::ref(display_queue), std::ref(metrics),
                           std::ref(running), enable_viz, save_video, output_video_path, csv_log_path);
+#endif
 
     // Wait for threads
     t_capture.join();
