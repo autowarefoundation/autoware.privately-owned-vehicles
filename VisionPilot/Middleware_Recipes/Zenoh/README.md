@@ -36,7 +36,8 @@ scene3d -- Zenoh --> vsub
     sudo apt update
     sudo apt install libzenohc-dev
     ```
-
+- **Cmake**: For building the project.
+  - Ubuntu: `sudo apt install cmake`
 - **CLI11**: Used for the command line interface.
   - Ubuntu: `sudo apt install libcli11-dev`
 - **CUDA**: Optional for GPU processing.
