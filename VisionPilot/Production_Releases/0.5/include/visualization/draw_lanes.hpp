@@ -87,6 +87,9 @@ void drawMetricVerification(
     const std::vector<double>& right_metric_coeffs
 );
 
+cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg);
+void visualizeSteering(cv::Mat& img, float steering_angle, const cv::Mat& steeringWheelImage);
+
 }  // namespace autoware_pov::vision::egolanes
 
 #endif  // AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_

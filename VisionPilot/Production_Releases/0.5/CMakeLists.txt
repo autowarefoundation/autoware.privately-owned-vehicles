@@ -97,6 +97,8 @@ target_link_libraries(path_planning
 # Steering control module
 add_library(steering_control
     src/steering_control/steering_controller.cpp
+        src/steering_control/steering_filter.cpp
+        include/steering_control/steering_filter.hpp
 )
 target_link_libraries(steering_control
     # No external dependencies, pure C++ math
@@ -162,6 +164,9 @@ target_link_libraries(egolanes_lane_tracking
 )
 
 # Main executable
+file(COPY ${CMAKE_SOURCE_DIR}/images
+        DESTINATION ${CMAKE_BINARY_DIR})
+
 add_executable(egolanes_pipeline
     main.cpp
 )
