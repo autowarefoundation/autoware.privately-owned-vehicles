@@ -6,6 +6,10 @@
 #include "rerun/rerun_logger.hpp"
 #include <iostream>
 #include <vector>
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace autoware_pov::vision::rerun_integration {
 
@@ -79,47 +83,81 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
 
 RerunLogger::~RerunLogger() = default;
 
-void RerunLogger::logInference(
+void RerunLogger::logData(
     int frame_number,
-    const cv::Mat& input_frame,
-    const autoware_pov::vision::egolanes::LaneSegmentation& raw_lanes,
-    const autoware_pov::vision::egolanes::LaneSegmentation& filtered_lanes,
+    const cv::Mat& resized_frame,
+    const autoware_pov::vision::egolanes::LaneSegmentation& lanes,
+    const cv::Mat& stacked_view,
+    const autoware_pov::drivers::CanVehicleState& vehicle_state,
+    double steering_angle,
+    float autosteer_angle,
+    const autoware_pov::vision::path_planning::PathFinderOutput& path_output,
     long inference_time_us)
 {
 #ifdef ENABLE_RERUN
     if (!enabled_ || !rec_) return;
     
-    // NOTE: The caller (inferenceThread) has downsampled and cloned all data.
-    // We use rerun::borrow() for zero-copy - directly borrowing cv::Mat buffers.
-    // Fixed buffers are reused every frame for zero allocation churn.
-    
     // Set timeline
     rec_->set_time_sequence("frame", frame_number);
     
-    // Log input frame (convert BGR→RGB using fixed buffer)
-    cv::cvtColor(input_frame, rgb_buffer_, cv::COLOR_BGR2RGB);
+    // Log resized input frame (convert BGR→RGB using fixed buffer, then borrow)
+    cv::cvtColor(resized_frame, rgb_buffer_, cv::COLOR_BGR2RGB);
     logImage("camera/image", rgb_buffer_);
     
-    // Log raw lane masks (reuses mask_u8_buffer_ internally)
-    logMask("lanes/raw/ego_left", raw_lanes.ego_left);
-    logMask("lanes/raw/ego_right", raw_lanes.ego_right);
-    logMask("lanes/raw/other", raw_lanes.other_lanes);
+    // Log lane masks (borrow directly - data is still in scope)
+    logMask("lanes/ego_left", lanes.ego_left);
+    logMask("lanes/ego_right", lanes.ego_right);
+    logMask("lanes/other", lanes.other_lanes);
     
-    // Log filtered lane masks (reuses mask_u8_buffer_ internally)
-    logMask("lanes/filtered/ego_left", filtered_lanes.ego_left);
-    logMask("lanes/filtered/ego_right", filtered_lanes.ego_right);
-    logMask("lanes/filtered/other", filtered_lanes.other_lanes);
+    // Log visualization (convert BGR→RGB, then borrow)
+    cv::cvtColor(stacked_view, rgb_buffer_, cv::COLOR_BGR2RGB);
+    logImage("visualization/stacked_view", rgb_buffer_);
+    
+    // Log CAN bus data (scalars)
+    std::vector<rerun::components::Scalar> can_scalars;
+    if (vehicle_state.is_valid) {
+        can_scalars.push_back(rerun::components::Scalar(vehicle_state.steering_angle_deg));
+        can_scalars.push_back(rerun::components::Scalar(vehicle_state.speed_kmph));
+    } else {
+        can_scalars.push_back(rerun::components::Scalar(0.0));
+        can_scalars.push_back(rerun::components::Scalar(0.0));
+    }
+    rec_->log("can/steering_angle_deg", 
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({can_scalars[0]})));
+    rec_->log("can/speed_kmph", 
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({can_scalars[1]})));
+    
+    // Log control outputs (scalars)
+    rec_->log("control/pid_steering_rad", 
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(steering_angle)})));
+    rec_->log("control/pid_steering_deg", 
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(steering_angle * 180.0 / M_PI)})));
+    rec_->log("control/autosteer_angle_deg", 
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(autosteer_angle)})));
+    
+    // Log PathFinder outputs (scalars)
+    if (path_output.fused_valid) {
+        rec_->log("pathfinder/cte", 
+                  rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(path_output.cte)})));
+        rec_->log("pathfinder/yaw_error", 
+                  rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(path_output.yaw_error)})));
+        rec_->log("pathfinder/curvature", 
+                  rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(path_output.curvature)})));
+    }
     
     // Log inference time metric
     double time_ms = inference_time_us / 1000.0;
-    std::vector<rerun::components::Scalar> scalars = {rerun::components::Scalar(time_ms)};
     rec_->log("metrics/inference_time_ms", 
-              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>(scalars)));
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(time_ms)})));
 #else
     (void)frame_number;
-    (void)input_frame;
-    (void)raw_lanes;
-    (void)filtered_lanes;
+    (void)resized_frame;
+    (void)lanes;
+    (void)stacked_view;
+    (void)vehicle_state;
+    (void)steering_angle;
+    (void)autosteer_angle;
+    (void)path_output;
     (void)inference_time_us;
 #endif
 }
@@ -145,7 +183,7 @@ void RerunLogger::logImage(const std::string& entity_path, const cv::Mat& image)
                 static_cast<uint32_t>(image.cols),
                 static_cast<uint32_t>(image.rows)
             ),
-            rerun::ColorModel::RGB  // Already converted BGR→RGB in logInference
+            rerun::ColorModel::RGB  // Already converted BGR→RGB in logData
         )
     );
 #else
