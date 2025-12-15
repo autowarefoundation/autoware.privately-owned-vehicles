@@ -4,6 +4,7 @@
 
 #ifndef EGOLANES_PIPELINE_LOW_PASS_FILTER_HPP
 #define EGOLANES_PIPELINE_LOW_PASS_FILTER_HPP
+#include <boost/circular_buffer.hpp>
 
 namespace autoware_pov::vision::steering_control
 {
@@ -19,6 +20,7 @@ public:
 private:
   float tau_;
   float previous_steering;
+  boost::circular_buffer<float> steering_angle_buffer;
 };
 }
 

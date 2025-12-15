@@ -559,7 +559,7 @@ void displayThread(
              //  - Raw masks (debugging)
              //  - Polyfit lanes (final prod)
              //  - BEV vis
-            cv::Mat view_debug = result.frame.clone();
+            cv::Mat view_debug = result.resized_frame_320x640.clone();
             // cv::Mat view_final = result.frame.clone();
             //  cv::Mat view_bev(
             //      640,
@@ -723,8 +723,8 @@ void displayThread(
                       << (result.path_output.fused_valid ? result.path_output.yaw_error : 0.0) << ","
                       << (result.path_output.fused_valid ? result.path_output.curvature : 0.0) << ","
                       // PID Controller steering angle (always log if controller exists)
-                      << std::fixed << std::setprecision(6) << result.steering_angle << ","
-                      << (result.steering_angle * 180.0 / M_PI) << ","
+                      << std::fixed << std::setprecision(6) << result.steering_angle  *  M_PI / 180.0 << ","
+                      << result.steering_angle << ","
                       // AutoSteer steering angle (degrees) and validity
                       << result.autosteer_angle << ","
                       << (result.autosteer_valid ? 1 : 0) << "\n";

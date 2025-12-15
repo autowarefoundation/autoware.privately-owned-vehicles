@@ -851,15 +851,19 @@ void drawMetricVerification(
 
 cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg)
 {
-  cv::Point2f center(img.cols/2.0f, img.rows/2.0f);
+  // resize overlay image
+  cv::Mat resized;
+  cv::resize(img, resized, cv::Size(), 0.5, 0.5, cv::INTER_LINEAR);
+
+  cv::Point2f center(resized.cols/2.0f, resized.rows/2.0f);
   cv::Mat rot = cv::getRotationMatrix2D(center, steering_angle_deg, 1.0);
 
   cv::Mat rotated;
   cv::warpAffine(
-      img,
+      resized,
       rotated,
       rot,
-      img.size(),
+      resized.size(),
       cv::INTER_LINEAR,
       cv::BORDER_CONSTANT,
       cv::Scalar(0,0,0,0)  // use 0 alpha for transparency
@@ -870,8 +874,8 @@ cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg)
 
 void visualizeSteering(cv::Mat& img, const float steering_angle, const cv::Mat& overlay)
 {
-  int x = 40;
-  int y = 40;
+  int x = 10;
+  int y = 10;
 
   if (overlay.empty() || img.empty()) return;
 
@@ -914,11 +918,11 @@ void visualizeSteering(cv::Mat& img, const float steering_angle, const cv::Mat& 
   cv::putText(
     img,
     steeringAngleText,
-    cv::Point(20, 220),
+    cv::Point(10, 100),
     cv::FONT_HERSHEY_SIMPLEX,
-    1.4,
+    0.6,
     cv::Scalar(62, 202, 130),
-    3
+    2
   );
 }
 
