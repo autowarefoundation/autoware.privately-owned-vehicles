@@ -38,8 +38,8 @@ The ROS2 layer acts as a thin wrapper around common engines:
 
 ### System Requirements
 
-- Ubuntu 20.04/22.04
-- ROS2 Humble
+- Ubuntu 22.04/24.04
+- ROS 2 Humble/ROS 2 Jazzy
 - CUDA 11.8+ (for GPU inference)
 - OpenCV 4.x
 

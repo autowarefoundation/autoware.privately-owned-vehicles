@@ -4,7 +4,11 @@
 #include <rclcpp/rclcpp.hpp>
 #include <image_transport/image_transport.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#ifdef ROS_HUMBLE
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
+#endif
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include "../../common/include/masks_visualization_engine.hpp"

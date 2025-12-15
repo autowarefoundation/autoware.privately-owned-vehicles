@@ -1,6 +1,10 @@
 #include "visualize_depth_node.hpp"
 #include "../../common/include/depth_visualization_engine.hpp"
+#ifdef ROS_HUMBLE
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
+#endif
 #include <rclcpp_components/register_node_macro.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
