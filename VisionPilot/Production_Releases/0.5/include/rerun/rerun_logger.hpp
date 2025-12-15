@@ -10,6 +10,8 @@
 #endif
 
 #include "inference/onnxruntime_engine.hpp"
+#include "drivers/can_interface.hpp"
+#include "path_planning/path_finder.hpp"
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include <string>
@@ -17,12 +19,15 @@
 namespace autoware_pov::vision::rerun_integration {
 
 /**
- * @brief Minimal Rerun logger for inference data
+ * @brief Rerun logger for complete frame data
  * 
  * Logs:
- * - Input frame
- * - Raw lane masks (before filtering)
- * - Filtered lane masks (after filtering)
+ * - Resized input frame (320x640)
+ * - Lane segmentation masks (filtered)
+ * - Final visualization (stacked view)
+ * - CAN bus data (steering, speed)
+ * - Control outputs (PID, AutoSteer)
+ * - PathFinder outputs (CTE, yaw, curvature)
  * - Inference time metrics
  */
 class RerunLogger {
@@ -40,18 +45,26 @@ public:
     ~RerunLogger();
     
     /**
-     * @brief Log inference results (minimal version)
+     * @brief Log all frame data (frame, CAN bus, control outputs, visualization)
      * @param frame_number Frame sequence number
-     * @param input_frame Input image (BGR)
-     * @param raw_lanes Raw lane masks (before filtering)
-     * @param filtered_lanes Filtered lane masks (after filtering)
+     * @param resized_frame Resized input frame (320x640, BGR)
+     * @param lanes Lane segmentation masks
+     * @param stacked_view Final visualization (BGR)
+     * @param vehicle_state CAN bus data (steering, speed)
+     * @param steering_angle PID steering angle (radians)
+     * @param autosteer_angle AutoSteer steering angle (degrees)
+     * @param path_output PathFinder output (CTE, yaw, curvature)
      * @param inference_time_us Inference time in microseconds
      */
-    void logInference(
+    void logData(
         int frame_number,
-        const cv::Mat& input_frame,
-        const autoware_pov::vision::egolanes::LaneSegmentation& raw_lanes,
-        const autoware_pov::vision::egolanes::LaneSegmentation& filtered_lanes,
+        const cv::Mat& resized_frame,
+        const autoware_pov::vision::egolanes::LaneSegmentation& lanes,
+        const cv::Mat& stacked_view,
+        const autoware_pov::drivers::CanVehicleState& vehicle_state,
+        double steering_angle,
+        float autosteer_angle,
+        const autoware_pov::vision::path_planning::PathFinderOutput& path_output,
         long inference_time_us);
     
     /**
