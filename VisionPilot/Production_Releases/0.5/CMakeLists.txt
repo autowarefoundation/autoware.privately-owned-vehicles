@@ -116,50 +116,79 @@ target_link_libraries(can_drivers
 option(ENABLE_RERUN "Enable Rerun logging and visualization" OFF)
 
 if(ENABLE_RERUN)
-    if(NOT DEFINED ENV{RERUN_SDK_ROOT})
-        message(WARNING "RERUN_SDK_ROOT not set. Disabling Rerun support.\n"
-                        "To enable: export RERUN_SDK_ROOT=/path/to/rerun_cpp_sdk")
-        set(ENABLE_RERUN OFF)
+    message(STATUS "Rerun support: ENABLED - Downloading Rerun SDK via FetchContent...")
+    
+    # Try to find system-installed Arrow first (avoids building from source)
+    # This makes the build faster and more reliable
+    set(CMAKE_PREFIX_PATH "/usr/local;/usr;${CMAKE_PREFIX_PATH}")
+    find_package(Arrow QUIET)
+    
+    # Download Rerun SDK using FetchContent (official method)
+    # This will download pre-built Rerun C static libraries and C++ sources
+    include(FetchContent)
+    FetchContent_Declare(rerun_sdk 
+        URL https://github.com/rerun-io/rerun/releases/latest/download/rerun_cpp_sdk.zip
+    )
+    
+    # Configure Rerun to use system Arrow if available (faster, more reliable)
+    # Otherwise, it will download and build Arrow automatically
+    if(Arrow_FOUND)
+        message(STATUS "  - Found system Arrow: ${Arrow_DIR}")
+        message(STATUS "  - Using system Arrow (skipping build from source)")
+        set(RERUN_DOWNLOAD_AND_BUILD_ARROW OFF CACHE BOOL "Use system Arrow" FORCE)
     else()
-        set(RERUN_SDK_ROOT $ENV{RERUN_SDK_ROOT})
-
-        # Check if Rerun SDK exists (src/rerun.hpp for SDK bundle)
-        if(NOT EXISTS ${RERUN_SDK_ROOT}/src/rerun.hpp)
-            message(WARNING "Rerun SDK not found at ${RERUN_SDK_ROOT}. Disabling Rerun support.")
-            set(ENABLE_RERUN OFF)
-        else()
-            message(STATUS "Rerun SDK: ${RERUN_SDK_ROOT}")
-
-            # Configure Rerun to use system-installed Arrow (no download)
-            set(RERUN_DOWNLOAD_AND_BUILD_ARROW OFF CACHE BOOL "Use system Arrow" FORCE)
-
-            # Find Arrow (should be at /usr/local after manual install)
-            set(CMAKE_PREFIX_PATH "/usr/local;${CMAKE_PREFIX_PATH}")
-            find_package(Arrow REQUIRED)
-            message(STATUS "  - Arrow found: ${Arrow_DIR}")
-
-            # Add Rerun SDK as subdirectory (will build rerun_cpp from source)
-            add_subdirectory(${RERUN_SDK_ROOT} ${CMAKE_CURRENT_BINARY_DIR}/rerun_sdk_build EXCLUDE_FROM_ALL)
-
-            # Rerun logger module
-            add_library(rerun_logger
-                src/rerun/rerun_logger.cpp
-            )
-            target_compile_definitions(rerun_logger PRIVATE ENABLE_RERUN)
-target_link_libraries(rerun_logger
-    egolanes_inference
-                ${OpenCV_LIBS}
-                rerun_sdk
-            )
-
-            set(RERUN_ENABLED TRUE)
-            message(STATUS "Rerun support: ENABLED")
-        endif()
+        message(STATUS "  - System Arrow not found")
+        message(STATUS "  - Will download and build Arrow automatically (may take 10-20 minutes)")
+        message(STATUS "  - Tip: Install Arrow for faster builds: sudo apt-get install libarrow-dev")
+        set(RERUN_DOWNLOAD_AND_BUILD_ARROW ON CACHE BOOL "Download and build Arrow" FORCE)
     endif()
-endif()
-
-if(NOT RERUN_ENABLED)
-    message(STATUS "Rerun support: DISABLED")
+    
+    # Make Rerun SDK available
+    # If system Arrow found, uses it. Otherwise downloads and builds Arrow.
+    FetchContent_MakeAvailable(rerun_sdk)
+    
+    # Check if rerun_sdk target was created successfully
+    if(TARGET rerun_sdk)
+        message(STATUS "Rerun SDK: Successfully downloaded and configured")
+        
+        # Rerun logger module
+        add_library(rerun_logger
+            src/rerun/rerun_logger.cpp
+        )
+        target_compile_definitions(rerun_logger PRIVATE ENABLE_RERUN)
+        target_link_libraries(rerun_logger
+            egolanes_inference
+            ${OpenCV_LIBS}
+            rerun_sdk  # Link against rerun_sdk (official method)
+        )
+        
+        set(RERUN_ENABLED TRUE)
+        message(STATUS "Rerun support: ENABLED")
+    else()
+        # Arrow build likely failed - provide helpful error message
+        message(FATAL_ERROR "\n"
+            "=================================================================\n"
+            "Failed to configure Rerun SDK (Arrow build failed).\n"
+            "=================================================================\n"
+            "\n"
+            "Arrow build from source is complex and often fails.\n"
+            "\n"
+            "QUICK FIX - Install Arrow via package manager:\n"
+            "  sudo apt-get update\n"
+            "  sudo apt-get install -y libarrow-dev libparquet-dev\n"
+            "\n"
+            "Then clean and rebuild:\n"
+            "  rm -rf build/_deps/rerun_sdk-build\n"
+            "  cd build && cmake -DENABLE_RERUN=ON .. && make\n"
+            "\n"
+            "After installing Arrow, Rerun will automatically detect and use it.\n"
+            "\n"
+            "Build logs: build/_deps/rerun_sdk-build/arrow/\n"
+            "=================================================================\n"
+        )
+    endif()
+else()
+    message(STATUS "Rerun support: DISABLED (use -DENABLE_RERUN=ON to enable)")
 endif()
 
 # Lane tracking module
