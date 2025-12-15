@@ -16,6 +16,7 @@
 #include "camera/camera_utils.hpp"
 #include "path_planning/path_finder.hpp"
 #include "steering_control/steering_controller.hpp"
+#include "steering_control/steering_filter.hpp"
 #include "drivers/can_interface.hpp"
 #ifdef ENABLE_RERUN
 #include "rerun/rerun_logger.hpp"
