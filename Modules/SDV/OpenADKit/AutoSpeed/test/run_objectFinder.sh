@@ -19,8 +19,8 @@ CACHE_DIR="/autoware/trt_cache"   # TensorRT engine cache directory
 REALTIME="true"           # Real-time playback (matches video FPS)
 MEASURE_LATENCY="false"    # Enable latency metrics
 ENABLE_VIZ="true"         # Enable visualization (set to "false" for headless mode)
-SAVE_VIDEO="false"         # Enable saving output video (requires ENABLE_VIZ=true)
-OUTPUT_VIDEO="output_tracking_${PRECISION}_${PROVIDER}.mp4" # Output video file path
+SAVE_VIDEO="true"         # Enable saving output video (requires ENABLE_VIZ=true)
+OUTPUT_VIDEO="/autoware/test/output_tracking_${PRECISION}_${PROVIDER}.mp4" # Output video file path
 
 
 if [ ! -f "$VIDEO_PATH" ]; then
