@@ -79,6 +79,11 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     steps:
+      - name: Set git config
+        uses: autowarefoundation/autoware-github-actions/set-git-config@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
