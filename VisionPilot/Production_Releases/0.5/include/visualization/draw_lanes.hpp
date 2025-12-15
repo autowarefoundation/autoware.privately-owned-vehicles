@@ -1,7 +1,7 @@
 #ifndef AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
 #define AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
 
-#include "../inference/onnxruntime_engine.hpp"
+#include "../inference/lane_segmentation.hpp"
 #include "../lane_tracking/lane_tracking.hpp"
 #include <opencv2/opencv.hpp>
 
