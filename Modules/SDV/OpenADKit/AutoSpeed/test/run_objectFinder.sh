@@ -5,22 +5,22 @@
 export GST_DEBUG=1
 
 # ===== Required Parameters =====
-VIDEO_PATH="/visionpilot/test/traffic-driving.mp4"
-MODEL_PATH="/visionpilot/model-weights/autospeed.onnx"
+VIDEO_PATH="/autoware/test/traffic-driving.mp4"
+MODEL_PATH="/autoware/model-weights/autospeed.onnx"
 PROVIDER="cpu"       # Execution provider: 'cpu' or 'tensorrt'
 PRECISION="fp32"          # Precision: 'fp32' or 'fp16' (for TensorRT)
-HOMOGRAPHY_YAML="/visionpilot/VisionPilot/Standalone/AutoSpeed/homography.yaml"
+HOMOGRAPHY_YAML="/autoware/VisionPilot/Middleware_Recipes/Standalone/AutoSpeed/homography.yaml"
 
 # ===== ONNX Runtime Options =====
 DEVICE_ID="0"             # GPU device ID (TensorRT only)
-CACHE_DIR="/visionpilot/trt_cache"   # TensorRT engine cache directory
+CACHE_DIR="/autoware/trt_cache"   # TensorRT engine cache directory
 
 # ===== Pipeline Options =====
 REALTIME="true"           # Real-time playback (matches video FPS)
 MEASURE_LATENCY="false"    # Enable latency metrics
 ENABLE_VIZ="true"         # Enable visualization (set to "false" for headless mode)
-SAVE_VIDEO="false"         # Enable saving output video (requires ENABLE_VIZ=true)
-OUTPUT_VIDEO="output_tracking_${PRECISION}_${PROVIDER}.mp4" # Output video file path
+SAVE_VIDEO="true"         # Enable saving output video (requires ENABLE_VIZ=true)
+OUTPUT_VIDEO="/autoware/test/output_tracking_${PRECISION}_${PROVIDER}.mp4" # Output video file path
 
 
 if [ ! -f "$VIDEO_PATH" ]; then
@@ -71,4 +71,4 @@ if [ -z "$ONNXRUNTIME_ROOT" ]; then
     exit 1
 fi
 
-/visionpilot/autospeed_infer_stream "$VIDEO_PATH" "$MODEL_PATH" "$PROVIDER" "$PRECISION" "$HOMOGRAPHY_YAML" "$DEVICE_ID" "$CACHE_DIR" "$REALTIME" "$MEASURE_LATENCY" "$ENABLE_VIZ" "$SAVE_VIDEO" "$OUTPUT_VIDEO"
+/autoware/autospeed_infer_stream "$VIDEO_PATH" "$MODEL_PATH" "$PROVIDER" "$PRECISION" "$HOMOGRAPHY_YAML" "$DEVICE_ID" "$CACHE_DIR" "$REALTIME" "$MEASURE_LATENCY" "$ENABLE_VIZ" "$SAVE_VIDEO" "$OUTPUT_VIDEO"

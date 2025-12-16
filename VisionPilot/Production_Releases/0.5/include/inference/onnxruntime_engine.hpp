@@ -1,34 +1,19 @@
-#ifndef AUTOWARE_POV_VISION_AUTOSTEER_ONNXRUNTIME_ENGINE_HPP_
-#define AUTOWARE_POV_VISION_AUTOSTEER_ONNXRUNTIME_ENGINE_HPP_
+#ifndef AUTOWARE_POV_VISION_EGOLANES_ONNXRUNTIME_ENGINE_HPP_
+#define AUTOWARE_POV_VISION_EGOLANES_ONNXRUNTIME_ENGINE_HPP_
 
 #include <onnxruntime_cxx_api.h>
+#include "inference/lane_segmentation.hpp"
 #include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
 #include <memory>
 #include <array>
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 /**
- * @brief Lane segmentation output structure
- * 
- * Contains binary segmentation masks for different lane types.
- * Each mask is a 2D binary image (1.0 = lane present, 0.0 = no lane)
- */
-struct LaneSegmentation
-{
-  cv::Mat ego_left;    // Ego left lane boundary (320x640)
-  cv::Mat ego_right;   // Ego right lane boundary (320x640)
-  cv::Mat other_lanes; // Other visible lanes (320x640)
-  
-  int height;
-  int width;
-};
-
-/**
- * @brief AutoSteer ONNX Runtime Inference Engine
+ * @brief EgoLanes ONNX Runtime Inference Engine
  * 
  * Supports multiple execution providers:
  * - CPU: Default CPU execution
@@ -39,7 +24,7 @@ struct LaneSegmentation
  * 2. Model inference via ONNX Runtime
  * 3. Post-processing (thresholding, channel extraction)
  */
-class AutoSteerOnnxEngine
+class EgoLanesOnnxEngine
 {
 public:
   /**
@@ -51,7 +36,7 @@ public:
    * @param device_id GPU device ID (TensorRT only, default: 0)
    * @param cache_dir TensorRT engine cache directory (default: ./trt_cache)
    */
-  AutoSteerOnnxEngine(
+  EgoLanesOnnxEngine(
     const std::string& model_path,
     const std::string& provider = "cpu",
     const std::string& precision = "fp32",
@@ -59,7 +44,7 @@ public:
     const std::string& cache_dir = "./trt_cache"
   );
 
-  ~AutoSteerOnnxEngine();
+  ~EgoLanesOnnxEngine();
 
   /**
    * @brief Run complete inference pipeline
@@ -85,7 +70,7 @@ public:
    */
   std::vector<int64_t> getTensorShape() const;
 
-  // Model input dimensions (320x640 for AutoSteer)
+  // Model input dimensions (320x640 for EgoLanes)
   int getInputWidth() const { return model_input_width_; }
   int getInputHeight() const { return model_input_height_; }
 
@@ -95,11 +80,11 @@ public:
 
 private:
   /**
-   * @brief Preprocess image for AutoSteer
+   * @brief Preprocess image for EgoLanes
    * 
    * Resizes to 320x640, converts to RGB, normalizes with ImageNet stats, converts to CHW
    */
-  void preprocessAutoSteer(const cv::Mat& input_image, float* buffer);
+  void preprocessEgoLanes(const cv::Mat& input_image, float* buffer);
 
   /**
    * @brief Run ONNX Runtime inference
@@ -139,7 +124,7 @@ private:
   static constexpr std::array<float, 3> STD = {0.229f, 0.224f, 0.225f};
 };
 
-}  // namespace autoware_pov::vision::autosteer
+}  // namespace autoware_pov::vision::egolanes
 
-#endif  // AUTOWARE_POV_VISION_AUTOSTEER_ONNXRUNTIME_ENGINE_HPP_
+#endif  // AUTOWARE_POV_VISION_EGOLANES_ONNXRUNTIME_ENGINE_HPP_
 

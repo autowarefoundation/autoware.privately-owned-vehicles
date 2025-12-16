@@ -1,6 +1,7 @@
 # VisionPilot 0.5 - AutoSteer Production Release
 
-This release enables autonomous steering using the EgoLanes neural network to detect lane lines and navigate roads at a predetermined, desired speed.
+This release enables autonomous steering using the EgoLanes and AutoSteer neural networks to detect lane lines determine
+steering angle and navigate roads at a predetermined, desired speed.
 
 This includes autonomous lane keeping with cruise control.
 
@@ -10,26 +11,22 @@ Multi-threaded lane detection inference system with ONNX Runtime backend.
 
 ### Quick Start
 
-1. **Set ONNX Runtime path**:
+[Download](https://github.com/microsoft/onnxruntime/releases) ONNX Runtime for the appropriate CUDA version and OS.
+
+**Set ONNX Runtime path**
+
+Unpack the ONNX runtime archive and set `ONNXRUNTIME_ROOT` to point to the directory as for example:
+
 ```bash
 export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0
 ```
 
-2. **Build**:
-```bash
-mkdir -p build && cd build
-cmake ..
-make -j$(nproc)
-cd ..
-```
+_Note_: For Jetson AGX download appropriate ONNX runetime from [Jetson Zoo](https://elinux.org/Jetson_Zoo#ONNX_Runtime).
 
-3. **Configure and Run**:
-```bash
-# Edit run.sh to set paths and options
-./run.sh
-```
+**Build**
 
-### Directory Structure
+[Download](https://github.com/autowarefoundation/autoware.privately-owned-vehicles.git) VisionPilot source code.
+Navigate to `VisionPilot/Production_Releases/0.5` subdirectory  which looks like:
 
 ```
 0.5/
@@ -46,11 +43,55 @@ cd ..
 └── run.sh                  # Runner script
 ```
 
+and create `build` subdirectory:
+
+```bash
+mkdir -p build && cd build
+```
+
+**Build Options**
+
+The pipeline supports two inference backends:
+
+1. **ONNX Runtime (default)**: Uses ONNX Runtime with TensorRT execution provider
+   ```bash
+   cmake -DSKIP_ORT=OFF ../
+   make -j$(nproc)
+   ```
+   Requires: `ONNXRUNTIME_ROOT` environment variable set
+
+2. **TensorRT Direct (SKIP_ORT=ON)**: Uses TensorRT directly, bypassing ONNX Runtime
+   ```bash
+   cmake -DSKIP_ORT=ON ../
+   make -j$(nproc)
+   ```
+   Requires: CUDA and TensorRT installed (searches common locations or set `TENSORRT_ROOT`)
+   
+   **Use this option when:**
+   - Building on Jetson where ONNX Runtime GPU builds are problematic
+   - You want to avoid ONNX Runtime dependency
+   - You only need TensorRT inference
+
+**Default Build (ONNX Runtime)**
+
+```bash
+cmake ../
+make -j$(nproc)
+cd ..
+```
+
+**Configure and Run**
+
+```bash
+# Edit run.sh to set paths and options
+./run.sh
+```
+
 ### Configuration (run.sh)
 
 - `VIDEO_PATH`: Input video file
 - `MODEL_PATH`: ONNX model (.onnx)
-- `PROVIDER`: cpu or tensorrt
+- `PROVIDER`: cpu or tensorrt (ignored when `SKIP_ORT=ON`, always uses TensorRT)
 - `PRECISION`: fp32 or fp16 (TensorRT only)
 - `DEVICE_ID`: GPU device ID
 - `CACHE_DIR`: TensorRT engine cache directory
@@ -59,6 +100,8 @@ cd ..
 - `ENABLE_VIZ`: Enable visualization window
 - `SAVE_VIDEO`: Save annotated output video
 - `OUTPUT_VIDEO`: Output video path
+
+**Note**: When building with `SKIP_ORT=ON`, the `PROVIDER` argument is ignored and TensorRT is always used directly.
 
 ### Performance
 

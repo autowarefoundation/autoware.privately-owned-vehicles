@@ -252,11 +252,9 @@ python process_culane.py --dataset_dir /path/to/CULane --output_dir /path/to/out
 
 - `--dataset_dir` (required)
   - Path to the processed CULane dataset directory (i.e., the output directory from `process_culane.py`).
-  - Example : `../pov_datasets/CULANE`
 
 - `--early_stopping` (optional)
   - Limits the number of frames processed. Useful for debugging or quick testing, default `None` (processes all frames).
-  - Example : `--early_stopping 100`
 
 #### Running the script
 
@@ -264,20 +262,20 @@ Once you have processed the CULane dataset using `process_culane.py`, you can ru
 
 ```bash
 python3 EgoPath/create_path/CULane/parse_culane_bev.py \
-  --dataset_dir ../pov_datasets/CULANE
+  --dataset_dir <path_to_CuLane_dataset>
 ```
 
 You can limit the number of frames for debugging or development purposes. This will process first 100 frames.
 
 ```bash
 python3 EgoPath/create_path/CULane/parse_culane_bev.py \
-  --dataset_dir ../pov_datasets/CULANE \
+  --dataset_dir <path_to_CuLane_dataset> \
   --early_stopping 100
 ```
 
 ## 3. End-to-end run
 
 ```bash
-python3 EgoPath/create_path/CULane/process_culane.py --dataset_dir ../pov_datasets/CULane --output_dir ../pov_datasets/CULANE
-python3 EgoPath/create_path/CULane/parse_culane_bev.py --dataset_dir ../pov_datasets/CULANE/
+python3 EgoPath/create_path/CULane/process_culane.py --dataset_dir <path_to_CuLane_dataset > --output_dir <path_to_output_CuLane >
+python3 EgoPath/create_path/CULane/parse_culane_bev.py --dataset_dir <path_to_CuLane_dataset >
 ```

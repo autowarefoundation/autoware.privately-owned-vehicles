@@ -1,0 +1,24 @@
+#!/bin/sh
+# cspell:ignore openbox, VNC, xstartup, DBUS, Xresources, xrdb
+
+# Clean up session variables
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+# Set display
+export DISPLAY=:99
+
+# Load X resources if available
+[ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"
+
+# Check for custom xstartup
+[ -x /etc/vnc/xstartup ] && exec /etc/vnc/xstartup
+
+# Start D-Bus if available
+if command -v dbus-launch >/dev/null 2>&1; then
+    eval "$(dbus-launch --sh-syntax)"
+fi
+
+# Start Openbox window manager
+echo "Starting Openbox window manager..."
+exec openbox-session

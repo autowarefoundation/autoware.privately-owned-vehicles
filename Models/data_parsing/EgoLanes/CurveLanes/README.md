@@ -44,10 +44,9 @@ Each image, upon being parsed into those functions, will have 2 params of `origi
 ## 2. Execute
 
 ```bash
-# `pov_datasets` includes `Curvelanes` directory in this case
 # Sampling rate 5 (also by default)
 # Process first 100 images, then stop (for a quick run, instead of going through 150k images)
-python3 EgoPath/create_path/CurveLanes/process_curvelanes.py --dataset_dir ../pov_datasets --output_dir ../pov_datasets/Output --sampling_step 5 --early_stopping 100
+python3 EgoPath/create_path/CurveLanes/process_curvelanes.py --dataset_dir <path_to_dataset > --output_dir <path_to_output_dir > --sampling_step 5 --early_stopping 100
 ```
 
 ## III. Functions
@@ -166,9 +165,8 @@ Now the frustum is completed, we can conduct BEV transformation based on the 4 s
 ## 2. Execute
 
 ```bash
-# `pov_datasets` includes `CURVELANES` which is the processed CurveLanes directory in this case
 # Process first 100 images, then stop (for a quick run, instead of going through ~100k processed images)
-python3 EgoPath/create_path/CurveLanes/parse_curvelanes_bev.py --dataset_dir ../pov_datasets/CURVELANES --early_stopping 100
+python3 EgoPath/create_path/CurveLanes/parse_curvelanes_bev.py --dataset_dir <path to dataset > --early_stopping 100
 ```
 
 ## III. Functions
@@ -248,6 +246,6 @@ python3 EgoPath/create_path/CurveLanes/parse_curvelanes_bev.py --dataset_dir ../
 ## IV. Running all at once
 
 ```
-python3 EgoPath/create_path/CurveLanes/process_curvelanes.py --dataset_dir ../pov_datasets/ --output_dir ../pov_datasets/CurveLanes_250624
-python3 EgoPath/create_path/CurveLanes/parse_curvelanes_bev.py --dataset_dir ../pov_datasets/CurveLanes_250624
+python3 EgoPath/create_path/CurveLanes/process_curvelanes.py --dataset_dir <path to dataset > --output_dir <path to output dataset dir >
+python3 EgoPath/create_path/CurveLanes/parse_curvelanes_bev.py --dataset_dir <path to above processed dataset dir >
 ```

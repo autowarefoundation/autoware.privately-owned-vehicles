@@ -83,8 +83,6 @@ def main():
         # Inference
         prediction = model.inference(image)
         prediction = np.moveaxis(prediction, 0, -1)
-        save_path = '/mnt/media/Daihatsu/100/lanes/'
-        np.save(save_path + str(i) + '.npy', prediction)
 
         # Frame preprocessing
         vis_image_data = make_visualization(image.copy(), prediction)

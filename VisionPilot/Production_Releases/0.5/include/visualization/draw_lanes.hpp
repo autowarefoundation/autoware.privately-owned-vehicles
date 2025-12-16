@@ -1,10 +1,11 @@
-#ifndef AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
-#define AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
+#ifndef AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
+#define AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
 
-#include "../inference/onnxruntime_engine.hpp"
+#include "../inference/lane_segmentation.hpp"
+#include "../lane_tracking/lane_tracking.hpp"
 #include <opencv2/opencv.hpp>
 
-namespace autoware_pov::vision::autosteer
+namespace autoware_pov::vision::egolanes
 {
 
 /**
@@ -17,13 +18,11 @@ namespace autoware_pov::vision::autosteer
  * 
  * @param input_image Original input image (any resolution)
  * @param lanes Lane segmentation masks (typically 320x640)
- * @param radius Radius of drawn circles (default: 2)
  * @return Annotated image (same size as input)
  */
 cv::Mat drawLanes(
   const cv::Mat& input_image,
-  const LaneSegmentation& lanes,
-  int radius = 2
+  const LaneSegmentation& lanes
 );
 
 /**
@@ -31,15 +30,66 @@ cv::Mat drawLanes(
  * 
  * @param image Image to annotate (modified in-place)
  * @param lanes Lane segmentation masks
- * @param radius Radius of drawn circles
  */
 void drawLanesInPlace(
   cv::Mat& image,
-  const LaneSegmentation& lanes,
-  int radius = 2
+  const LaneSegmentation& lanes
 );
 
-}  // namespace autoware_pov::vision::autosteer
+/**
+ * @brief In-place visualization of filtered lanes
+ * 
+ * @param image Image to annotate (modified in-place)
+ * @param lanes Filtered lane segmentation masks
+ */
+void drawFilteredLanesInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes);
 
-#endif  // AUTOWARE_POV_VISION_AUTOSTEER_DRAW_LANES_HPP_
+/**
+ * @brief Draws ONLY the raw 160x80 pixel masks overlay.
+ * Useful for debugging the model output and RANSAC inputs.
+ * Later on I might add some more, like sliding windows too etc.
+ */
+void drawRawMasksInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes
+);
 
+/**
+ * @brief Draws ONLY the smooth polynomial fitted lines.
+ * This represents the final product output Insha'Allah.
+ */
+void drawPolyFitLanesInPlace(
+  cv::Mat& image,
+  const LaneSegmentation& lanes
+);
+
+/**
+ * @brief Draws BEV vis panel.
+ * * @param image Output img to draw on (will be resized to 640x640).
+ * @param orig_frame Orig perspective frame.
+ * @param bev_data BEV vis data from the tracker.
+ */
+void drawBEVVis(
+  cv::Mat& image,
+  const cv::Mat& orig_frame,
+  const BEVVisuals& bev_data
+);
+
+/**
+ * @brief Debug function to verify Pixel -> Meter conversion
+ * Draws the metric polynomials (projected back to pixels) on top of the BEV image.
+ */
+void drawMetricVerification(
+    cv::Mat& bev_image,
+    const std::vector<double>& left_metric_coeffs,
+    const std::vector<double>& right_metric_coeffs
+);
+
+cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg);
+void visualizeSteering(cv::Mat& img, float steering_angle, const cv::Mat& steeringWheelImage);
+
+}  // namespace autoware_pov::vision::egolanes
+
+#endif  // AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
