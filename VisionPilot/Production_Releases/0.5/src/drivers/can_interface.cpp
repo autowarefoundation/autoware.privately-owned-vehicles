@@ -93,9 +93,6 @@ void CanInterface::parseFrame(
 
 // ABSSP1 (Speed) : Start Bit 39 | Length 16 | Signed | Factor 0.01
 // Format: Motorola (Big Endian: https://en.wikipedia.org/wiki/Endianness)
-// Bit 39 is in byte 4. (0-indexed). 
-// 16 bits -> spans byte 4 (high) and byte 5 (low) or 4 and 3?
-// We assume [byte 4] is MSB, [byte 5] is LSB based on standard layout.
 double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
 
     if (data.size() < 8) return 0.0;
@@ -110,34 +107,16 @@ double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
 
 // SSA (Steering angle) : Start Bit 46 | Length 15 | Signed | Factor 0.1
 // Format: Motorola (Big Endian: https://en.wikipedia.org/wiki/Endianness)
-// Bit 46 is in byte 5 (bit 6).
-// This is complex. We verify strictly against provided logic if possible.
-// Lacking exact bit-matrix, we assume standard Big Endian alignment crossing byte 5 and 6.
 double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     
+    // Sanity: need at least 8 bytes
     if (data.size() < 8) return std::numeric_limits<double>::quiet_NaN();
 
-    // Masking logic based on 15-bit signed integer
-    // Assuming MSB is in byte 5, LSB in byte 6
-    // We only want the lower 7 bits of byte 5
-    // Top bit (bit 7 of byte 5, which is CAN bit 47) should be ignore
-    uint16_t raw_high = data[5] & 0x7F;
-    uint16_t raw_low  = data[6];
+    // Get steering zero point value by reading bit 29 to 45 (SSAZ)
+    // Get measured steering angle by reading bit 46 to 62 (SSA)
+    // Final steering angle = steering angle (SSA) - steering zero point (SSAZ)
+
     
-    // Combine
-    uint16_t raw_15bit = (raw_high << 8) | raw_low;
-    
-    // If it's 15 bits, we might need to shift or mask. 
-    // Assuming the 15 bits are right-aligned in the extraction:
-    // (This is a best-guess implementation until A4 is actually observed in logs)
-    
-    // Convert to signed 16-bit to handle negative values (Two's complement)
-    // - Shift left 1 to move the sign bit to the top (Bit 15).
-    // - Cast to signed int16_t.
-    // - Shift right 1 to move it back (arithmetic shift drags the sign bit down).
-    int16_t signed_val = static_cast<int16_t>(raw_15bit << 1) >> 1;
-    
-    return static_cast<double>(signed_val) * 0.1;
 }
 
 // ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
