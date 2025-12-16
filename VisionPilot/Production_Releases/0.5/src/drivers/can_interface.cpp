@@ -91,8 +91,7 @@ void CanInterface::parseFrame(
     }
 }
 
-// ABSSP1 (Speed) : Start Bit 39 | Length 16 | Signed | Factor 0.01
-// Format: Motorola (Big Endian: https://en.wikipedia.org/wiki/Endianness)
+// ABSSP1 (Speed) : 39|16@0- (0.01,0) [0|0] "-"
 double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
 
     if (data.size() < 8) return 0.0;
@@ -105,8 +104,8 @@ double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
     return static_cast<double>(raw) * 0.01;
 }
 
-// SSA (Steering angle) : Start Bit 46 | Length 15 | Signed | Factor 0.1
-// Format: Motorola (Big Endian: https://en.wikipedia.org/wiki/Endianness)
+// SSA (Measured steering angle)    : 46|15@0- (0.1,0) [0|0] "-"
+// SSAZ (Steering zero point)       : 29|15@0- (0.1,0) [0|0] "-"
 double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     
     // Sanity: need at least 8 bytes
@@ -116,7 +115,13 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     // Get measured steering angle by reading bit 46 to 62 (SSA)
     // Final steering angle = steering angle (SSA) - steering zero point (SSAZ)
 
-    
+    // 1. SSAZ : bits 29-45 (17 bits)
+    uint16_t ssaz_byte_3 = data[3] & 0x3F;          // Bits 0-5 of byte 3 (00xx xxxx)
+    uint16_t ssaz_byte_4 = data[4];                 // Byte 4
+    uint16_t ssaz_byte_5 = (data[5] >> 7) & 0x01;   // Bit 7 of byte 5
+    uint32_t ssaz_raw = (ssaz_byte_3 << 9) |
+                        (ssaz_byte_4 << 1) |
+                        ssaz_byte_5;
 }
 
 // ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
