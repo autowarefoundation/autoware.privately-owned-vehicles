@@ -129,8 +129,12 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     uint32_t ssaz_raw = (ssaz_byte_3 << 9) |
                         (ssaz_byte_4 << 1) |
                         ssaz_byte_5;
+
+    // Sign extension (15-bit => 16-bit signed)
+    // This is to ensure negative values are correctly interpreted
+    int16_t ssaz_signed = static_cast<int16_t>(ssaz_raw << 1) >> 1;
     
-    double deg_ssaz = static_cast<double>(ssaz_raw) * 0.1;  // Deg conversion
+    double deg_ssaz = static_cast<double>(ssaz_signed) * 0.1;  // Deg conversion
 
     // 2. SSA
     // Byte 5: 46, 45, 44, 43, 42, 41, 40
@@ -146,7 +150,7 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     // This is to ensure negative values are correctly interpreted
     int16_t ssa_signed = static_cast<int16_t>(ssa_raw << 1) >> 1;
     
-    double deg_ssa = static_cast<double>(ssa_raw) * 0.1;    // Deg conversion
+    double deg_ssa = static_cast<double>(ssa_signed) * 0.1;    // Deg conversion
 
     // 3. Final steering angle
     double steering_angle = deg_ssa - deg_ssaz;
