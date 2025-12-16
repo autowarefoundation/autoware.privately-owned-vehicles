@@ -111,17 +111,39 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     // Sanity: need at least 8 bytes
     if (data.size() < 8) return std::numeric_limits<double>::quiet_NaN();
 
-    // Get steering zero point value by reading bit 29 to 45 (SSAZ)
-    // Get measured steering angle by reading bit 46 to 62 (SSA)
-    // Final steering angle = steering angle (SSA) - steering zero point (SSAZ)
+    // Workflow, as desribed in DBC:
+    // 1. Get steering zero point value by reading bit 29 to 45 (SSAZ)
+    // 2. Get measured steering angle by reading bit 46 to 62 (SSA)
+    // 3. Final steering angle = steering angle (SSA) - steering zero point (SSAZ)
 
-    // 1. SSAZ : bits 29-45 (17 bits)
-    uint16_t ssaz_byte_3 = data[3] & 0x3F;          // Bits 0-5 of byte 3 (00xx xxxx)
-    uint16_t ssaz_byte_4 = data[4];                 // Byte 4
-    uint16_t ssaz_byte_5 = (data[5] >> 7) & 0x01;   // Bit 7 of byte 5
+    // 1. SSAZ
+    // Byte 3: 29, 28, 27, 26, 25, 24
+    // Byte 4: 39, 38, 37, 36, 35, 34, 33, 32
+    // Byte 5: 47
+    
+    uint16_t ssaz_byte_3 = data[3] & 0x3F;                  // Bits 0-5 of byte 3 (00xx xxxx)
+    uint16_t ssaz_byte_4 = data[4];                         // Byte 4
+    uint16_t ssaz_byte_5 = (data[5] >> 7) & 0x01;           // Top bit of byte 5
+    
     uint32_t ssaz_raw = (ssaz_byte_3 << 9) |
                         (ssaz_byte_4 << 1) |
                         ssaz_byte_5;
+    
+    double deg_ssaz = static_cast<double>(ssaz_raw) * 0.1;  // Deg conversion
+
+    // 2. SSA
+    // Byte 5: 46, 45, 44, 43, 42, 41, 40
+    // Byte 6: 55, 54, 53, 52, 51, 50, 49, 48
+    
+    uint16_t ssa_byte_5 = data[5] & 0x7F;                   // Bits 0-6 of byte 5 (0xxx xxxx)
+    uint16_t ssa_byte_6 = data[6];                          // Byte 6
+    
+    uint16_t ssa_raw =  (ssa_byte_5 << 8) | 
+                        ssa_byte_6;
+    
+    double deg_ssa = static_cast<double>(ssa_raw) * 0.1;    // Deg conversion
+
+    
 }
 
 // ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
