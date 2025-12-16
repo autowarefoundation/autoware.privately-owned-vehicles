@@ -92,19 +92,32 @@ void CanInterface::parseFrame(
     }
 }
 
+
+// Speed
 // ABSSP1 (Speed) : 39|16@0- (0.01,0) [0|0] "-"
 double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
 
-    if (data.size() < 8) return 0.0;
+    // Sanity: need at least 8 bytes
+    if (data.size() < 8) return std::numeric_limits<double>::quiet_NaN();
 
-    // Combine byte 4 and byte 5
-    // Note: DBC bit numbering can be tricky. If start is 39 (0x27), that is bit 7 of byte 4.
-    // We assume standard Big Endian placement.
-    int16_t raw = (static_cast<int16_t>(data[4]) << 8) | static_cast<int16_t>(data[5]);
-    
-    return static_cast<double>(raw) * 0.01;
+    // ABSSP1
+    // Byte 4: 39, 38, 37, 36, 35, 34, 33, 32
+    // Byte 5: 47, 46, 45, 44, 43, 42, 41, 40
+
+    uint16_t byte_4 = data[4];
+    uint16_t byte_5 = data[5];
+
+    uint16_t speed_raw = (byte_4 << 8) | 
+                          byte_5;
+
+    // Sign extension (just to make sure since it's signed "-")
+    int16_t speed_signed = static_cast<int16_t>(speed_raw);
+
+    return static_cast<double>(speed_signed) * 0.01;
 }
 
+
+// Steering angle
 // SSA (Measured steering angle)    : 46|15@0- (0.1,0) [0|0] "-"
 // SSAZ (Steering zero point)       : 29|15@0- (0.1,0) [0|0] "-"
 double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
@@ -128,7 +141,7 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     
     uint32_t ssaz_raw = (ssaz_byte_3 << 9) |
                         (ssaz_byte_4 << 1) |
-                        ssaz_byte_5;
+                         ssaz_byte_5;
 
     // Sign extension (15-bit => 16-bit signed)
     // This is to ensure negative values are correctly interpreted
@@ -144,7 +157,7 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     uint16_t ssa_byte_6 = data[6];                          // Byte 6
     
     uint16_t ssa_raw =  (ssa_byte_5 << 8) | 
-                        ssa_byte_6;
+                         ssa_byte_6;
     
     // Sign extension (15-bit => 16-bit signed)
     // This is to ensure negative values are correctly interpreted
@@ -157,6 +170,7 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
 
     return steering_angle;
 }
+
 
 // ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
 
