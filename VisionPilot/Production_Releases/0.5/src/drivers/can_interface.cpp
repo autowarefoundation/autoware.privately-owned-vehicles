@@ -113,9 +113,9 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     if (data.size() < 8) return std::numeric_limits<double>::quiet_NaN();
 
     // Workflow, as desribed in DBC:
-    // 1. Get steering zero point value by reading bit 29 to 45 (SSAZ)
-    // 2. Get measured steering angle by reading bit 46 to 62 (SSA)
-    // 3. Final steering angle = steering angle (SSA) - steering zero point (SSAZ)
+    // 1. Get steering zero point value by reading SSAZ
+    // 2. Get measured steering angle by reading SSA
+    // 3. Final steering angle = steering angle - steering zero point
 
     // 1. SSAZ
     // Byte 3: 29, 28, 27, 26, 25, 24
