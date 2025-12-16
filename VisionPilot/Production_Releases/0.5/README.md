@@ -49,7 +49,30 @@ and create `build` subdirectory:
 mkdir -p build && cd build
 ```
 
-build the code
+**Build Options**
+
+The pipeline supports two inference backends:
+
+1. **ONNX Runtime (default)**: Uses ONNX Runtime with TensorRT execution provider
+   ```bash
+   cmake -DSKIP_ORT=OFF ../
+   make -j$(nproc)
+   ```
+   Requires: `ONNXRUNTIME_ROOT` environment variable set
+
+2. **TensorRT Direct (SKIP_ORT=ON)**: Uses TensorRT directly, bypassing ONNX Runtime
+   ```bash
+   cmake -DSKIP_ORT=ON ../
+   make -j$(nproc)
+   ```
+   Requires: CUDA and TensorRT installed (searches common locations or set `TENSORRT_ROOT`)
+   
+   **Use this option when:**
+   - Building on Jetson where ONNX Runtime GPU builds are problematic
+   - You want to avoid ONNX Runtime dependency
+   - You only need TensorRT inference
+
+**Default Build (ONNX Runtime)**
 
 ```bash
 cmake ../
@@ -68,7 +91,7 @@ cd ..
 
 - `VIDEO_PATH`: Input video file
 - `MODEL_PATH`: ONNX model (.onnx)
-- `PROVIDER`: cpu or tensorrt
+- `PROVIDER`: cpu or tensorrt (ignored when `SKIP_ORT=ON`, always uses TensorRT)
 - `PRECISION`: fp32 or fp16 (TensorRT only)
 - `DEVICE_ID`: GPU device ID
 - `CACHE_DIR`: TensorRT engine cache directory
@@ -77,6 +100,8 @@ cd ..
 - `ENABLE_VIZ`: Enable visualization window
 - `SAVE_VIDEO`: Save annotated output video
 - `OUTPUT_VIDEO`: Output video path
+
+**Note**: When building with `SKIP_ORT=ON`, the `PROVIDER` argument is ignored and TensorRT is always used directly.
 
 ### Performance
 

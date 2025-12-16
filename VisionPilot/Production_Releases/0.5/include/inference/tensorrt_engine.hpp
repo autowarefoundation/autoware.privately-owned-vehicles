@@ -1,7 +1,9 @@
-#ifndef AUTOWARE_POV_VISION_EGOLANES_ONNXRUNTIME_ENGINE_HPP_
-#define AUTOWARE_POV_VISION_EGOLANES_ONNXRUNTIME_ENGINE_HPP_
+#ifndef AUTOWARE_POV_VISION_EGOLANES_TENSORRT_ENGINE_HPP_
+#define AUTOWARE_POV_VISION_EGOLANES_TENSORRT_ENGINE_HPP_
 
-#include <onnxruntime_cxx_api.h>
+#include <NvInfer.h>
+#include <NvOnnxParser.h>
+#include <cuda_runtime_api.h>
 #include "inference/lane_segmentation.hpp"
 #include <opencv2/opencv.hpp>
 #include <string>
@@ -12,39 +14,48 @@
 namespace autoware_pov::vision::egolanes
 {
 
+// Forward declaration
+struct LaneSegmentation;
+
 /**
- * @brief EgoLanes ONNX Runtime Inference Engine
+ * @brief TensorRT Logger for EgoLanes
+ */
+class TensorRTLogger : public nvinfer1::ILogger
+{
+public:
+  void log(Severity severity, const char* msg) noexcept override;
+};
+
+/**
+ * @brief EgoLanes TensorRT Inference Engine
  * 
- * Supports multiple execution providers:
- * - CPU: Default CPU execution
- * - TensorRT: GPU-accelerated with FP16/FP32
+ * Direct TensorRT implementation (no ONNX Runtime dependency).
+ * Supports FP16 and FP32 precision.
  * 
  * Handles complete inference pipeline:
  * 1. Preprocessing (resize to 320x640, normalize)
- * 2. Model inference via ONNX Runtime
+ * 2. Model inference via TensorRT
  * 3. Post-processing (thresholding, channel extraction)
  */
-class EgoLanesOnnxEngine
+class EgoLanesTensorRTEngine
 {
 public:
   /**
    * @brief Constructor
    * 
    * @param model_path Path to ONNX model (.onnx file)
-   * @param provider Execution provider: "cpu" or "tensorrt"
-   * @param precision Precision mode: "fp32" or "fp16" (TensorRT only)
-   * @param device_id GPU device ID (TensorRT only, default: 0)
+   * @param precision Precision mode: "fp32" or "fp16"
+   * @param device_id GPU device ID (default: 0)
    * @param cache_dir TensorRT engine cache directory (default: ./trt_cache)
    */
-  EgoLanesOnnxEngine(
+  EgoLanesTensorRTEngine(
     const std::string& model_path,
-    const std::string& provider = "cpu",
-    const std::string& precision = "fp32",
+    const std::string& precision = "fp16",
     int device_id = 0,
     const std::string& cache_dir = "./trt_cache"
   );
 
-  ~EgoLanesOnnxEngine();
+  ~EgoLanesTensorRTEngine();
 
   /**
    * @brief Run complete inference pipeline
@@ -87,7 +98,7 @@ private:
   void preprocessEgoLanes(const cv::Mat& input_image, float* buffer);
 
   /**
-   * @brief Run ONNX Runtime inference
+   * @brief Run TensorRT inference
    */
   bool doInference(const cv::Mat& input_image);
 
@@ -98,16 +109,28 @@ private:
    */
   LaneSegmentation postProcess(float threshold);
 
-  // ONNX Runtime components
-  std::unique_ptr<Ort::Session> session_;
-  std::unique_ptr<Ort::MemoryInfo> memory_info_;
-  
-  // Input/Output tensor names (storage + pointers)
-  std::string input_name_storage_;
-  std::string output_name_storage_;
-  std::vector<const char*> input_names_;
-  std::vector<const char*> output_names_;
-  
+  /**
+   * @brief Build TensorRT engine from ONNX model
+   */
+  void buildEngineFromOnnx(const std::string& onnx_path, const std::string& precision);
+
+  /**
+   * @brief Load pre-built TensorRT engine
+   */
+  void loadEngine(const std::string& engine_path);
+
+  // TensorRT components
+  TensorRTLogger logger_;
+  std::unique_ptr<nvinfer1::IRuntime> runtime_;
+  std::unique_ptr<nvinfer1::ICudaEngine> engine_;
+  std::unique_ptr<nvinfer1::IExecutionContext> context_;
+
+  // CUDA resources
+  cudaStream_t stream_;
+  void* input_buffer_gpu_;
+  void* output_buffer_gpu_;
+  std::vector<float> output_buffer_host_;
+
   // Model dimensions
   int model_input_width_;    // 640
   int model_input_height_;   // 320
@@ -115,10 +138,10 @@ private:
   int model_output_height_;  // 320
   int model_output_channels_; // 3 (ego_left, ego_right, other_lanes)
   
-  // Buffers
-  std::vector<float> input_buffer_;
-  std::vector<Ort::Value> output_tensors_;  // Output managed by ONNX Runtime
-  
+  // Engine cache path
+  std::string cache_dir_;
+  std::string engine_cache_path_;
+
   // ImageNet normalization constants
   static constexpr std::array<float, 3> MEAN = {0.485f, 0.456f, 0.406f};
   static constexpr std::array<float, 3> STD = {0.229f, 0.224f, 0.225f};
@@ -126,5 +149,5 @@ private:
 
 }  // namespace autoware_pov::vision::egolanes
 
-#endif  // AUTOWARE_POV_VISION_EGOLANES_ONNXRUNTIME_ENGINE_HPP_
+#endif  // AUTOWARE_POV_VISION_EGOLANES_TENSORRT_ENGINE_HPP_
 

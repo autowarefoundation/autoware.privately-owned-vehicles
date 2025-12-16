@@ -4,57 +4,139 @@ project(egolanes_pipeline LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find dependencies
+ # Find dependencies
 find_package(OpenCV REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-# ONNX Runtime - user must set ONNXRUNTIME_ROOT
-if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
-    message(FATAL_ERROR "Please set ONNXRUNTIME_ROOT environment variable to ONNX Runtime installation directory\n"
-                        "Example: export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0")
+# Option to skip ONNX Runtime and use TensorRT directly
+option(SKIP_ORT "Skip ONNX Runtime and use TensorRT directly" OFF)
+
+if(SKIP_ORT)
+    message(STATUS "SKIP_ORT=ON: Using TensorRT directly (no ONNX Runtime)")
+    # Propagate SKIP_ORT macro to all targets
+    add_compile_definitions(SKIP_ORT=1)
+    
+    # Find CUDA
+    find_package(CUDA REQUIRED)
+    if(NOT CUDA_FOUND)
+        message(FATAL_ERROR "CUDA not found. TensorRT requires CUDA.")
+    endif()
+    
+    # Find TensorRT
+    # Try common locations
+    set(TENSORRT_SEARCH_PATHS
+        /usr/local/cuda
+        /usr/local/cuda-12.0
+        /usr/local/cuda-11.8
+        /usr/local/TensorRT-8.6.1.6
+        /usr/local/TensorRT-8.5.3.1
+        $ENV{TENSORRT_ROOT}
+        $ENV{CUDA_HOME}
+    )
+    
+    find_path(TENSORRT_INCLUDE_DIR NvInfer.h
+        PATHS ${TENSORRT_SEARCH_PATHS}
+        PATH_SUFFIXES include
+    )
+    
+    find_library(TENSORRT_LIBRARY nvinfer
+        PATHS ${TENSORRT_SEARCH_PATHS}
+        PATH_SUFFIXES lib lib64 lib/x64
+    )
+    
+    find_library(TENSORRT_ONNX_PARSER_LIBRARY nvonnxparser
+        PATHS ${TENSORRT_SEARCH_PATHS}
+        PATH_SUFFIXES lib lib64 lib/x64
+    )
+    
+    if(NOT TENSORRT_INCLUDE_DIR OR NOT TENSORRT_LIBRARY OR NOT TENSORRT_ONNX_PARSER_LIBRARY)
+        message(FATAL_ERROR "TensorRT not found. Please set TENSORRT_ROOT or install TensorRT.\n"
+                            "Expected: TENSORRT_INCLUDE_DIR, TENSORRT_LIBRARY, TENSORRT_ONNX_PARSER_LIBRARY")
+    endif()
+    
+    message(STATUS "TensorRT: ${TENSORRT_INCLUDE_DIR}")
+    message(STATUS "  - Library: ${TENSORRT_LIBRARY}")
+    message(STATUS "  - ONNX Parser: ${TENSORRT_ONNX_PARSER_LIBRARY}")
+    message(STATUS "CUDA: ${CUDA_TOOLKIT_ROOT_DIR}")
+    
+    # Include directories
+    include_directories(
+        include
+        ${OpenCV_INCLUDE_DIRS}
+        ${TENSORRT_INCLUDE_DIR}
+        ${CUDA_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIR}
+    )
+    
+    # EgoLanes inference backend (TensorRT)
+    add_library(egolanes_inference
+        src/inference/tensorrt_engine.cpp
+        src/inference/tensorrt_autosteer_engine.cpp
+    )
+    target_compile_definitions(egolanes_inference PRIVATE LOG_TYPE=0 SKIP_ORT=1)
+    target_link_libraries(egolanes_inference
+        ${OpenCV_LIBS}
+        ${TENSORRT_LIBRARY}
+        ${TENSORRT_ONNX_PARSER_LIBRARY}
+        ${CUDA_LIBRARIES}
+        ${CUDA_CUDART_LIBRARY}
+    )
+    
+else()
+    message(STATUS "SKIP_ORT=OFF: Using ONNX Runtime")
+    
+    # ONNX Runtime - user must set ONNXRUNTIME_ROOT
+    if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
+        message(FATAL_ERROR "Please set ONNXRUNTIME_ROOT environment variable to ONNX Runtime installation directory\n"
+                            "Example: export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-1.22.0")
+    endif()
+
+    set(ONNXRUNTIME_ROOT $ENV{ONNXRUNTIME_ROOT})
+    set(ONNXRUNTIME_INCLUDE_DIR ${ONNXRUNTIME_ROOT}/include)
+    set(ONNXRUNTIME_LIB_DIR ${ONNXRUNTIME_ROOT}/lib)
+
+    # Find library (handle versioned .so files)
+    file(GLOB ONNXRUNTIME_LIBRARY "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.so*")
+    list(GET ONNXRUNTIME_LIBRARY 0 ONNXRUNTIME_LIBRARY)
+
+    if(NOT EXISTS ${ONNXRUNTIME_INCLUDE_DIR}/onnxruntime_cxx_api.h)
+        message(FATAL_ERROR "ONNX Runtime headers not found at: ${ONNXRUNTIME_INCLUDE_DIR}")
+    endif()
+
+    if(NOT ONNXRUNTIME_LIBRARY)
+        message(FATAL_ERROR "ONNX Runtime library not found at: ${ONNXRUNTIME_LIB_DIR}")
+    endif()
+
+    # Include directories
+    include_directories(
+        include
+        ${OpenCV_INCLUDE_DIRS}
+        ${ONNXRUNTIME_INCLUDE_DIR}
+        ${EIGEN3_INCLUDE_DIR}
+    )
+
+    # EgoLanes inference backend (ONNX Runtime)
+    add_library(egolanes_inference
+        src/inference/onnxruntime_session.cpp
+        src/inference/onnxruntime_engine.cpp
+        src/inference/autosteer_engine.cpp
+    )
+    target_compile_definitions(egolanes_inference PRIVATE LOG_TYPE=0)
+    target_link_libraries(egolanes_inference
+        ${OpenCV_LIBS}
+        ${ONNXRUNTIME_LIBRARY}
+    )
+    # Add RPATH so executable can find libonnxruntime.so at runtime
+    set_target_properties(egolanes_inference PROPERTIES
+        BUILD_RPATH ${ONNXRUNTIME_LIB_DIR}
+        INSTALL_RPATH ${ONNXRUNTIME_LIB_DIR}
+    )
+    
+    message(STATUS "ONNX Runtime: ${ONNXRUNTIME_ROOT}")
+    message(STATUS "  - Library: ${ONNXRUNTIME_LIBRARY}")
+    message(STATUS "  - Include: ${ONNXRUNTIME_INCLUDE_DIR}")
 endif()
-
-set(ONNXRUNTIME_ROOT $ENV{ONNXRUNTIME_ROOT})
-set(ONNXRUNTIME_INCLUDE_DIR ${ONNXRUNTIME_ROOT}/include)
-set(ONNXRUNTIME_LIB_DIR ${ONNXRUNTIME_ROOT}/lib)
-
-# Find library (handle versioned .so files)
-file(GLOB ONNXRUNTIME_LIBRARY "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.so*")
-list(GET ONNXRUNTIME_LIBRARY 0 ONNXRUNTIME_LIBRARY)
-
-if(NOT EXISTS ${ONNXRUNTIME_INCLUDE_DIR}/onnxruntime_cxx_api.h)
-    message(FATAL_ERROR "ONNX Runtime headers not found at: ${ONNXRUNTIME_INCLUDE_DIR}")
-endif()
-
-if(NOT ONNXRUNTIME_LIBRARY)
-    message(FATAL_ERROR "ONNX Runtime library not found at: ${ONNXRUNTIME_LIB_DIR}")
-endif()
-
-# Include directories
-include_directories(
-    include
-    ${OpenCV_INCLUDE_DIRS}
-    ${ONNXRUNTIME_INCLUDE_DIR}
-    ${EIGEN3_INCLUDE_DIR}
-)
-
-# EgoLanes inference backend
-add_library(egolanes_inference
-    src/inference/onnxruntime_session.cpp
-    src/inference/onnxruntime_engine.cpp
-    src/inference/autosteer_engine.cpp
-)
-target_compile_definitions(egolanes_inference PRIVATE LOG_TYPE=0)  # Use non-ROS logging
-target_link_libraries(egolanes_inference
-    ${OpenCV_LIBS}
-    ${ONNXRUNTIME_LIBRARY}
-)
-# Add RPATH so executable can find libonnxruntime.so at runtime
-set_target_properties(egolanes_inference PROPERTIES
-    BUILD_RPATH ${ONNXRUNTIME_LIB_DIR}
-    INSTALL_RPATH ${ONNXRUNTIME_LIB_DIR}
-)
 
 # Visualization module
 add_library(egolanes_visualization
@@ -201,12 +283,14 @@ endif()
 
 target_link_libraries(egolanes_pipeline ${EGOLANES_LIBS})
 
-# Test executable for AutoSteer
-add_executable(test_autosteer
-    test/test_autosteer.cpp
-)
-target_compile_definitions(test_autosteer PRIVATE LOG_TYPE=0)
-target_link_libraries(test_autosteer ${EGOLANES_LIBS})
+# Test executable for AutoSteer (ONNX Runtime only)
+if(NOT SKIP_ORT)
+    add_executable(test_autosteer
+        test/test_autosteer.cpp
+    )
+    target_compile_definitions(test_autosteer PRIVATE LOG_TYPE=0)
+    target_link_libraries(test_autosteer ${EGOLANES_LIBS})
+endif()
 
 # Installation
 install(TARGETS egolanes_pipeline
@@ -214,7 +298,4 @@ install(TARGETS egolanes_pipeline
 )
 
 message(STATUS "OpenCV: ${OpenCV_VERSION}")
-message(STATUS "ONNX Runtime: ${ONNXRUNTIME_ROOT}")
-message(STATUS "  - Library: ${ONNXRUNTIME_LIBRARY}")
-message(STATUS "  - Include: ${ONNXRUNTIME_INCLUDE_DIR}")
 
