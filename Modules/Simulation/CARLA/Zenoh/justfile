@@ -1,0 +1,76 @@
+# =====================
+# Setup (run once)
+# =====================
+
+setup:
+    git submodule update --init --recursive
+    python3.7 -m venv .venv
+    .venv/bin/python -m ensurepip
+    .venv/bin/python -m pip install -U pip
+    .venv/bin/python -m pip install "numpy==1.21.6" "pygame==2.1.3"
+    .venv/bin/python -m pip install "carla==0.9.14"
+
+
+# =====================
+# Build (build everything)
+# =====================
+
+build:
+    cd zenoh_carla_bridge && cargo build --release
+
+    mkdir -p carla_video_pubsub/build
+    cd carla_video_pubsub/build && \
+        cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=../../install && \
+        cmake --build . && \
+        cmake --build . --target install
+
+    mkdir -p models/build
+    cd models/build && \
+        cmake .. \
+            -DLIBTORCH_INSTALL_ROOT=${LIBTORCH_INSTALL_ROOT} \
+            -DONNXRUNTIME_ROOTDIR=${ONNXRUNTIME_ROOTDIR} \
+            -DUSE_CUDA_BACKEND=True \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=../../install && \
+        cmake --build . && \
+        cmake --build . --target install
+
+
+# =====================
+# Run
+# =====================
+
+run_carla:
+    docker run -it --rm \
+        --gpus all --net=host \
+        -e NVIDIA_DRIVER_CAPABILITIES=all \
+        carlasim/carla:0.9.14 \
+        bash -lc "cd /home/carla && ./CarlaUE4.sh -nosound -RenderOffScreen"
+
+run_zenoh:
+    parallel --verbose --lb ::: \
+        ".venv/bin/python zenoh_carla_bridge/carla_agent/main.py --pygame" \
+        "zenoh_carla_bridge/target/release/zenoh_carla_bridge --mode ros2"
+
+run_carla_sub:
+    ./install/bin/carla_video_subscriber -k v1/sensing/camera/traffic_light/image_raw
+
+run_carla_sceneseg:
+    parallel --verbose --lb ::: \
+        "./install/bin/carla_run_model ../../../../VisionPilot/Middleware_Recipes/data/models/SceneSeg_FP32.onnx -i v1/sensing/camera/traffic_light/image_raw -o video/output -m segmentation -b tensorrt -p fp16" \
+        "./install/bin/carla_segment_subscriber -k v1/sensing/camera/traffic_light/image_raw -s video/output"
+
+run_carla_domainseg:
+    parallel --verbose --lb ::: \
+        "./install/bin/carla_run_model ../../../../VisionPilot/Middleware_Recipes/data/models/DomainSeg_FP32.onnx -i v1/sensing/camera/traffic_light/image_raw -o video/output -m segmentation -b tensorrt -p fp16" \
+        "./install/bin/carla_segment_subscriber -k v1/sensing/camera/traffic_light/image_raw -s video/output"
+
+
+# =====================
+# Cleanup
+# =====================
+
+clean:
+    rm -rf .venv install carla_video_pubsub/build models/build zenoh_carla_bridge/target
