@@ -143,7 +143,10 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     
     double deg_ssa = static_cast<double>(ssa_raw) * 0.1;    // Deg conversion
 
-    
+    // 3. Final steering angle
+    double steering_angle = deg_ssa - deg_ssaz;
+
+    return steering_angle;
 }
 
 // ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
