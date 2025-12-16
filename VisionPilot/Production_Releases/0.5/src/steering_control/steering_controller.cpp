@@ -29,9 +29,9 @@ double SteeringController::computeSteering(double cte, double yaw_error, double 
     // - Stanley controller: atan(K_i * cte)
     // - Proportional term: K_p * yaw_error
     // - Curvature feedforward: -atan(curvature) * K_S
-    double steering_angle = K_d * (yaw_error - prev_yaw_error) 
-                          + std::atan(K_i * cte) 
-                          + K_p * yaw_error 
+    double steering_angle = K_d * (yaw_error - prev_yaw_error)
+                          + std::atan(K_i * cte)
+                          + K_p * yaw_error
                           + (feed_forward_steering_estimate) * K_S;
     prev_yaw_error = yaw_error;
     return steering_angle;
