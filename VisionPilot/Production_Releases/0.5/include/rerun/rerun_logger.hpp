@@ -9,7 +9,7 @@
 #include <rerun.hpp>
 #endif
 
-#include "inference/onnxruntime_engine.hpp"
+#include "inference/lane_segmentation.hpp"
 #include "drivers/can_interface.hpp"
 #include "path_planning/path_finder.hpp"
 #include <opencv2/opencv.hpp>
