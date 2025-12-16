@@ -318,4 +318,7 @@ bool CanInterface::readFileLine() {
     return false; // End of file
 }
 
+// definition of global pointer
+std::unique_ptr<CanInterface> can_interface=nullptr;
+
 } // namespace autoware_pov::drivers

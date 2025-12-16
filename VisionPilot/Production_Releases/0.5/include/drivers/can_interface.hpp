@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <chrono>
+#include <memory>
 
 namespace autoware_pov::drivers {
 
@@ -31,7 +32,7 @@ public:
      * @param interface_name "can0", "vcan0", or path to .asc file (e.g. "./assets/test.asc")
      */
     explicit CanInterface(const std::string& interface_name);
-    
+
     ~CanInterface();
 
     /**
@@ -74,7 +75,7 @@ private:
     static constexpr int ID_STEERING = 0xA4; // Or A4, 164
 
     void parseFrame(
-        int can_id, 
+        int can_id,
         const std::vector<uint8_t>& data
     );
 
@@ -83,6 +84,9 @@ private:
     double decodeSteering(const std::vector<uint8_t>& data);
     
 };
+
+// extern declaration
+extern std::unique_ptr<CanInterface> can_interface;
 
 } // namespace autoware_pov::drivers
 

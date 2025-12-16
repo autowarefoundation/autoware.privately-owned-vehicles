@@ -551,8 +551,11 @@ void displayThread(
          std::cerr << "Error: could not open " << csv_log_path << " for writing" << std::endl;
     }
 
-  std::string image_path = "images/wheel_green.png";
-  cv::Mat steeringWheelImg = cv::imread(image_path, cv::IMREAD_UNCHANGED);
+    // Load steering wheel images
+    std::string predSteeringImagePath = "images/wheel_green.png";
+    cv::Mat predSteeringWheelImg = cv::imread(predSteeringImagePath, cv::IMREAD_UNCHANGED);
+    std::string gtSteeringImagePath = "images/wheel_white.png";
+    cv::Mat gtSteeringWheelImg = cv::imread(gtSteeringImagePath, cv::IMREAD_UNCHANGED);
 
     while (running.load()) {
         InferenceResult result;
@@ -583,11 +586,24 @@ void displayThread(
             //      cv::Scalar(0,0,0)
             //  );
 
+            // Display wheels over frame image
             float steering_angle = result.steering_angle;
-            cv::Mat rotatedSteeringWheelImg = rotateSteeringWheel(steeringWheelImg, steering_angle);
-            visualizeSteering(view_debug, steering_angle, rotatedSteeringWheelImg);
+            cv::Mat rotatedPredSteeringWheelImg = rotateSteeringWheel(predSteeringWheelImg, steering_angle);
 
-            // std::cout<< "************ " << result.steering_angle << std::endl;
+            // Read GT steering from CAN frame
+            std::optional<float> gtSteeringAngle;
+            cv::Mat rotatedGtSteeringWheelImg;
+            if (can_interface) {
+              if (can_interface->getState().is_valid) {
+                gtSteeringAngle = can_interface->getState().steering_angle_deg;
+                if (gtSteeringAngle.has_value()) {
+                  rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());
+                }
+              }
+            }
+
+            // rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());
+            visualizeSteering(view_debug, steering_angle, rotatedPredSteeringWheelImg, gtSteeringAngle, rotatedGtSteeringWheelImg);
 
              // 2. Draw 3 views
             drawRawMasksInPlace(
@@ -1145,7 +1161,7 @@ int main(int argc, char** argv)
     }
 
     // Initialize CAN Interface (optional - ground truth)
-    std::unique_ptr<CanInterface> can_interface;
+    // std::unique_ptr<CanInterface> can_interface;
     if (!can_interface_name.empty()) {
         try {
             can_interface = std::make_unique<CanInterface>(can_interface_name);

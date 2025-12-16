@@ -4,6 +4,7 @@
 #include "../inference/lane_segmentation.hpp"
 #include "../lane_tracking/lane_tracking.hpp"
 #include <opencv2/opencv.hpp>
+#include <optional>
 
 namespace autoware_pov::vision::egolanes
 {
@@ -88,7 +89,13 @@ void drawMetricVerification(
 );
 
 cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg);
-void visualizeSteering(cv::Mat& img, float steering_angle, const cv::Mat& steeringWheelImage);
+void visualizeWheel(const cv::Mat& img, const cv::Mat& wheelImg, const int x, const int y);
+void visualizeSteering(
+  cv::Mat& img,
+  float steering_angle,
+  const cv::Mat& rotatedPredSteeringWheelImg,
+  std::optional<float> gtSteeringAngle,
+  const cv::Mat& rotatedGtSteeringWheelImg);
 
 }  // namespace autoware_pov::vision::egolanes
 
