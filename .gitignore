@@ -214,3 +214,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# VisionPilot specific
+3rdparty/
+trt_cache/
+assets/
