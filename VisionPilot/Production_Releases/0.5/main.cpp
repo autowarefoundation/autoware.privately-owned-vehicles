@@ -594,7 +594,8 @@ void displayThread(
             std::optional<float> gtSteeringAngle;
             cv::Mat rotatedGtSteeringWheelImg;
             if (can_interface) {
-              if (can_interface->getState().is_valid) {
+              // float gtSteeringSpeed = can_interface->getState().speed_kmph;
+              if (can_interface->getState().is_valid && can_interface->getState().is_steering_angle) {
                 gtSteeringAngle = can_interface->getState().steering_angle_deg;
                 if (gtSteeringAngle.has_value()) {
                   rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());

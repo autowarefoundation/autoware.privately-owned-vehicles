@@ -16,6 +16,14 @@ struct CanVehicleState {
     double speed_kmph = std::numeric_limits<double>::quiet_NaN();           // Speed, CAN ID 0xA1
     double steering_angle_deg = std::numeric_limits<double>::quiet_NaN();   // Steering, CAN ID 0xA4
     bool is_valid = false;
+    bool is_steering_angle = false;
+
+    void clear()
+    {
+      speed_kmph = std::numeric_limits<double>::quiet_NaN();
+      is_steering_angle = false;
+      steering_angle_deg = std::numeric_limits<double>::quiet_NaN();
+    }
 };
 
 /**
