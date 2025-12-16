@@ -119,18 +119,23 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
 
     // Masking logic based on 15-bit signed integer
     // Assuming MSB is in byte 5, LSB in byte 6
-    uint16_t raw_high = data[5];
+    // We only want the lower 7 bits of byte 5
+    // Top bit (bit 7 of byte 5, which is CAN bit 47) should be ignore
+    uint16_t raw_high = data[5] & 0x7F;
     uint16_t raw_low  = data[6];
     
     // Combine
-    uint16_t raw = (raw_high << 8) | raw_low;
+    uint16_t raw_15bit = (raw_high << 8) | raw_low;
     
     // If it's 15 bits, we might need to shift or mask. 
     // Assuming the 15 bits are right-aligned in the extraction:
     // (This is a best-guess implementation until A4 is actually observed in logs)
     
     // Convert to signed 16-bit to handle negative values (Two's complement)
-    int16_t signed_val = static_cast<int16_t>(raw);
+    // - Shift left 1 to move the sign bit to the top (Bit 15).
+    // - Cast to signed int16_t.
+    // - Shift right 1 to move it back (arithmetic shift drags the sign bit down).
+    int16_t signed_val = static_cast<int16_t>(raw_15bit << 1) >> 1;
     
     return static_cast<double>(signed_val) * 0.1;
 }
