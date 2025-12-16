@@ -1,5 +1,6 @@
 #include "drivers/can_interface.hpp"
 
+#include <cstdint>
 #include <iostream>
 #include <cstring>
 #include <sstream>
@@ -140,6 +141,10 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     
     uint16_t ssa_raw =  (ssa_byte_5 << 8) | 
                         ssa_byte_6;
+    
+    // Sign extension (15-bit => 16-bit signed)
+    // This is to ensure negative values are correctly interpreted
+    int16_t ssa_signed = static_cast<int16_t>(ssa_raw << 1) >> 1;
     
     double deg_ssa = static_cast<double>(ssa_raw) * 0.1;    // Deg conversion
 
