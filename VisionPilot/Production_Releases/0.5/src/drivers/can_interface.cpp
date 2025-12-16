@@ -3,7 +3,6 @@
 #include <iostream>
 #include <cstring>
 #include <sstream>
-#include <iomanip>
 
 // Linux SocketCAN headers
 #include <unistd.h>
@@ -116,7 +115,7 @@ double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
 // Lacking exact bit-matrix, we assume standard Big Endian alignment crossing byte 5 and 6.
 double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     
-    if (data.size() < 8) return 0.0;
+    if (data.size() < 8) return std::numeric_limits<double>::quiet_NaN();
 
     // Masking logic based on 15-bit signed integer
     // Assuming MSB is in byte 5, LSB in byte 6
