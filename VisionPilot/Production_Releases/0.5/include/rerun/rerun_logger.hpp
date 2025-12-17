@@ -51,7 +51,8 @@ public:
      * @param lanes Lane segmentation masks
      * @param stacked_view Final visualization (BGR)
      * @param vehicle_state CAN bus data (steering, speed)
-     * @param steering_angle PID steering angle (radians)
+     * @param steering_angle_raw Raw PID output before filtering (degrees)
+     * @param steering_angle Filtered PID output (final steering, degrees)
      * @param autosteer_angle AutoSteer steering angle (degrees)
      * @param path_output PathFinder output (CTE, yaw, curvature)
      * @param inference_time_us Inference time in microseconds
@@ -62,6 +63,7 @@ public:
         const autoware_pov::vision::egolanes::LaneSegmentation& lanes,
         const cv::Mat& stacked_view,
         const autoware_pov::drivers::CanVehicleState& vehicle_state,
+        double steering_angle_raw,
         double steering_angle,
         float autosteer_angle,
         const autoware_pov::vision::path_planning::PathFinderOutput& path_output,

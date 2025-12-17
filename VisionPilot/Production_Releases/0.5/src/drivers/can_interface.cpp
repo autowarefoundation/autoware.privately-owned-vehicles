@@ -56,6 +56,8 @@ CanInterface::~CanInterface() {
 
 // Main update loop
 bool CanInterface::update() {
+    // clear because data get from state!
+    current_state_.clear();
 
     if (is_file_mode_) {
         return readFileLine();
@@ -89,6 +91,7 @@ void CanInterface::parseFrame(
         double val = decodeSteering(data);
         current_state_.steering_angle_deg = val;
         current_state_.is_valid = true;
+        current_state_.is_steering_angle = true;
     }
 }
 
@@ -115,7 +118,6 @@ double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
 
     return static_cast<double>(speed_signed) * 0.01;
 }
-
 
 // Steering angle
 // SSA (Measured steering angle)    : 46|15@0- (0.1,0) [0|0] "-"
@@ -353,5 +355,8 @@ bool CanInterface::readFileLine() {
     
     return false; // End of file
 }
+
+// definition of global pointer
+std::unique_ptr<CanInterface> can_interface=nullptr;
 
 } // namespace autoware_pov::drivers

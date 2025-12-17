@@ -89,6 +89,7 @@ void RerunLogger::logData(
     const autoware_pov::vision::egolanes::LaneSegmentation& lanes,
     const cv::Mat& stacked_view,
     const autoware_pov::drivers::CanVehicleState& vehicle_state,
+    double steering_angle_raw,
     double steering_angle,
     float autosteer_angle,
     const autoware_pov::vision::path_planning::PathFinderOutput& path_output,
@@ -127,11 +128,11 @@ void RerunLogger::logData(
     rec_->log("can/speed_kmph", 
               rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({can_scalars[1]})));
     
-    // Log control outputs (scalars)
-    rec_->log("control/pid_steering_rad", 
+    // Log control outputs (all in degrees)
+    rec_->log("control/pid_steering_raw_deg", 
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(steering_angle_raw)})));
+    rec_->log("control/pid_steering_filtered_deg", 
               rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(steering_angle)})));
-    rec_->log("control/pid_steering_deg", 
-              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(steering_angle * 180.0 / M_PI)})));
     rec_->log("control/autosteer_angle_deg", 
               rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({rerun::components::Scalar(autosteer_angle)})));
     
@@ -155,6 +156,7 @@ void RerunLogger::logData(
     (void)lanes;
     (void)stacked_view;
     (void)vehicle_state;
+    (void)steering_angle_raw;
     (void)steering_angle;
     (void)autosteer_angle;
     (void)path_output;

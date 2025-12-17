@@ -138,7 +138,8 @@ struct InferenceResult {
     int frame_number;
     steady_clock::time_point capture_time;
     steady_clock::time_point inference_time;
-    double steering_angle = 0.0;  // Steering angle from PID controller (radians)
+    double steering_angle_raw = 0.0;  // Raw PID output before filtering (degrees)
+    double steering_angle = 0.0;  // Filtered PID output (final steering, degrees)
     PathFinderOutput path_output; // Added for metric debug
     float autosteer_angle = 0.0f;  // Steering angle from AutoSteer (degrees)
     bool autosteer_valid = false;  // Whether AutoSteer ran (skips first frame)
@@ -349,6 +350,8 @@ void inferenceThread(
         // AUTOSTEER INTEGRATION
         // ========================================
         float autosteer_steering = 0.0f;
+        double steering_angle_raw = 0.0;
+        double steering_angle = 0.0;
         
         if (autosteer_engine != nullptr) {
             // 1. Copy raw EgoLanes tensor [1, 3, 80, 160] for temporal buffer
@@ -398,8 +401,7 @@ void inferenceThread(
           // ========================================
           // PATHFINDER (Polynomial Fitting + Bayes Filter) + STEERING CONTROL
           // ========================================
-          double steering_angle = 0.0;  // Initialize steering angle (PID controller output)
-          PathFinderOutput path_output; // Declare at higher scope for result storage
+          PathFinderOutput path_output; // Declaring at higher scope for result storage
           path_output.fused_valid = false; // Initialize as invalid
           
           if (path_finder != nullptr && final_metrics.bev_visuals.valid) {
@@ -423,15 +425,17 @@ void inferenceThread(
               path_output = path_finder->update(left_bev_meters, right_bev_meters, autosteer_steering);
 
               // 4. Compute steering angle (if controller available)
+            //   double steering_angle_raw = 0.0;  // Raw PID output before filtering
               if (steering_controller != nullptr && path_output.fused_valid) {
-                  steering_angle = steering_controller->computeSteering(
+                  steering_angle_raw = steering_controller->computeSteering(
                       path_output.cte,
                       path_output.yaw_error * 180 / M_PI,
                       path_output.curvature
                   );
               }
 
-              steering_angle = steering_filter.filter(steering_angle, 0.1);
+              // Filter the raw PID output
+              steering_angle = steering_filter.filter(steering_angle_raw, 0.1);
               
               // 5. Print output (cross-track error, yaw error, curvature, lane width + variances + steering)
               if (path_output.fused_valid) {
@@ -485,7 +489,8 @@ void inferenceThread(
         result.frame_number = tf.frame_number;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
-        result.steering_angle = steering_angle;  // Store PID steering angle
+        result.steering_angle_raw = steering_angle_raw;  // Store raw PID output (before filtering)
+        result.steering_angle = steering_angle;  // Store filtered PID output (final steering)
         result.path_output = path_output;        // Store for viz
         result.autosteer_angle = autosteer_steering;  // Store AutoSteer angle
         result.autosteer_valid = (autosteer_engine != nullptr && egolanes_tensor_buffer.full());
@@ -539,20 +544,23 @@ void displayThread(
      std::ofstream csv_file;
      csv_file.open(csv_log_path);
      if (csv_file.is_open()) {
-         // Write header
-         csv_file << "frame_id,timestamp_ms,"
-                  << "orig_lane_offset,orig_yaw_offset,orig_curvature,"
-                  << "pathfinder_cte,pathfinder_yaw_error,pathfinder_curvature,"
-                  << "pid_steering_rad,pid_steering_deg,"
-                  << "autosteer_angle_deg,autosteer_valid\n";
+        // Write header
+        csv_file << "frame_id,timestamp_ms,"
+                 << "orig_lane_offset,orig_yaw_offset,orig_curvature,"
+                 << "pathfinder_cte,pathfinder_yaw_error,pathfinder_curvature,"
+                 << "pid_steering_raw_deg,pid_steering_filtered_deg,"
+                 << "autosteer_angle_deg,autosteer_valid\n";
 
          std::cout << "CSV logging enabled: " << csv_log_path << std::endl;
      } else {
          std::cerr << "Error: could not open " << csv_log_path << " for writing" << std::endl;
     }
 
-  std::string image_path = "images/wheel_green.png";
-  cv::Mat steeringWheelImg = cv::imread(image_path, cv::IMREAD_UNCHANGED);
+    // Load steering wheel images
+    std::string predSteeringImagePath = "images/wheel_green.png";
+    cv::Mat predSteeringWheelImg = cv::imread(predSteeringImagePath, cv::IMREAD_UNCHANGED);
+    std::string gtSteeringImagePath = "images/wheel_white.png";
+    cv::Mat gtSteeringWheelImg = cv::imread(gtSteeringImagePath, cv::IMREAD_UNCHANGED);
 
     while (running.load()) {
         InferenceResult result;
@@ -583,11 +591,25 @@ void displayThread(
             //      cv::Scalar(0,0,0)
             //  );
 
+            // Display wheels over frame image
             float steering_angle = result.steering_angle;
-            cv::Mat rotatedSteeringWheelImg = rotateSteeringWheel(steeringWheelImg, steering_angle);
-            visualizeSteering(view_debug, steering_angle, rotatedSteeringWheelImg);
+            cv::Mat rotatedPredSteeringWheelImg = rotateSteeringWheel(predSteeringWheelImg, steering_angle);
 
-            // std::cout<< "************ " << result.steering_angle << std::endl;
+            // Read GT steering from CAN frame
+            std::optional<float> gtSteeringAngle;
+            cv::Mat rotatedGtSteeringWheelImg;
+            if (can_interface) {
+              // float gtSteeringSpeed = can_interface->getState().speed_kmph;
+              if (can_interface->getState().is_valid && can_interface->getState().is_steering_angle) {
+                gtSteeringAngle = can_interface->getState().steering_angle_deg;
+                if (gtSteeringAngle.has_value()) {
+                  rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());
+                }
+              }
+            }
+
+            // rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());
+            visualizeSteering(view_debug, steering_angle, rotatedPredSteeringWheelImg, gtSteeringAngle, rotatedGtSteeringWheelImg);
 
              // 2. Draw 3 views
             drawRawMasksInPlace(
@@ -611,7 +633,8 @@ void displayThread(
                     result.lanes,                   // Lane masks
                     view_debug,                     // Final visualization (with steering wheel + lane masks)
                     result.vehicle_state,           // CAN bus data
-                    result.steering_angle,          // PID steering (radians)
+                    result.steering_angle_raw,      // Raw PID output (degrees, before filtering)
+                    result.steering_angle,          // Filtered PID output (degrees, final steering)
                     result.autosteer_angle,         // AutoSteer steering (degrees)
                     result.path_output,             // PathFinder outputs
                     inference_time_us               // Inference time
@@ -737,8 +760,8 @@ void displayThread(
                       << (result.path_output.fused_valid ? result.path_output.cte : 0.0) << ","
                       << (result.path_output.fused_valid ? result.path_output.yaw_error : 0.0) << ","
                       << (result.path_output.fused_valid ? result.path_output.curvature : 0.0) << ","
-                      // PID Controller steering angle (always log if controller exists)
-                      << std::fixed << std::setprecision(6) << result.steering_angle  *  M_PI / 180.0 << ","
+                      // PID Controller steering angles (all in degrees)
+                      << std::fixed << std::setprecision(6) << result.steering_angle_raw << ","
                       << result.steering_angle << ","
                       // AutoSteer steering angle (degrees) and validity
                       << result.autosteer_angle << ","
@@ -1145,7 +1168,7 @@ int main(int argc, char** argv)
     }
 
     // Initialize CAN Interface (optional - ground truth)
-    std::unique_ptr<CanInterface> can_interface;
+    // std::unique_ptr<CanInterface> can_interface;
     if (!can_interface_name.empty()) {
         try {
             can_interface = std::make_unique<CanInterface>(can_interface_name);
