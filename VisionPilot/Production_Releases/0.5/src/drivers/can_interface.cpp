@@ -120,26 +120,51 @@ double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
     // Sanity: need at least 8 bytes
     if (data.size() < 8) return std::numeric_limits<double>::quiet_NaN();
 
-    // SSAZ
-    uint16_t b6 = (data[5] & 0xC0) >> 7;  // Bit 7 from byte 6  BigEndian
-    uint16_t b5 = data[4];                // Byte 5
-    bool ssazSign = (data[3] & 0x10) != 0;       // bit 4 → sign
-    int16_t b4 = data[3] & 0x0F;     // bits 3..0 → magnitude
+    // Workflow, as desribed in DBC:
+    // 1. Get steering zero point value by reading SSAZ
+    // 2. Get measured steering angle by reading SSA
+    // 3. Final steering angle = steering angle - steering zero point
 
-    uint16_t ssaz = (b4 << 10) | (b5 << 2) | b6;
-    int16_t ssazSigned = ssazSign ? -ssaz : ssaz;
+    // 1. SSAZ
+    // Byte 3: 29, 28, 27, 26, 25, 24
+    // Byte 4: 39, 38, 37, 36, 35, 34, 33, 32
+    // Byte 5: 47
+    
+    uint16_t ssaz_byte_3 = data[3] & 0x3F;                  // Bits 0-5 of byte 3 (00xx xxxx)
+    uint16_t ssaz_byte_4 = data[4];                         // Byte 4
+    uint16_t ssaz_byte_5 = (data[5] >> 7) & 0x01;           // Top bit of byte 5
+    
+    uint32_t ssaz_raw = (ssaz_byte_3 << 9) |
+                        (ssaz_byte_4 << 1) |
+                         ssaz_byte_5;
 
-    // SSA
-    uint16_t ssa_b7 = data[6];
-    bool ssaSign = (data[5] & 0x40) != 0;   // bit 6 = sign
-    uint16_t ssa_b6 = data[5] & 0x3F;       // bits 5..0 = magnitude
+    // Sign extension (15-bit => 16-bit signed)
+    // This is to ensure negative values are correctly interpreted
+    int16_t ssaz_signed = static_cast<int16_t>(ssaz_raw << 1) >> 1;
+    
+    double deg_ssaz = static_cast<double>(ssaz_signed) * 0.1;  // Deg conversion
 
-    int16_t ssa =  (ssa_b6 << 7) | ssa_b7;
-    int16_t ssaSigned = ssaSign ? -ssa : ssa;
+    // 2. SSA
+    // Byte 5: 46, 45, 44, 43, 42, 41, 40
+    // Byte 6: 55, 54, 53, 52, 51, 50, 49, 48
+    
+    uint16_t ssa_byte_5 = data[5] & 0x7F;                   // Bits 0-6 of byte 5 (0xxx xxxx)
+    uint16_t ssa_byte_6 = data[6];                          // Byte 6
+    
+    uint16_t ssa_raw =  (ssa_byte_5 << 8) | 
+                         ssa_byte_6;
+    
+    // Sign extension (15-bit => 16-bit signed)
+    // This is to ensure negative values are correctly interpreted
+    int16_t ssa_signed = static_cast<int16_t>(ssa_raw << 1) >> 1;
+    
+    double deg_ssa = static_cast<double>(ssa_signed) * 0.1;    // Deg conversion
 
-    double steering_angle = ssaSigned - ssazSigned;
+    // 3. Final steering angle
+    double steering_angle = deg_ssa - deg_ssaz;
 
     return steering_angle;
+
 }
 
 // ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
