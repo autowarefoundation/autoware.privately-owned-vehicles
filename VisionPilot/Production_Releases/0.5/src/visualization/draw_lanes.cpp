@@ -872,24 +872,21 @@ cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg)
   return rotated;
 }
 
-void visualizeSteering(cv::Mat& img, const float steering_angle, const cv::Mat& overlay)
+void visualizeWheel(const cv::Mat& img, const cv::Mat& wheelImg, const int x, const int y)
 {
-  int x = 10;
-  int y = 10;
+  if (wheelImg.empty() || img.empty()) return;
 
-  if (overlay.empty() || img.empty()) return;
-
-  int w = overlay.cols;
-  int h = overlay.rows;
+  int w = wheelImg.cols;
+  int h = wheelImg.rows;
 
   if (x < 0 || y < 0 || x + w > img.cols || y + h > img.rows) return;
 
   cv::Mat roi = img(cv::Rect(x, y, w, h));
 
-  if (overlay.channels() == 4) { // has alpha
+  if (wheelImg.channels() == 4) { // has alpha
     cv::Mat overlay_rgb, alpha;
     std::vector<cv::Mat> channels(4);
-    cv::split(overlay, channels);
+    cv::split(wheelImg, channels);
     alpha = channels[3]; // alpha channel
     cv::merge(std::vector<cv::Mat>{channels[0], channels[1], channels[2]}, overlay_rgb);
 
@@ -908,9 +905,26 @@ void visualizeSteering(cv::Mat& img, const float steering_angle, const cv::Mat& 
     // Write back to base image
     blended.convertTo(img(cv::Rect(x, y, w, h)), CV_8UC3, 255.0);
   } else {
-    overlay.copyTo(roi); // no alpha, hard paste
+    wheelImg.copyTo(roi); // no alpha, hard paste
+  }
+}
+
+void visualizeSteering(
+  cv::Mat& img,
+  const float steering_angle,
+  const cv::Mat& rotatedPredSteeringWheelImg,
+  std::optional<float> gtSteeringAngle,
+  const cv::Mat& rotatedGtSteeringWheelImg)
+{
+  int w = img.cols;
+  int h = img.rows;
+
+  visualizeWheel(img, rotatedPredSteeringWheelImg, 10, 10);
+  if (!rotatedGtSteeringWheelImg.empty()) {
+    visualizeWheel(img, rotatedGtSteeringWheelImg, w - 80, 10);
   }
 
+  // Prediction
   std::ostringstream oss;
   oss << std::fixed << std::setprecision(2) << steering_angle;
   std::string steeringAngleText = "Predicted angle: " + oss.str();
@@ -924,6 +938,24 @@ void visualizeSteering(cv::Mat& img, const float steering_angle, const cv::Mat& 
     cv::Scalar(62, 202, 130),
     2
   );
+
+  if (gtSteeringAngle.has_value() && !std::isnan(gtSteeringAngle.value())) {
+    // GT
+    std::ostringstream oss1;
+    oss1 << std::fixed << std::setprecision(2) << gtSteeringAngle.value();
+    std::string gtAngleText = "GT angle: " + oss1.str();
+
+    cv::putText(
+      img,
+      gtAngleText,
+      cv::Point(w - 180, 100),
+      cv::FONT_HERSHEY_SIMPLEX,
+      0.6,
+      cv::Scalar(255, 255, 255),
+      2
+    );
+  }
+
 }
 
 }  // namespace autoware_pov::vision::egolanes

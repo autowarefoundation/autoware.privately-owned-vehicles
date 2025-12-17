@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <chrono>
+#include <memory>
 
 namespace autoware_pov::drivers {
 
@@ -15,6 +16,14 @@ struct CanVehicleState {
     double speed_kmph = std::numeric_limits<double>::quiet_NaN();           // Speed, CAN ID 0xA1
     double steering_angle_deg = std::numeric_limits<double>::quiet_NaN();   // Steering, CAN ID 0xA4
     bool is_valid = false;
+    bool is_steering_angle = false;
+
+    void clear()
+    {
+      speed_kmph = std::numeric_limits<double>::quiet_NaN();
+      is_steering_angle = false;
+      steering_angle_deg = std::numeric_limits<double>::quiet_NaN();
+    }
 };
 
 /**
@@ -31,7 +40,7 @@ public:
      * @param interface_name "can0", "vcan0", or path to .asc file (e.g. "./assets/test.asc")
      */
     explicit CanInterface(const std::string& interface_name);
-    
+
     ~CanInterface();
 
     /**
@@ -74,7 +83,7 @@ private:
     static constexpr int ID_STEERING = 0xA4; // Or A4, 164
 
     void parseFrame(
-        int can_id, 
+        int can_id,
         const std::vector<uint8_t>& data
     );
 
@@ -83,6 +92,9 @@ private:
     double decodeSteering(const std::vector<uint8_t>& data);
     
 };
+
+// extern declaration
+extern std::unique_ptr<CanInterface> can_interface;
 
 } // namespace autoware_pov::drivers
 

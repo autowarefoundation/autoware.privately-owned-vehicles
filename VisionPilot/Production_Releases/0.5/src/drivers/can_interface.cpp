@@ -56,6 +56,8 @@ CanInterface::~CanInterface() {
 
 // Main update loop
 bool CanInterface::update() {
+    // clear because data get from state!
+    current_state_.clear();
 
     if (is_file_mode_) {
         return readFileLine();
@@ -89,6 +91,7 @@ void CanInterface::parseFrame(
         double val = decodeSteering(data);
         current_state_.steering_angle_deg = val;
         current_state_.is_valid = true;
+        current_state_.is_steering_angle = true;
     }
 }
 
@@ -109,31 +112,34 @@ double CanInterface::decodeSpeed(const std::vector<uint8_t>& data) {
     return static_cast<double>(raw) * 0.01;
 }
 
-// SSA (Steering angle) : Start Bit 46 | Length 15 | Signed | Factor 0.1
-// Format: Motorola (Big Endian: https://en.wikipedia.org/wiki/Endianness)
-// Bit 46 is in byte 5 (bit 6).
-// This is complex. We verify strictly against provided logic if possible.
-// Lacking exact bit-matrix, we assume standard Big Endian alignment crossing byte 5 and 6.
+// Steering angle
+// SSA (Measured steering angle)    : 46|15@0- (0.1,0) [0|0] "-"
+// SSAZ (Steering zero point)       : 29|15@0- (0.1,0) [0|0] "-"
 double CanInterface::decodeSteering(const std::vector<uint8_t>& data) {
-    
-    if (data.size() < 8) return 0.0;
 
-    // Masking logic based on 15-bit signed integer
-    // Assuming MSB is in byte 5, LSB in byte 6
-    uint16_t raw_high = data[5];
-    uint16_t raw_low  = data[6];
-    
-    // Combine
-    uint16_t raw = (raw_high << 8) | raw_low;
-    
-    // If it's 15 bits, we might need to shift or mask. 
-    // Assuming the 15 bits are right-aligned in the extraction:
-    // (This is a best-guess implementation until A4 is actually observed in logs)
-    
-    // Convert to signed 16-bit to handle negative values (Two's complement)
-    int16_t signed_val = static_cast<int16_t>(raw);
-    
-    return static_cast<double>(signed_val) * 0.1;
+    // Sanity: need at least 8 bytes
+    if (data.size() < 8) return std::numeric_limits<double>::quiet_NaN();
+
+    // SSAZ
+    uint16_t b6 = (data[5] & 0xC0) >> 7;  // Bit 7 from byte 6  BigEndian
+    uint16_t b5 = data[4];                // Byte 5
+    bool ssazSign = (data[3] & 0x10) != 0;       // bit 4 → sign
+    int16_t b4 = data[3] & 0x0F;     // bits 3..0 → magnitude
+
+    uint16_t ssaz = (b4 << 10) | (b5 << 2) | b6;
+    int16_t ssazSigned = ssazSign ? -ssaz : ssaz;
+
+    // SSA
+    uint16_t ssa_b7 = data[6];
+    bool ssaSign = (data[5] & 0x40) != 0;   // bit 6 = sign
+    uint16_t ssa_b6 = data[5] & 0x3F;       // bits 5..0 = magnitude
+
+    int16_t ssa =  (ssa_b6 << 7) | ssa_b7;
+    int16_t ssaSigned = ssaSign ? -ssa : ssa;
+
+    double steering_angle = ssaSigned - ssazSigned;
+
+    return steering_angle;
 }
 
 // ============================== REAL-TIME INFERENCE (SocketCAN) ============================== //
@@ -317,5 +323,8 @@ bool CanInterface::readFileLine() {
     
     return false; // End of file
 }
+
+// definition of global pointer
+std::unique_ptr<CanInterface> can_interface=nullptr;
 
 } // namespace autoware_pov::drivers
