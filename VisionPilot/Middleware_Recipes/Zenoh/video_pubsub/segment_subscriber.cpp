@@ -172,6 +172,7 @@ int main(int argc, char** argv) {
                 double fps = static_cast<double>(frame_count) / elapsed_time;
                 double avg_latency = latency_ms / frame_count;
                 printf("FPS: %.2f | Avg image transport latency: %.3f ms\n", fps, avg_latency);
+                fflush(stdout);
                 frame_count = 0;
                 start_time = current_time;
                 latency_ms = 0.0;
