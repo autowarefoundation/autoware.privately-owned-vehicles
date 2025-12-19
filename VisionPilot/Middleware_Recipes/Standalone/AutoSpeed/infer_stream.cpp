@@ -1,5 +1,6 @@
 #include "../../common/include/gstreamer_engine.hpp"
 #include "../../common/backends/autospeed/onnxruntime_engine.hpp"
+#include "../../common/backends/autospeed/onnxruntime_session.hpp"
 #include "../../common/include/object_finder.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
@@ -370,7 +371,7 @@ void displayThread(ThreadSafeQueue<InferenceResult>& queue,
 int main(int argc, char** argv)
 {
     if (argc < 6) {
-        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <provider> <precision> <homography_yaml> [device_id] [cache_dir] [realtime] [measure_latency] [enable_viz] [save_video] [output_video]\n";
+        std::cerr << "Usage: " << argv[0] << " <stream_source> <model_path> <provider> <precision> <homography_yaml> [device_id] [cache_dir] [realtime] [measure_latency] [enable_viz] [save_video] [output_video] [num_threads]\n";
         std::cerr << "  stream_source: RTSP URL, /dev/videoX, or video file\n";
         std::cerr << "  model_path: ONNX model file (.onnx)\n";
         std::cerr << "  provider: 'cpu' or 'tensorrt'\n";
@@ -383,6 +384,7 @@ int main(int argc, char** argv)
         std::cerr << "  enable_viz: (optional) 'true' to show visualization, 'false' for headless (default: true)\n";
         std::cerr << "  save_video: (optional) 'true' to save output video (default: false, requires enable_viz=true)\n";
         std::cerr << "  output_video: (optional) Output video path (required if save_video=true, default: output_tracking.mp4)\n";
+        std::cerr << "  num_threads: (optional) Number of CPU threads (default: 0 = auto)\n";
         std::cerr << "\nExample:\n";
         std::cerr << "  " << argv[0] << " video.mp4 model.onnx tensorrt fp16 homography.yaml\n";
         std::cerr << "  " << argv[0] << " video.mp4 model.onnx cpu fp32 homography.yaml 0 ./trt_cache false true false\n";
@@ -401,6 +403,7 @@ int main(int argc, char** argv)
     bool enable_viz = true;  // Default to visualization enabled
     bool save_video = false;  // Default to no video saving
     std::string output_video_path = "output_tracking.mp4";  // Default output path
+    int num_threads = 0;  // Default to auto
     
     if (argc >= 7) {
         device_id = std::atoi(argv[6]);
@@ -434,6 +437,10 @@ int main(int argc, char** argv)
         output_video_path = argv[12];
     }
     
+    if (argc >= 14) {
+        num_threads = std::atoi(argv[13]);
+    }
+    
     if (save_video && !enable_viz) {
         std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
         enable_viz = true;
@@ -442,6 +449,13 @@ int main(int argc, char** argv)
     if (save_video && output_video_path.empty()) {
         std::cerr << "Error: Output video path required when save_video=true" << std::endl;
         return 1;
+    }
+    
+    // Set CPU threads if specified
+    if (num_threads > 0) {
+        cv::setNumThreads(num_threads);
+        OnnxRuntimeSessionFactory::setNumThreads(num_threads);
+        std::cout << "CPU Configuration: " << num_threads << " threads forced for OpenCV and ONNX Runtime" << std::endl;
     }
     
     float conf_thresh = 0.6f;
