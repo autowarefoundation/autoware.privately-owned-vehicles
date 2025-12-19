@@ -1094,11 +1094,12 @@ int main(int argc, char** argv)
     
     // Initialize AutoSteer (optional - temporal steering prediction)
     std::unique_ptr<AutoSteerEngine> autosteer_engine;
+    autosteer_engine = nullptr;
     if (enable_autosteer) {
         std::cout << "\nLoading AutoSteer model: " << autosteer_model_path << std::endl;
         
 #ifdef SKIP_ORT
-        // TensorRT: precision is fp16 or fp32, no provider needed
+        // TensorRT Direct: precision is fp16 or fp32, no provider needed
         std::cout << "Precision: " << precision << std::endl;
         std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
         std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
@@ -1111,11 +1112,8 @@ int main(int argc, char** argv)
         std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
         
         auto warmup_start = std::chrono::steady_clock::now();
-        
-        // Create dummy concatenated input [1, 6, 80, 160]
         std::vector<float> dummy_input(6 * 80 * 160, 0.5f);
         float warmup_result = autosteer_engine->inference(dummy_input);
-        
         auto warmup_end = std::chrono::steady_clock::now();
         double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
             warmup_end - warmup_start).count() / 1000.0;
@@ -1132,13 +1130,8 @@ int main(int argc, char** argv)
             std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
         }
         
-#ifdef SKIP_ORT
-        autosteer_engine = std::make_unique<AutoSteerEngine>(
-            autosteer_model_path, precision, device_id, cache_dir);
-#else
         autosteer_engine = std::make_unique<AutoSteerEngine>(
             autosteer_model_path, provider, precision, device_id, cache_dir);
-#endif
         
         // Warm-up AutoSteer inference (builds TensorRT engine on first run)
         if (provider == "tensorrt") {
@@ -1146,11 +1139,8 @@ int main(int argc, char** argv)
             std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
             
             auto warmup_start = std::chrono::steady_clock::now();
-            
-            // Create dummy concatenated input [1, 6, 80, 160]
             std::vector<float> dummy_input(6 * 80 * 160, 0.5f);
             float warmup_result = autosteer_engine->inference(dummy_input);
-            
             auto warmup_end = std::chrono::steady_clock::now();
             double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                 warmup_end - warmup_start).count() / 1000.0;
