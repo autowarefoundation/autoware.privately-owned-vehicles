@@ -316,10 +316,7 @@ void inferenceThread(
      boost::circular_buffer<std::vector<float>> egolanes_tensor_buffer(2);
      
      // Pre-allocated concatenation buffer for AutoSteer input [1, 6, 80, 160]
-     std::vector<float> autosteer_input_buffer;
-     if (autosteer_engine != nullptr) {
-         autosteer_input_buffer.resize(6 * 80 * 160);  // 76,800 floats
-     } 
+     std::vector<float> autosteer_input_buffer(6 * 80 * 160);  // 76,800 floats 
 
 
     while (running.load()) {
@@ -347,29 +344,27 @@ void inferenceThread(
         double steering_angle_raw = 0.0;
         double steering_angle = 0.0;
         
-        if (autosteer_engine != nullptr) {
-            // 1. Copy raw EgoLanes tensor [1, 3, 80, 160] for temporal buffer
-            const float* raw_tensor = engine.getRawTensorData();
-            std::vector<float> current_tensor(EGOLANES_TENSOR_SIZE);
-            std::memcpy(current_tensor.data(), raw_tensor, EGOLANES_TENSOR_SIZE * sizeof(float));
+        // 1. Copy raw EgoLanes tensor [1, 3, 80, 160] for temporal buffer
+        const float* raw_tensor = engine.getRawTensorData();
+        std::vector<float> current_tensor(EGOLANES_TENSOR_SIZE);
+        std::memcpy(current_tensor.data(), raw_tensor, EGOLANES_TENSOR_SIZE * sizeof(float));
+        
+        // 2. Store in circular buffer (auto-deletes oldest when full)
+        egolanes_tensor_buffer.push_back(std::move(current_tensor));
+        
+        // 3. Run AutoSteer only when buffer is full (skip first frame)
+        if (egolanes_tensor_buffer.full()) {
+            // Concatenate t-1 and t into pre-allocated buffer
+            std::memcpy(autosteer_input_buffer.data(), 
+                       egolanes_tensor_buffer[0].data(),  // t-1
+                       EGOLANES_TENSOR_SIZE * sizeof(float));
             
-            // 2. Store in circular buffer (auto-deletes oldest when full)
-            egolanes_tensor_buffer.push_back(std::move(current_tensor));
+            std::memcpy(autosteer_input_buffer.data() + EGOLANES_TENSOR_SIZE,
+                       egolanes_tensor_buffer[1].data(),  // t
+                       EGOLANES_TENSOR_SIZE * sizeof(float));
             
-            // 3. Run AutoSteer only when buffer is full (skip first frame)
-            if (egolanes_tensor_buffer.full()) {
-                // Concatenate t-1 and t into pre-allocated buffer
-                std::memcpy(autosteer_input_buffer.data(), 
-                           egolanes_tensor_buffer[0].data(),  // t-1
-                           EGOLANES_TENSOR_SIZE * sizeof(float));
-                
-                std::memcpy(autosteer_input_buffer.data() + EGOLANES_TENSOR_SIZE,
-                           egolanes_tensor_buffer[1].data(),  // t
-                           EGOLANES_TENSOR_SIZE * sizeof(float));
-                
-                // Run AutoSteer inference
-                autosteer_steering = autosteer_engine->inference(autosteer_input_buffer);
-            }
+            // Run AutoSteer inference
+            autosteer_steering = autosteer_engine->inference(autosteer_input_buffer);
         }
         // ========================================
         // Post-processing with lane filter
@@ -398,7 +393,7 @@ void inferenceThread(
           PathFinderOutput path_output; // Declaring at higher scope for result storage
           path_output.fused_valid = false; // Initialize as invalid
           
-          if (path_finder != nullptr && final_metrics.bev_visuals.valid) {
+          if (final_metrics.bev_visuals.valid) {
               
               // 1. Get BEV points in PIXEL space from LaneTracker
               std::vector<cv::Point2f> left_bev_pixels = final_metrics.bev_visuals.bev_left_pts;
@@ -410,17 +405,11 @@ void inferenceThread(
               std::vector<cv::Point2f> right_bev_meters = transformPixelsToMeters(right_bev_pixels);
               
               // 3. Update PathFinder (polynomial fit + Bayes filter in metric space)
-              // Pass AutoSteer steering angle if available (replaces computed curvature)
-              // Convert AutoSteer from degrees to radians for controller
-              // AutoSteer outputs steering angle in degrees, controller expects radians
-              double autosteer_input_rad = (autosteer_engine != nullptr && egolanes_tensor_buffer.full()) 
-                                      ? (autosteer_steering * M_PI / 180.0)  // Convert degrees to radians
-                                      : std::numeric_limits<double>::quiet_NaN();
+              // Pass AutoSteer steering angle (replaces computed curvature)
               path_output = path_finder->update(left_bev_meters, right_bev_meters, autosteer_steering);
 
-              // 4. Compute steering angle (if controller available)
-            //   double steering_angle_raw = 0.0;  // Raw PID output before filtering
-              if (steering_controller != nullptr && path_output.fused_valid) {
+              // 4. Compute steering angle
+              if (path_output.fused_valid) {
                   steering_angle_raw = steering_controller->computeSteering(
                       path_output.cte,
                       path_output.yaw_error * 180 / M_PI,
@@ -443,26 +432,21 @@ void inferenceThread(
                             << "Width: " << path_output.lane_width << " m "
                             << "(var: " << path_output.lane_width_variance << ")";
                   
-                  // PID Steering output (if controller is enabled)
-                  if (steering_controller != nullptr) {
-                      double pid_deg = steering_angle;
-                      std::cout << " | PID: " << std::setprecision(2) << pid_deg << " deg";
-                  }
+                  // PID Steering output
+                  double pid_deg = steering_angle;
+                  std::cout << " | PID: " << std::setprecision(2) << pid_deg << " deg";
                   
-                  // AutoSteer output (if enabled and valid)
-                  if (autosteer_engine != nullptr && egolanes_tensor_buffer.full()) {
+                  // AutoSteer output (if valid)
+                  if (egolanes_tensor_buffer.full()) {
                       std::cout << " | AutoSteer: " << std::setprecision(2) << autosteer_steering << " deg";
                       
-                      // Show difference if both are available
-                      if (steering_controller != nullptr) {
-                          double pid_deg = steering_angle;
-                          double diff = autosteer_steering - pid_deg;
-                          std::cout << " (Δ: " << std::setprecision(2) << diff << " deg)";
-                      }
+                      // Show difference
+                      double diff = autosteer_steering - pid_deg;
+                      std::cout << " (Δ: " << std::setprecision(2) << diff << " deg)";
                   }
                   
                   std::cout << std::endl;
-              } else if (autosteer_engine != nullptr && egolanes_tensor_buffer.full()) {
+              } else if (egolanes_tensor_buffer.full()) {
                   // If PathFinder is not valid but AutoSteer is running, still log AutoSteer
                   std::cout << "[Frame " << tf.frame_number << "] "
                             << "AutoSteer: " << std::fixed << std::setprecision(2) << autosteer_steering << " deg "
@@ -487,7 +471,7 @@ void inferenceThread(
         result.steering_angle = steering_angle;  // Store filtered PID output (final steering)
         result.path_output = path_output;        // Store for viz
         result.autosteer_angle = autosteer_steering;  // Store AutoSteer angle
-        result.autosteer_valid = (autosteer_engine != nullptr && egolanes_tensor_buffer.full());
+        result.autosteer_valid = egolanes_tensor_buffer.full();
         result.vehicle_state = tf.vehicle_state;  // Copy CAN bus data
         output_queue.push(result);
     }
@@ -834,11 +818,7 @@ int main(int argc, char** argv)
         std::cerr << "Rerun Logging (optional):\n";
         std::cerr << "  --rerun              : Enable Rerun live viewer\n";
         std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: egolanes.rrd)\n\n";
-        std::cerr << "PathFinder (optional):\n";
-        std::cerr << "  --path-planner       : Enable PathFinder (Bayes filter + polynomial fitting)\n";
-        std::cerr << "  --pathfinder         : (alias)\n\n";
-        std::cerr << "Steering Control (optional, requires --path-planner):\n";
-        std::cerr << "  --steering-control   : Enable steering controller\n";
+        std::cerr << "Steering Control Parameters (optional):\n";
         std::cerr << "  --Ks [val]          : Proportionality constant for curvature feedforward (default: " 
                    << SteeringControllerDefaults::K_S << ")\n";
         std::cerr << "  --Kp [val]          : Proportional gain (default: " 
@@ -850,17 +830,15 @@ int main(int argc, char** argv)
         std::cerr << "  --csv-log [path]    : CSV log file path (default: ./assets/curve_params_metrics.csv)\n\n";
         std::cerr << "CAN Interface (optional - ground truth):\n";
         std::cerr << "  --can-interface [name] : Interface name (e.g., can0) or .asc file path\n\n";
-        std::cerr << "AutoSteer (optional - temporal steering prediction):\n";
-        std::cerr << "  --autosteer [model]  : Enable AutoSteer with model path\n";
+        std::cerr << "AutoSteer (required - temporal steering prediction):\n";
+        std::cerr << "  --autosteer [model]  : AutoSteer model path (required)\n";
         std::cerr << "Examples:\n";
         std::cerr << "  # Camera with live Rerun viewer:\n";
-        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --rerun\n\n";
-        std::cerr << "  # Video with path planning:\n";
-        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32 --path-planner\n\n";
-        std::cerr << "  # Camera with path planning + Rerun:\n";
-        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --path-planner --rerun\n\n";
-        std::cerr << "  # Video without extras:\n";
-        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --autosteer autosteer.onnx --rerun\n\n";
+        std::cerr << "  # Video with Rerun:\n";
+        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32 --autosteer autosteer.onnx --rerun\n\n";
+        std::cerr << "  # Camera with CAN interface:\n";
+        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --autosteer autosteer.onnx --can-interface can0\n";
          return 1;
      }
 
@@ -926,13 +904,10 @@ int main(int argc, char** argv)
      bool save_video = (argc >= base_idx + 6) ? (std::string(argv[base_idx + 5]) == "true") : false;
      std::string output_video_path = (argc >= base_idx + 7) ? argv[base_idx + 6] : "output.avi";
  
-    // Parse Rerun flags, PathFinder flags, and Steering Control flags (check all remaining arguments)
+    // Parse Rerun flags and other optional arguments (check all remaining arguments)
     bool enable_rerun = false;
     bool spawn_rerun_viewer = true;
     std::string rerun_save_path = "";
-    bool enable_path_planner = false;
-    bool enable_steering_control = false;
-    bool enable_autosteer = true;
     std::string autosteer_model_path = "";
     std::string can_interface_name = "";
     
@@ -955,12 +930,7 @@ int main(int argc, char** argv)
             } else {
                 rerun_save_path = "egolanes.rrd";
             }
-        } else if (arg == "--path-planner" || arg == "--pathfinder") {
-            enable_path_planner = true;
-        } else if (arg == "--steering-control") {
-            enable_steering_control = true;
         } else if (arg == "--autosteer" && i + 1 < argc) {
-            enable_autosteer = true;
             autosteer_model_path = argv[++i];
         } else if (arg == "--can-interface" && i + 1 < argc) {
             can_interface_name = argv[++i];
@@ -977,10 +947,10 @@ int main(int argc, char** argv)
         }
     }
     
-    // Steering control requires PathFinder
-    if (enable_steering_control && !enable_path_planner) {
-        std::cerr << "Warning: --steering-control requires --path-planner. Enabling PathFinder." << std::endl;
-        enable_path_planner = true;
+    // Validate required arguments
+    if (autosteer_model_path.empty()) {
+        std::cerr << "Error: --autosteer [model_path] is required" << std::endl;
+        return 1;
     }
 
     if (save_video && !enable_viz) {
@@ -1070,89 +1040,80 @@ int main(int argc, char** argv)
     }
 #endif
 
-    // Initialize PathFinder (optional - uses LaneTracker's BEV output)
-    std::unique_ptr<PathFinder> path_finder;
-    if (enable_path_planner) {
-        path_finder = std::make_unique<PathFinder>(4.0);  // 4.0m default lane width
-        std::cout << "PathFinder initialized (Bayes filter + polynomial fitting)" << std::endl;
-        std::cout << "  - Using BEV points from LaneTracker" << std::endl;
-        std::cout << "  - Transform: BEV pixels → meters (TODO: calibrate)" << "\n" << std::endl;
-    }
+    // Initialize PathFinder (mandatory - uses LaneTracker's BEV output)
+    std::unique_ptr<PathFinder> path_finder = std::make_unique<PathFinder>(4.0);  // 4.0m default lane width
+    std::cout << "PathFinder initialized (Bayes filter + polynomial fitting)" << std::endl;
+    std::cout << "  - Using BEV points from LaneTracker" << std::endl;
+    std::cout << "  - Transform: BEV pixels → meters (TODO: calibrate)" << "\n" << std::endl;
     
-    // Initialize Steering Controller (optional - requires PathFinder)
-    std::unique_ptr<SteeringController> steering_controller;
-    if (enable_steering_control) {
-        steering_controller = std::make_unique<SteeringController>(K_p, K_i, K_d, K_S);
-        std::cout << "Steering Controller initialized" << std::endl;
-    }
+    // Initialize Steering Controller (mandatory)
+    std::unique_ptr<SteeringController> steering_controller = std::make_unique<SteeringController>(K_p, K_i, K_d, K_S);
+    std::cout << "Steering Controller initialized" << std::endl;
     
-    // Initialize AutoSteer (optional - temporal steering prediction)
+    // Initialize AutoSteer (mandatory - temporal steering prediction)
     std::unique_ptr<AutoSteerEngine> autosteer_engine;
-    autosteer_engine = nullptr;
-    if (enable_autosteer) {
-        std::cout << "\nLoading AutoSteer model: " << autosteer_model_path << std::endl;
-        
+    std::cout << "\nLoading AutoSteer model: " << autosteer_model_path << std::endl;
+    
 #ifdef SKIP_ORT
-        // TensorRT Direct: precision is fp16 or fp32, no provider needed
-        std::cout << "Precision: " << precision << std::endl;
+    // TensorRT Direct: precision is fp16 or fp32, no provider needed
+    std::cout << "Precision: " << precision << std::endl;
+    std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
+    std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
+    
+    autosteer_engine = std::make_unique<AutoSteerEngine>(
+        autosteer_model_path, precision, device_id, cache_dir);
+    
+    // Warm-up AutoSteer inference (builds TensorRT engine on first run)
+    std::cout << "Running AutoSteer warm-up inference to build TensorRT engine..." << std::endl;
+    std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
+    
+    auto autosteer_warmup_start = std::chrono::steady_clock::now();
+    std::vector<float> dummy_input(6 * 80 * 160, 0.5f);
+    float autosteer_warmup_result = autosteer_engine->inference(dummy_input);
+    auto autosteer_warmup_end = std::chrono::steady_clock::now();
+    double autosteer_warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        autosteer_warmup_end - autosteer_warmup_start).count() / 1000.0;
+    
+    std::cout << "AutoSteer warm-up complete! (took " << std::fixed << std::setprecision(1) 
+              << autosteer_warmup_time << "s)" << std::endl;
+    std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
+#else
+    // ONNX Runtime: provider and precision
+    std::cout << "Provider: " << provider << " | Precision: " << precision << std::endl;
+    
+    if (provider == "tensorrt") {
         std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
         std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
-        
-        autosteer_engine = std::make_unique<AutoSteerEngine>(
-            autosteer_model_path, precision, device_id, cache_dir);
-        
-        // Warm-up AutoSteer inference (builds TensorRT engine on first run)
+    }
+    
+    autosteer_engine = std::make_unique<AutoSteerEngine>(
+        autosteer_model_path, provider, precision, device_id, cache_dir);
+    
+    // Warm-up AutoSteer inference (builds TensorRT engine on first run)
+    if (provider == "tensorrt") {
         std::cout << "Running AutoSteer warm-up inference to build TensorRT engine..." << std::endl;
         std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
         
-        auto warmup_start = std::chrono::steady_clock::now();
+        auto autosteer_warmup_start = std::chrono::steady_clock::now();
         std::vector<float> dummy_input(6 * 80 * 160, 0.5f);
-        float warmup_result = autosteer_engine->inference(dummy_input);
-        auto warmup_end = std::chrono::steady_clock::now();
-        double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-            warmup_end - warmup_start).count() / 1000.0;
+        float autosteer_warmup_result = autosteer_engine->inference(dummy_input);
+        auto autosteer_warmup_end = std::chrono::steady_clock::now();
+        double autosteer_warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+            autosteer_warmup_end - autosteer_warmup_start).count() / 1000.0;
         
         std::cout << "AutoSteer warm-up complete! (took " << std::fixed << std::setprecision(1) 
-                  << warmup_time << "s)" << std::endl;
+                  << autosteer_warmup_time << "s)" << std::endl;
         std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
-#else
-        // ONNX Runtime: provider and precision
-        std::cout << "Provider: " << provider << " | Precision: " << precision << std::endl;
-        
-        if (provider == "tensorrt") {
-            std::cout << "Device ID: " << device_id << " | Cache dir: " << cache_dir << std::endl;
-            std::cout << "\nNote: TensorRT engine build may take 20-30 seconds on first run..." << std::endl;
-        }
-        
-        autosteer_engine = std::make_unique<AutoSteerEngine>(
-            autosteer_model_path, provider, precision, device_id, cache_dir);
-        
-        // Warm-up AutoSteer inference (builds TensorRT engine on first run)
-        if (provider == "tensorrt") {
-            std::cout << "Running AutoSteer warm-up inference to build TensorRT engine..." << std::endl;
-            std::cout << "This may take 20-60 seconds on first run. Please wait...\n" << std::endl;
-            
-            auto warmup_start = std::chrono::steady_clock::now();
-            std::vector<float> dummy_input(6 * 80 * 160, 0.5f);
-            float warmup_result = autosteer_engine->inference(dummy_input);
-            auto warmup_end = std::chrono::steady_clock::now();
-            double warmup_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                warmup_end - warmup_start).count() / 1000.0;
-            
-            std::cout << "AutoSteer warm-up complete! (took " << std::fixed << std::setprecision(1) 
-                      << warmup_time << "s)" << std::endl;
-            std::cout << "TensorRT engine is now cached and ready.\n" << std::endl;
-        }
-#endif
-        
-        std::cout << "AutoSteer initialized (temporal steering prediction)" << std::endl;
-        std::cout << "  - Input: [1, 6, 80, 160] (concatenated EgoLanes t-1, t)" << std::endl;
-        std::cout << "  - Output: Steering angle (degrees, -30 to +30)" << std::endl;
-        std::cout << "  - Note: First frame will be skipped (requires temporal buffer)\n" << std::endl;
     }
+#endif
+    
+    std::cout << "AutoSteer initialized (temporal steering prediction)" << std::endl;
+    std::cout << "  - Input: [1, 6, 80, 160] (concatenated EgoLanes t-1, t)" << std::endl;
+    std::cout << "  - Output: Steering angle (degrees, -30 to +30)" << std::endl;
+    std::cout << "  - Note: First frame will be skipped (requires temporal buffer)\n" << std::endl;
 
     // Initialize CAN Interface (optional - ground truth)
-    // std::unique_ptr<CanInterface> can_interface;
+    std::unique_ptr<CanInterface> can_interface;
     if (!can_interface_name.empty()) {
         try {
             can_interface = std::make_unique<CanInterface>(can_interface_name);
@@ -1184,15 +1145,9 @@ int main(int argc, char** argv)
         std::cout << "Rerun logging: ENABLED" << std::endl;
     }
 #endif
-    if (path_finder) {
-        std::cout << "PathFinder: ENABLED (polynomial fitting + Bayes filter)" << std::endl;
-    }
-    if (steering_controller) {
-        std::cout << "Steering Control: ENABLED" << std::endl;
-    }
-    if (autosteer_engine) {
-        std::cout << "AutoSteer: ENABLED (temporal steering prediction)" << std::endl;
-    }
+    std::cout << "PathFinder: ENABLED (polynomial fitting + Bayes filter)" << std::endl;
+    std::cout << "Steering Control: ENABLED" << std::endl;
+    std::cout << "AutoSteer: ENABLED (temporal steering prediction)" << std::endl;
     if (can_interface) {
         std::cout << "CAN Interface: ENABLED (Ground Truth)" << std::endl;
     }
