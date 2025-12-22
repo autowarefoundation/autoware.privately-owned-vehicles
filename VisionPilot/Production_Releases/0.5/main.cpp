@@ -33,6 +33,7 @@ using AutoSteerEngine =
 #include "steering_control/steering_controller.hpp"
 #include "steering_control/steering_filter.hpp"
 #include "drivers/can_interface.hpp"
+#include "config/config_reader.hpp"
 #ifdef ENABLE_RERUN
 #include "rerun/rerun_logger.hpp"
 #endif
@@ -58,6 +59,7 @@ using namespace autoware_pov::vision::camera;
 using namespace autoware_pov::vision::path_planning;
 using namespace autoware_pov::vision::steering_control;
 using namespace autoware_pov::drivers;
+using namespace autoware_pov::config;
 using namespace std::chrono;
 
 // Thread-safe queue with max size limit
@@ -551,74 +553,50 @@ void displayThread(
 
         int count = metrics.frame_count.fetch_add(1) + 1;
 
-        // Visualization
-        if (enable_viz) {
-            // drawLanesInPlace(result.frame, result.lanes, 2);
-            // drawFilteredLanesInPlace(result.frame, result.lanes);
+        // Prepare visualization frame (for both display and Rerun)
+        cv::Mat view_debug = result.resized_frame_320x640.clone();
+        float steering_angle = result.steering_angle;
+        cv::Mat rotatedPredSteeringWheelImg = rotateSteeringWheel(predSteeringWheelImg, steering_angle);
 
-             // 1. Init 3 views:
-             //  - Raw masks (debugging)
-             //  - Polyfit lanes (final prod)
-             //  - BEV vis
-            cv::Mat view_debug = result.resized_frame_320x640.clone();
-            // cv::Mat view_final = result.frame.clone();
-            //  cv::Mat view_bev(
-            //      640,
-            //      640,
-            //      CV_8UC3,
-            //      cv::Scalar(0,0,0)
-            //  );
-
-            // Display wheels over frame image
-            float steering_angle = result.steering_angle;
-            cv::Mat rotatedPredSteeringWheelImg = rotateSteeringWheel(predSteeringWheelImg, steering_angle);
-
-            // Read GT steering from CAN frame
-            std::optional<float> gtSteeringAngle;
-            cv::Mat rotatedGtSteeringWheelImg;
-            if (can_interface) {
-              // float gtSteeringSpeed = can_interface->getState().speed_kmph;
-              if (can_interface->getState().is_valid && can_interface->getState().is_steering_angle) {
+        // Read GT steering from CAN frame
+        std::optional<float> gtSteeringAngle;
+        cv::Mat rotatedGtSteeringWheelImg;
+        if (can_interface) {
+            if (can_interface->getState().is_valid && can_interface->getState().is_steering_angle) {
                 gtSteeringAngle = can_interface->getState().steering_angle_deg;
                 if (gtSteeringAngle.has_value()) {
-                  rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());
+                    rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());
                 }
-              }
             }
+        }
 
-            // rotatedGtSteeringWheelImg = rotateSteeringWheel(gtSteeringWheelImg, gtSteeringAngle.value());
-            visualizeSteering(view_debug, steering_angle, rotatedPredSteeringWheelImg, gtSteeringAngle, rotatedGtSteeringWheelImg);
-
-             // 2. Draw 3 views
-            drawRawMasksInPlace(
-                view_debug, 
-                result.lanes
-            );
+        visualizeSteering(view_debug, steering_angle, rotatedPredSteeringWheelImg, gtSteeringAngle, rotatedGtSteeringWheelImg);
+        drawRawMasksInPlace(view_debug, result.lanes);
 
 #ifdef ENABLE_RERUN
-            // Log to Rerun (only if visualization enabled and Rerun enabled)
-            if (rerun_logger && rerun_logger->isEnabled()) {
-                // Calculate inference time (from capture to inference end)
-                long inference_time_us = duration_cast<microseconds>(
-                    result.inference_time - result.capture_time
-                ).count();
-                
-                // Log all data using rerun::borrow (no copying - data still in scope)
-                // view_debug contains the final visualization with steering wheel overlay and lane masks
-                rerun_logger->logData(
-                    result.frame_number,
-                    result.resized_frame_320x640,  // 320x640 resized frame
-                    result.lanes,                   // Lane masks
-                    view_debug,                     // Final visualization (with steering wheel + lane masks)
-                    result.vehicle_state,           // CAN bus data
-                    result.steering_angle_raw,      // Raw PID output (degrees, before filtering)
-                    result.steering_angle,          // Filtered PID output (degrees, final steering)
-                    result.autosteer_angle,         // AutoSteer steering (degrees)
-                    result.path_output,             // PathFinder outputs
-                    inference_time_us               // Inference time
-                );
-            }
+        // Log to Rerun (independent of visualization - works even if enable_viz=false)
+        if (rerun_logger && rerun_logger->isEnabled()) {
+            long inference_time_us = duration_cast<microseconds>(
+                result.inference_time - result.capture_time
+            ).count();
+            
+            rerun_logger->logData(
+                result.frame_number,
+                result.resized_frame_320x640,
+                result.lanes,
+                view_debug,
+                result.vehicle_state,
+                result.steering_angle_raw,
+                result.steering_angle,
+                result.autosteer_angle,
+                result.path_output,
+                inference_time_us
+            );
+        }
 #endif
+
+        // Visualization
+        if (enable_viz) {
             // drawPolyFitLanesInPlace(
             //     view_final,
             //     result.lanes
@@ -800,159 +778,67 @@ void displayThread(
 
 int main(int argc, char** argv)
 {
-     if (argc < 2) {
-         std::cerr << "Usage:\n";
-         std::cerr << "  " << argv[0] << " camera <model> <provider> <precision> [device_id] [options...]\n";
-         std::cerr << "  " << argv[0] << " video <video_file> <model> <provider> <precision> [device_id] [options...]\n\n";
-         std::cerr << "Arguments:\n";
-         std::cerr << "  model: ONNX model file (.onnx)\n";
-        std::cerr << "  provider: 'cpu' or 'tensorrt'\n";
-        std::cerr << "  precision: 'fp32' or 'fp16' (for TensorRT)\n";
-        std::cerr << "  device_id: (optional) GPU device ID (default: 0)\n";
-        std::cerr << "  cache_dir: (optional) TensorRT cache directory (default: ./trt_cache)\n";
-        std::cerr << "  threshold: (optional) Segmentation threshold (default: 0.0)\n";
-        std::cerr << "  measure_latency: (optional) 'true' to show metrics (default: true)\n";
-        std::cerr << "  enable_viz: (optional) 'true' for visualization (default: true)\n";
-        std::cerr << "  save_video: (optional) 'true' to save video (default: false)\n";
-         std::cerr << "  output_video: (optional) Output video path (default: output.avi)\n\n";
-        std::cerr << "Rerun Logging (optional):\n";
-        std::cerr << "  --rerun              : Enable Rerun live viewer\n";
-        std::cerr << "  --rerun-save [path]  : Save to .rrd file (default: egolanes.rrd)\n\n";
-        std::cerr << "Steering Control Parameters (optional):\n";
-        std::cerr << "  --Ks [val]          : Proportionality constant for curvature feedforward (default: " 
-                   << SteeringControllerDefaults::K_S << ")\n";
-        std::cerr << "  --Kp [val]          : Proportional gain (default: " 
-                   << SteeringControllerDefaults::K_P << ")\n";
-        std::cerr << "  --Ki [val]          : Integral gain (default: " 
-                   << SteeringControllerDefaults::K_I << ")\n";
-        std::cerr << "  --Kd [val]          : Derivative gain (default: " 
-                   << SteeringControllerDefaults::K_D << ")\n";
-        std::cerr << "  --csv-log [path]    : CSV log file path (default: ./assets/curve_params_metrics.csv)\n\n";
-        std::cerr << "CAN Interface (optional - ground truth):\n";
-        std::cerr << "  --can-interface [name] : Interface name (e.g., can0) or .asc file path\n\n";
-        std::cerr << "AutoSteer (required - temporal steering prediction):\n";
-        std::cerr << "  --autosteer [model]  : AutoSteer model path (required)\n";
-        std::cerr << "Examples:\n";
-        std::cerr << "  # Camera with live Rerun viewer:\n";
-        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --autosteer autosteer.onnx --rerun\n\n";
-        std::cerr << "  # Video with Rerun:\n";
-        std::cerr << "  " << argv[0] << " video test.mp4 model.onnx cpu fp32 --autosteer autosteer.onnx --rerun\n\n";
-        std::cerr << "  # Camera with CAN interface:\n";
-        std::cerr << "  " << argv[0] << " camera model.onnx tensorrt fp16 --autosteer autosteer.onnx --can-interface can0\n";
-         return 1;
-     }
-
-     std::string mode = argv[1];
-     std::string source;
-     std::string model_path;
-     std::string provider;
-     std::string precision;
-     bool is_camera = false;
-
-     // Parse arguments based on mode
-     if (mode == "camera") {
-         if (argc < 5) {
-             std::cerr << "Camera mode requires: camera <model> <provider> <precision>" << std::endl;
-             return 1;
-         }
-
-         // Interactive camera selection
-         source = selectCamera();
-         if (source.empty()) {
-             std::cout << "No camera selected. Exiting." << std::endl;
-             return 0;
-         }
-
-         // Verify camera works
-         if (!verifyCamera(source)) {
-             std::cerr << "\nCamera verification failed." << std::endl;
-             std::cerr << "Please check connection and driver installation." << std::endl;
-             printDriverInstructions();
-             return 1;
-         }
-
-         model_path = argv[2];
-         provider = argv[3];
-         precision = argv[4];
-         is_camera = true;
-
-     } else if (mode == "video") {
-         if (argc < 6) {
-             std::cerr << "Video mode requires: video <video_file> <model> <provider> <precision>" << std::endl;
-             return 1;
-         }
-
-         source = argv[2];
-         model_path = argv[3];
-         provider = argv[4];
-         precision = argv[5];
-         is_camera = false;
-
-     } else {
-         std::cerr << "Unknown mode: " << mode << std::endl;
-         std::cerr << "Use 'camera' or 'video'" << std::endl;
-        return 1;
-    }
-
-     // Parse optional arguments (different offset for camera vs video)
-     int base_idx = is_camera ? 5 : 6;
-     int device_id = (argc >= base_idx + 1) ? std::atoi(argv[base_idx]) : 0;
-     std::string cache_dir = (argc >= base_idx + 2) ? argv[base_idx + 1] : "./trt_cache";
-     float threshold = (argc >= base_idx + 3) ? std::atof(argv[base_idx + 2]) : 0.0f;
-     bool measure_latency = (argc >= base_idx + 4) ? (std::string(argv[base_idx + 3]) == "true") : true;
-     bool enable_viz = (argc >= base_idx + 5) ? (std::string(argv[base_idx + 4]) == "true") : true;
-     bool save_video = (argc >= base_idx + 6) ? (std::string(argv[base_idx + 5]) == "true") : false;
-     std::string output_video_path = (argc >= base_idx + 7) ? argv[base_idx + 6] : "output.avi";
- 
-    // Parse Rerun flags and other optional arguments (check all remaining arguments)
-    bool enable_rerun = false;
-    bool spawn_rerun_viewer = true;
-    std::string rerun_save_path = "";
-    std::string autosteer_model_path = "";
-    std::string can_interface_name = "";
+    std::string config_path = (argc >= 2) ? argv[1] : "config/config.properties";
+    Config config = ConfigReader::loadFromFile(config_path);
+    std::cout << "Loaded configuration from: " << config_path << std::endl;
     
-    // Steering controller parameters (defaults from steering_controller.hpp)
-    double K_p = SteeringControllerDefaults::K_P;
-    double K_i = SteeringControllerDefaults::K_I;
-    double K_d = SteeringControllerDefaults::K_D;
-    double K_S = SteeringControllerDefaults::K_S;
-    std::string csv_log_path = "./assets/curve_params_metrics.csv";
+    // Extract configuration values
+    std::string mode = config.mode;
+    std::string source;
+    bool is_camera = (mode == "camera");
     
-    for (int i = base_idx + 7; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "--rerun") {
-            enable_rerun = true;
-        } else if (arg == "--rerun-save") {
-            enable_rerun = true;
-            spawn_rerun_viewer = false;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                rerun_save_path = argv[++i];
-            } else {
-                rerun_save_path = "egolanes.rrd";
+    if (is_camera) {
+        // Interactive camera selection
+        if (config.source.camera_auto_select) {
+            source = selectCamera();
+            if (source.empty()) {
+                std::cout << "No camera selected. Exiting." << std::endl;
+                return 0;
             }
-        } else if (arg == "--autosteer" && i + 1 < argc) {
-            autosteer_model_path = argv[++i];
-        } else if (arg == "--can-interface" && i + 1 < argc) {
-            can_interface_name = argv[++i];
-        } else if (arg == "--Ks" && i + 1 < argc) {
-            K_S = std::atof(argv[++i]);
-        } else if (arg == "--Kp" && i + 1 < argc) {
-            K_p = std::atof(argv[++i]);
-        } else if (arg == "--Ki" && i + 1 < argc) {
-            K_i = std::atof(argv[++i]);
-        } else if (arg == "--Kd" && i + 1 < argc) {
-            K_d = std::atof(argv[++i]);
-        } else if (arg == "--csv-log" && i + 1 < argc) {
-            csv_log_path = argv[++i];
+        } else {
+            source = config.source.camera_device_id;
         }
+        
+        // Verify camera works
+        if (!verifyCamera(source)) {
+            std::cerr << "\nCamera verification failed." << std::endl;
+            std::cerr << "Please check connection and driver installation." << std::endl;
+            printDriverInstructions();
+            return 1;
+        }
+    } else {
+        source = config.source.video_path;
     }
     
-    // Validate required arguments
-    if (autosteer_model_path.empty()) {
-        std::cerr << "Error: --autosteer [model_path] is required" << std::endl;
-        return 1;
+    std::string model_path = config.models.egolanes_path;
+    std::string provider = config.models.provider;
+    std::string precision = config.models.precision;
+    int device_id = config.models.device_id;
+    std::string cache_dir = config.models.cache_dir;
+    float threshold = config.models.threshold;
+    
+    bool measure_latency = config.output.measure_latency;
+    bool enable_viz = config.output.enable_viz;
+    bool save_video = config.output.save_video;
+    std::string output_video_path = config.output.output_video_path;
+    std::string csv_log_path = config.output.csv_log_path;
+    
+    bool enable_rerun = config.rerun.enabled;
+    bool spawn_rerun_viewer = config.rerun.spawn_viewer;
+    std::string rerun_save_path = config.rerun.save_path;
+    
+    std::string autosteer_model_path = config.models.autosteer_path;
+    
+    std::string can_interface_name = "";
+    if (config.can_interface.enabled) {
+        can_interface_name = config.can_interface.interface_name;
     }
-
+    
+    double K_p = config.steering_control.Kp;
+    double K_i = config.steering_control.Ki;
+    double K_d = config.steering_control.Kd;
+    double K_S = config.steering_control.Ks;
+    
     if (save_video && !enable_viz) {
         std::cerr << "Warning: save_video requires enable_viz=true. Enabling visualization." << std::endl;
         enable_viz = true;
