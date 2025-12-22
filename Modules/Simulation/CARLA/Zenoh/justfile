@@ -77,6 +77,11 @@ run_carla_domainseg:
         "./install/bin/carla_run_model ../../../../VisionPilot/Middleware_Recipes/data/models/DomainSeg_FP32.onnx -i v1/sensing/camera/traffic_light/image_raw -o video/output -m segmentation -b tensorrt -p fp16" \
         "./install/bin/carla_segment_subscriber -k v1/sensing/camera/traffic_light/image_raw -s video/output"
 
+run_carla_scene3d:
+    parallel --verbose --lb ::: \
+        "./install/bin/carla_run_model ../../../../VisionPilot/Middleware_Recipes/data/models/Scene3D_FP32.onnx -i v1/sensing/camera/traffic_light/image_raw -o video/output -m depth -b tensorrt -p fp16" \
+        "./install/bin/carla_depth_subscriber -k video/output"
+
 
 # =====================
 # Cleanup

@@ -40,17 +40,28 @@ just run_carla
 Start the CARLA simulator.
 The Docker image may take a long time to download on the first run.
 
+#### Start Zenoh CARLA bridge
+
+```sh
+just run_zenoh
+```
+
+Start the CARLA Python agent with pygame control and also launch the Zenoh CARLA bridge.
+
 #### Run pipelines
 
 ```sh
-# Original video pub/sub
-just run_video_pubsub
+# Raw camera view
+just run_carla_sub
 
 # SceneSeg
-just run_sceneseg
+just run_carla_sceneseg
 
 # DomainSeg
-just run_domainseg
+just run_carla_domainseg
+
+# Scene3D
+just run_carla_scene3d
 ```
 
 ### Cleanup

@@ -30,8 +30,11 @@ target_link_libraries(carla_video_subscriber PRIVATE ${OpenCV_LIBS} opencv_video
 add_executable(carla_segment_subscriber carla_segment_subscriber.cpp
 	       ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp)
 target_link_libraries(carla_segment_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+add_executable(carla_depth_subscriber carla_depth_subscriber.cpp)
+target_link_libraries(carla_depth_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
 
 
 # Install
 install(TARGETS carla_video_subscriber DESTINATION bin)
 install(TARGETS carla_segment_subscriber DESTINATION bin)
+install(TARGETS carla_depth_subscriber DESTINATION bin)
