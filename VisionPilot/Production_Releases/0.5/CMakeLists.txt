@@ -9,6 +9,8 @@ find_package(OpenCV REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Eigen3 REQUIRED)
 
+# Config reader uses properties file format (no external dependencies needed)
+
 # Option to skip ONNX Runtime and use TensorRT directly
 option(SKIP_ORT "Skip ONNX Runtime and use TensorRT directly" OFF)
 
@@ -253,6 +255,11 @@ target_link_libraries(egolanes_lane_tracking
     ${OpenCV_LIBS}
 )
 
+# Config reader module (properties file format - no dependencies)
+add_library(config_reader
+    src/config/config_reader.cpp
+)
+
 # Main executable
 file(COPY ${CMAKE_SOURCE_DIR}/images
         DESTINATION ${CMAKE_BINARY_DIR})
@@ -272,6 +279,7 @@ set(EGOLANES_LIBS
     path_planning
     steering_control
     can_drivers
+    config_reader
     ${OpenCV_LIBS}
     pthread
 )
