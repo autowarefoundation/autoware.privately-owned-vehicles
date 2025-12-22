@@ -309,11 +309,7 @@ void inferenceThread(
      LaneTracker lane_tracker;
 
      // Init SteeringFilter
-     SteeringFilter steering_filter(0.05f);
-
-     // Buffer for last 2 frames (for temporal models)
-     boost::circular_buffer<cv::Mat> image_buffer(2);
-     
+     SteeringFilter steering_filter(0.05f);  
      // AutoSteer: Circular buffer for raw EgoLanes tensors [1, 3, 80, 160]
      // Stores copies of last 2 frames for temporal inference
      const int EGOLANES_TENSOR_SIZE = 3 * 80 * 160;  // 38,400 floats per frame
@@ -340,8 +336,6 @@ void inferenceThread(
              tf.frame.rows - 420
          ));
         //  std::cout<< "Frame size: " << tf.frame.size() << std::endl;
-         
-        image_buffer.push_back(tf.frame.clone()); // Store a copy of the cropped frame
 
         // Run Ego Lanes inference 
         LaneSegmentation raw_lanes = engine.inference(tf.frame, threshold);
