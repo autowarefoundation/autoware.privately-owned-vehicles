@@ -6,6 +6,13 @@
 namespace autoware_pov::vision::autospeed
 {
 
+int OnnxRuntimeSessionFactory::num_threads_ = 0;
+
+void OnnxRuntimeSessionFactory::setNumThreads(int num_threads)
+{
+  num_threads_ = num_threads;
+}
+
 std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createSession(
   const std::string& model_path,
   const std::string& provider,
@@ -17,7 +24,8 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createSession(
   static Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "AutoSpeedOnnxRuntime");
   
   if (provider == "cpu") {
-    LOG_INFO("[onnxrt] Creating CPU session for model: %s", model_path.c_str());
+    LOG_INFO("[onnxrt] Creating CPU session for model: %s (threads: %d)", 
+             model_path.c_str(), num_threads_);
     return createCPUSession(env, model_path);
   }
   else if (provider == "tensorrt") {
@@ -37,6 +45,11 @@ std::unique_ptr<Ort::Session> OnnxRuntimeSessionFactory::createCPUSession(
 {
   Ort::SessionOptions session_options;
   
+  // Configure number of threads if specified
+  if (num_threads_ > 0) {
+    session_options.SetIntraOpNumThreads(num_threads_);
+  }
+
   // Simple CPU configuration - let ONNX Runtime decide optimal settings
   session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
   
