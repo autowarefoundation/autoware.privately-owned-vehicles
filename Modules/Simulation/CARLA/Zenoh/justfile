@@ -12,12 +12,18 @@ setup:
 
 
 # =====================
-# Build (build everything)
+# Build
 # =====================
 
-build:
+# Build everything
+build: build_bridge build_video_pubsub build_models
+
+# Build Zenoh CARLA bridge
+build_bridge:
     cd zenoh_carla_bridge && cargo build --release
 
+# Build video pub/sub components
+build_video_pubsub:
     mkdir -p carla_video_pubsub/build
     cd carla_video_pubsub/build && \
         cmake .. \
@@ -26,6 +32,8 @@ build:
         cmake --build . && \
         cmake --build . --target install
 
+# Build model binaries
+build_models:
     mkdir -p models/build
     cd models/build && \
         cmake .. \
@@ -50,6 +58,8 @@ run_carla:
         bash -lc "cd /home/carla && ./CarlaUE4.sh -nosound -RenderOffScreen"
 
 run_zenoh:
+    # Wait for CARLA to start up
+    sleep 5
     parallel --verbose --lb ::: \
         ".venv/bin/python zenoh_carla_bridge/carla_agent/main.py --pygame" \
         "zenoh_carla_bridge/target/release/zenoh_carla_bridge --mode ros2"
