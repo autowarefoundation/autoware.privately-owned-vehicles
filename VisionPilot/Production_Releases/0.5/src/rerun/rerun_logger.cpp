@@ -27,40 +27,33 @@ RerunLogger::RerunLogger(const std::string& app_id, bool spawn_viewer, const std
     try {
         rec_ = std::make_unique<rerun::RecordingStream>(app_id);
         
-        bool init_success = true;
-        
-        // Spawn viewer (streams data directly - no RAM buffering!)
-        if (spawn_viewer) {
-            rerun::SpawnOptions opts;
-            opts.memory_limit = "2GB";  // Limit viewer memory to 2GB (drops oldest data)
-            
-            auto result = rec_->spawn(opts);
-            if (result.is_err()) {
-                std::cerr << "Failed to spawn Rerun viewer" << std::endl;
-                init_success = false;
-            } else {
-                std::cout << "✓ Rerun viewer spawned (memory limit: 2GB)" << std::endl;
-            }
-        }
-        
-        // Save to file (⚠ buffers ALL data in RAM until stream closes!)
-        if (!save_path.empty() && init_success) {
+        // Save to file FIRST (before spawn) to ensure connection
+        if (!save_path.empty()) {
             auto result = rec_->save(save_path);
             if (result.is_err()) {
                 std::cerr << "Failed to save to " << save_path << std::endl;
                 if (!spawn_viewer) {
-                    init_success = false;
+                    return;
                 }
             } else {
-                std::cout << "✓ Also saving to: " << save_path << std::endl;
-                if (!spawn_viewer) {
-                    std::cout << "  ⚠ WARNING: Saving without viewer buffers ALL data in RAM!" << std::endl;
-                }
+                std::cout << "✓ Saving to: " << save_path << std::endl;
             }
         }
         
-        if (!init_success) {
-            return;
+        // Spawn viewer (streams data directly - no RAM buffering!)
+        if (spawn_viewer) {
+            rerun::SpawnOptions opts;
+            opts.memory_limit = "2GB";
+            
+            auto result = rec_->spawn(opts);
+            if (result.is_err()) {
+                std::cerr << "Failed to spawn Rerun viewer" << std::endl;
+                if (save_path.empty()) {
+                    return;
+                }
+            } else {
+                std::cout << "✓ Rerun viewer spawned (memory limit: 2GB)" << std::endl;
+            }
         }
         
         enabled_ = true;
@@ -115,18 +108,14 @@ void RerunLogger::logData(
     logImage("visualization/stacked_view", rgb_buffer_);
     
     // Log CAN bus data (scalars)
-    std::vector<rerun::components::Scalar> can_scalars;
-    if (vehicle_state.is_valid) {
-        can_scalars.push_back(rerun::components::Scalar(vehicle_state.steering_angle_deg));
-        can_scalars.push_back(rerun::components::Scalar(vehicle_state.speed_kmph));
-    } else {
-        can_scalars.push_back(rerun::components::Scalar(0.0));
-        can_scalars.push_back(rerun::components::Scalar(0.0));
-    }
     rec_->log("can/steering_angle_deg", 
-              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({can_scalars[0]})));
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({
+                  rerun::components::Scalar(vehicle_state.is_valid ? vehicle_state.steering_angle_deg : 0.0)
+              })));
     rec_->log("can/speed_kmph", 
-              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({can_scalars[1]})));
+              rerun::archetypes::Scalars(rerun::Collection<rerun::components::Scalar>({
+                  rerun::components::Scalar(vehicle_state.is_valid ? vehicle_state.speed_kmph : 0.0)
+              })));
     
     // Log control outputs (all in degrees)
     rec_->log("control/pid_steering_raw_deg", 
