@@ -32,8 +32,12 @@ target_link_libraries(video_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio ope
 add_executable(segment_subscriber segment_subscriber.cpp
                ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp)
 target_link_libraries(segment_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
+add_executable(depth_subscriber depth_subscriber.cpp
+               ${MODEL_ROOTDIR}/visualizers/depth_visualization_engine.cpp)
+target_link_libraries(depth_subscriber PRIVATE ${OpenCV_LIBS} opencv_videoio opencv_imgproc opencv_highgui zenohc::lib)
 
 # Install
 install(TARGETS video_publisher DESTINATION bin)
 install(TARGETS video_subscriber DESTINATION bin)
 install(TARGETS segment_subscriber DESTINATION bin)
+install(TARGETS depth_subscriber DESTINATION bin)

@@ -169,10 +169,13 @@ int main(int argc, char* argv[]) {
                 // Resize depth map to original image size (use LINEAR for depth)
                 cv::Mat resized_depth;
                 cv::resize(depth_map, resized_depth, frame.size(), 0, 0, cv::INTER_LINEAR);
-              
-                std::unique_ptr<autoware_pov::common::DepthVisualizationEngine> viz_engine_ = 
-                    std::make_unique<autoware_pov::common::DepthVisualizationEngine>();
-                final_frame = viz_engine_->visualize(resized_depth);
+
+                //// Only send out the depth
+                final_frame = resized_depth;
+                //// Debug: Show the blended result directly
+                // std::unique_ptr<autoware_pov::common::DepthVisualizationEngine> viz_engine_ = 
+                //     std::make_unique<autoware_pov::common::DepthVisualizationEngine>();
+                // final_frame = viz_engine_->visualize(resized_depth);
             } else if (model_type == "segmentation") {
                 cv::Mat mask;
  
