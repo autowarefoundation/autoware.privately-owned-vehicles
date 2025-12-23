@@ -11,6 +11,7 @@
 #include "onnx_runtime_backend.hpp"
 #include "tensorrt_backend.hpp"
 #include "masks_visualization_engine.hpp"
+#include "masks_visualization_kernels.hpp"
 #include "depth_visualization_engine.hpp"
 #include "fps_timer.hpp"
 
@@ -177,10 +178,9 @@ int main(int argc, char* argv[]) {
  
 #ifdef CUDA_FOUND
                 // Try CUDA acceleration first
-                bool cuda_success = CudaVisualizationKernels::createMaskFromTensorCUDA(
+                bool cuda_success = autoware_pov::common::MasksVisualizationKernels::createMaskFromTensorCUDA(
                   tensor_data, tensor_shape, mask
                 );
-    
                 if (!cuda_success)
 #endif
                 {
