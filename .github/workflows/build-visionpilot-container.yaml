@@ -18,13 +18,13 @@ on:
       - 'Modules/**'
       - 'VisionPilot/**'
 
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
 jobs:
   build:
-    permissions:
-      contents: read
-      packages: write
-      attestations: write
-      id-token: write
     strategy:
       matrix:
         platform: [amd64, arm64]
