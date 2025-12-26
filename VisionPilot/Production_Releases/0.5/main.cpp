@@ -778,7 +778,7 @@ void displayThread(
 
 int main(int argc, char** argv)
 {
-    std::string config_path = (argc >= 2) ? argv[1] : "config/config.properties";
+    std::string config_path = (argc >= 2) ? argv[1] : "VisionPilot.conf";
     Config config = ConfigReader::loadFromFile(config_path);
     std::cout << "Loaded configuration from: " << config_path << std::endl;
     
