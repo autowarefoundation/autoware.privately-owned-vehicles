@@ -1,6 +1,6 @@
 /**
  * @file config_reader.hpp
- * @brief Configuration file reader for EgoLanes pipeline (Properties format only)
+ * @brief Configuration file reader for EgoLanes pipeline (.conf format)
  */
 
 #pragma once
@@ -55,7 +55,7 @@ public:
     static Config loadFromFile(const std::string& config_path);
     
 private:
-    static std::map<std::string, std::string> parsePropertiesFile(const std::string& config_path);
+    static std::map<std::string, std::string> parseConfigFile(const std::string& config_path);
     static std::string trim(const std::string& str);
     static bool parseBool(const std::string& value);
     static int parseInt(const std::string& value);

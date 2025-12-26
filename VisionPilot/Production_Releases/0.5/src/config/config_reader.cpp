@@ -1,6 +1,6 @@
 /**
  * @file config_reader.cpp
- * @brief Configuration file reader implementation (Properties format only)
+ * @brief Configuration file reader implementation (.conf format)
  */
 
 #include "config/config_reader.hpp"
@@ -11,7 +11,7 @@
 namespace autoware_pov::config {
 
 Config ConfigReader::loadFromFile(const std::string& config_path) {
-    auto props = parsePropertiesFile(config_path);
+    auto props = parseConfigFile(config_path);
     Config config;
     
     config.mode = props["mode"];
@@ -55,7 +55,7 @@ Config ConfigReader::loadFromFile(const std::string& config_path) {
     return config;
 }
 
-std::map<std::string, std::string> ConfigReader::parsePropertiesFile(const std::string& config_path) {
+std::map<std::string, std::string> ConfigReader::parseConfigFile(const std::string& config_path) {
     std::ifstream file(config_path);
     std::map<std::string, std::string> props;
     std::string line;
