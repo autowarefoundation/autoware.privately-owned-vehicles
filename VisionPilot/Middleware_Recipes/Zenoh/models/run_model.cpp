@@ -11,6 +11,7 @@
 #include "onnx_runtime_backend.hpp"
 #include "tensorrt_backend.hpp"
 #include "masks_visualization_engine.hpp"
+#include "masks_visualization_kernels.hpp"
 #include "depth_visualization_engine.hpp"
 #include "fps_timer.hpp"
 
@@ -53,6 +54,9 @@ int main(int argc, char* argv[]) {
     std::string model_type = "scene";
     app.add_option("-m,--model-type", model_type, "Type of the model (segmentation or domain)")
         ->default_val("segmentation");
+    std::string config_path = "";
+    app.add_option("-c,--config", config_path, "The configuration file. Currently, this file must be a valid JSON5 or YAML file.")
+        ->check(CLI::ExistingFile);;
     CLI11_PARSE(app, argc, argv);
 
     try {
@@ -71,6 +75,16 @@ int main(int argc, char* argv[]) {
         z_owned_config_t config;
         z_owned_session_t s;
         z_config_default(&config);
+        if (!config_path.empty()) {
+            std::cout << "Loading Zenoh config from: " << config_path << std::endl;
+            z_owned_config_t loaded_config;
+            if (zc_config_from_file(&loaded_config, config_path.c_str()) < 0) {
+                throw std::runtime_error("Error loading Zenoh config from file: " + config_path);
+            }
+            z_drop(z_move(config));
+            config = loaded_config;
+        }
+        
         if (z_open(&s, z_move(config), NULL) < 0) {
             throw std::runtime_error("Error opening Zenoh session");
         }
@@ -155,19 +169,21 @@ int main(int argc, char* argv[]) {
                 // Resize depth map to original image size (use LINEAR for depth)
                 cv::Mat resized_depth;
                 cv::resize(depth_map, resized_depth, frame.size(), 0, 0, cv::INTER_LINEAR);
-              
-                std::unique_ptr<autoware_pov::common::DepthVisualizationEngine> viz_engine_ = 
-                    std::make_unique<autoware_pov::common::DepthVisualizationEngine>();
-                final_frame = viz_engine_->visualize(resized_depth);
+
+                //// Only send out the depth
+                final_frame = resized_depth;
+                //// Debug: Show the blended result directly
+                // std::unique_ptr<autoware_pov::common::DepthVisualizationEngine> viz_engine_ = 
+                //     std::make_unique<autoware_pov::common::DepthVisualizationEngine>();
+                // final_frame = viz_engine_->visualize(resized_depth);
             } else if (model_type == "segmentation") {
                 cv::Mat mask;
  
 #ifdef CUDA_FOUND
                 // Try CUDA acceleration first
-                bool cuda_success = CudaVisualizationKernels::createMaskFromTensorCUDA(
+                bool cuda_success = autoware_pov::common::MasksVisualizationKernels::createMaskFromTensorCUDA(
                   tensor_data, tensor_shape, mask
                 );
-    
                 if (!cuda_success)
 #endif
                 {
@@ -239,6 +255,11 @@ int main(int argc, char* argv[]) {
 
             // Benchmark: Output done
             timer.recordOutputEnd();
+
+            // Release slice
+            z_drop(z_move(zslice));
+            // Release sample
+            z_drop(z_move(sample));
         }
         
         // Cleanup

@@ -11,13 +11,12 @@
 #include <CLI/CLI.hpp>
 #include <zenoh.h>
 
-#include "masks_visualization_engine.hpp"
+#include "depth_visualization_engine.hpp"
 
 using namespace cv; 
 using namespace std; 
 
 #define DEFAULT_KEYEXPR "video/raw"
-#define SEGMENTATION_KEYEXPR "video/segmented"
 
 #define RECV_BUFFER_SIZE 100
 
@@ -54,8 +53,6 @@ int main(int argc, char** argv) {
     // Add options
     std::string keyexpr = DEFAULT_KEYEXPR;
     app.add_option("-k,--key", keyexpr, "The key expression to subscribe to")->default_val(DEFAULT_KEYEXPR);
-    std::string seg_keyexpr = SEGMENTATION_KEYEXPR;
-    app.add_option("-s,--segkey", seg_keyexpr, "The segmentation key expression to subscribe to")->default_val(SEGMENTATION_KEYEXPR);
     std::string config_path = "";
     app.add_option("-c,--config", config_path, "The configuration file. Currently, this file must be a valid JSON5 or YAML file.")->check(CLI::ExistingFile);;
     CLI11_PARSE(app, argc, argv);
@@ -74,7 +71,7 @@ int main(int argc, char** argv) {
             z_drop(z_move(config));
             config = loaded_config;
         }
-        
+
         if (z_open(&s, z_move(config), NULL) < 0) {
             throw std::runtime_error("Error opening Zenoh session");
         }
@@ -89,80 +86,32 @@ int main(int argc, char** argv) {
         if (z_declare_subscriber(z_loan(s), &sub, z_loan(ke), z_move(closure), NULL) < 0) {
             throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(keyexpr));
         }
-        // Declare a Zenoh segmentation subscriber
-        z_owned_subscriber_t seg_sub;
-        z_view_keyexpr_t seg_ke;
-        z_view_keyexpr_from_str(&seg_ke, seg_keyexpr.c_str());
-        z_owned_ring_handler_sample_t seg_handler;
-        z_owned_closure_sample_t seg_closure;
-        z_ring_channel_sample_new(&seg_closure, &seg_handler, RECV_BUFFER_SIZE);
-        if (z_declare_subscriber(z_loan(s), &seg_sub, z_loan(seg_ke), z_move(seg_closure), NULL) < 0) {
-            throw std::runtime_error("Error declaring Zenoh subscriber for key expression: " + std::string(seg_keyexpr));
-        }
-
-        std::unique_ptr<autoware_pov::common::MasksVisualizationEngine> viz_engine_ = 
-                std::make_unique<autoware_pov::common::MasksVisualizationEngine>("scene");
         
+        std::unique_ptr<autoware_pov::common::DepthVisualizationEngine> viz_engine_ =
+                std::make_unique<autoware_pov::common::DepthVisualizationEngine>();
+
         std::cout << "Subscribing to '" << keyexpr << "'..." << std::endl;
         std::cout << "Processing video... Press ESC to stop." << std::endl;
         z_owned_sample_t sample;
         while (Z_OK == z_recv(z_loan(handler), &sample)) {
-
-            // loan sample for timestamp
-            const z_loaned_sample_t* loaned = z_loan(sample);
-
-            // read timestamp and accumulate delay
-            const z_timestamp_t* sent_ts = z_sample_timestamp(loaned);
-            static double latency_ms = 0.0;
-
-            // calculate delay
-            z_timestamp_t now_ts;
-            z_timestamp_new(&now_ts, z_loan(s));
-
-            uint64_t sent_ntp = z_timestamp_ntp64_time(sent_ts);
-            uint64_t now_ntp  = z_timestamp_ntp64_time(&now_ts);
-
-            uint64_t diff = now_ntp - sent_ntp;
-
-            double diff_sec =
-                static_cast<double>(diff >> 32) +
-                static_cast<double>(diff & 0xffffffffu) / static_cast<double>(1ULL << 32);
-
-            latency_ms += diff_sec * 1000.0;
-            
             int row, col, type;
             z_owned_slice_t zslice = decode_frame_from_sample(sample, row, col, type);
             const uint8_t* ptr = z_slice_data(z_loan(zslice));
             // Release sample
             z_drop(z_move(sample));
-            // Create the frame
-            cv::Mat frame(row, col, type, const_cast<uint8_t*>(ptr));
 
-            // Also receive segmentation frame
-            if (Z_OK != z_try_recv(z_loan(seg_handler), &sample)) {
-                std::cerr << "Warning: No segmentation frame received for the current video frame." << std::endl;
-                z_drop(z_move(zslice)); // Release the slice after using its data pointer
-                continue;
-            }
-            z_owned_slice_t seg_zslice = decode_frame_from_sample(sample, row, col, type);
-            const uint8_t* seg_ptr = z_slice_data(z_loan(seg_zslice));
-            // Release sample
-            z_drop(z_move(sample));
-            // Create the frame
-            cv::Mat seg_frame(row, col, type, const_cast<uint8_t*>(seg_ptr));
+            // Create the frame and visualize depth
+            cv::Mat frame(row, col, type, (uint8_t *)ptr);
+            cv::Mat final_frame = viz_engine_->visualize(frame);
+            cv::imshow("Depth Visualization", final_frame);
 
-            cv::Mat final_frame = viz_engine_->visualize(seg_frame, frame);
-
-            // Release the slice after using its data pointer
-            z_drop(z_move(zslice));
-            z_drop(z_move(seg_zslice));
-
+            z_drop(z_move(zslice)); // Release the slice after using its data pointer
             if (cv::waitKey(1) == 27) { // Stop if 'ESC' is pressed
                 std::cout << "Processing stopped by user." << std::endl;
                 break;
             }
 
-            // Print frame rate and average delay
+            // Print frame rate
             static int frame_count = 0;
             static auto start_time = std::chrono::steady_clock::now();
             frame_count++;
@@ -170,20 +119,15 @@ int main(int argc, char** argv) {
             auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
             if (elapsed_time > 0) {
                 double fps = static_cast<double>(frame_count) / elapsed_time;
-                double avg_latency = latency_ms / frame_count;
-                printf("FPS: %.2f | Avg image transport latency: %.3f ms\n", fps, avg_latency);
-                fflush(stdout);
+                std::cout << "Current FPS: " << fps << std::endl;
                 frame_count = 0;
                 start_time = current_time;
-                latency_ms = 0.0;
             }
         }
 
         // Clean up
         z_drop(z_move(handler));
         z_drop(z_move(sub));
-        z_drop(z_move(seg_handler));
-        z_drop(z_move(seg_sub));
         z_drop(z_move(s));
         cv::destroyAllWindows();
     } catch (const std::exception& e) {

@@ -98,7 +98,7 @@ You need to create a folder for models and video first.
 - Video: You can get any dash cam video from YouTube.
 
 ```bash
-cd VisionPilot/ROS2
+cd VisionPilot/Middleware_Recipes
 # Create folder
 mkdir -p data && cd data
 # Put your video into data, assuming its name is video.mp4
@@ -138,7 +138,7 @@ ros2 launch models run_pipeline.launch.py \
 - Install the dependencies in [Zenoh](Zenoh/README.md) first
 
 ```bash
-cd VisionPilot/Zenoh
+cd VisionPilot/Middleware_Recipes/Zenoh
 # Set the environment variable
 export LIBTORCH_INSTALL_ROOT=/path/to/libtorch/
 export ONNXRUNTIME_ROOTDIR=/path/to/onnxruntime-linux-x64-gpu-1.22.0

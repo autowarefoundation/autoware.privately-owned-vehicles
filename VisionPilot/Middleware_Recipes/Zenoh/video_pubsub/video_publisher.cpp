@@ -26,6 +26,8 @@ int main(int argc, char* argv[]) {
     app.add_option("video_path", input_video_path, "Path to the input video file")->required()->check(CLI::ExistingFile);
     std::string keyexpr = DEFAULT_KEYEXPR;
     app.add_option("-k,--key", keyexpr, "The key expression to publish to")->default_val(DEFAULT_KEYEXPR);
+    std::string config_path = "";
+    app.add_option("-c,--config", config_path, "The configuration file. Currently, this file must be a valid JSON5 or YAML file.")->check(CLI::ExistingFile);;
     CLI11_PARSE(app, argc, argv);
 
     try {
@@ -34,14 +36,25 @@ int main(int argc, char* argv[]) {
         if (!cap.isOpened()) {
             throw std::runtime_error("Error opening video stream or file: " + input_video_path);
         }
-        const double fps = cap.get(cv::CAP_PROP_FPS);
+        // const double fps = cap.get(cv::CAP_PROP_FPS);
+        const double fps = 60;
         const auto frame_duration = std::chrono::nanoseconds(static_cast<long long>(1'000'000'000.0 / fps));
-        std::cout << "Publishing video from '" << input_video_path << "' (" << fps << " FPS) to key '" << keyexpr << "'..." << std::endl;
+        // std::cout << "Publishing video from '" << input_video_path << "' (" << fps << " FPS) to key '" << keyexpr << "'..." << std::endl;
 
         // Create Zenoh session
         z_owned_config_t config;
         z_owned_session_t s;
         z_config_default(&config);
+        if (!config_path.empty()) {
+            std::cout << "Loading Zenoh config from: " << config_path << std::endl;
+            z_owned_config_t loaded_config;
+            if (zc_config_from_file(&loaded_config, config_path.c_str()) < 0) {
+                throw std::runtime_error("Error loading Zenoh config from file: " + config_path);
+            }
+            z_drop(z_move(config));
+            config = loaded_config;
+        }
+
         if (z_open(&s, z_move(config), NULL) < 0) {
             throw std::runtime_error("Error opening Zenoh session");
         }
@@ -68,6 +81,11 @@ int main(int argc, char* argv[]) {
             int input_bytes[] = {frame.rows, frame.cols, frame.type()};
             z_bytes_copy_from_buf(&attachment, (const uint8_t*)input_bytes, sizeof(input_bytes));
             options.attachment = z_move(attachment);
+            
+            // Add timestamp
+            z_timestamp_t ts;
+            z_timestamp_new(&ts, z_loan(s));
+            options.timestamp = &ts;
 
             // Publish images
             unsigned char* pixelPtr = frame.data; 

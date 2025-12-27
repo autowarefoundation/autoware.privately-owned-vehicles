@@ -103,11 +103,17 @@ void RunModelNode::onImage(const sensor_msgs::msg::Image::ConstSharedPtr msg)
     cv::Mat resized_depth;
     cv::resize(depth_map, resized_depth, in_image_ptr->image.size(), 0, 0, cv::INTER_LINEAR);
     
+    // Benchmark: Inference done
+    timer_.recordInferenceEnd();
+
     // Publish depth map as CV_32FC1
     sensor_msgs::msg::Image::SharedPtr out_msg = 
       cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::TYPE_32FC1, resized_depth).toImageMsg();
     pub_.publish(out_msg);
-    
+
+    // Benchmark: Output done
+    timer_.recordOutputEnd();
+
   } else if (model_type_ == "segmentation") {
     // Segmentation: create binary masks
     cv::Mat mask;
