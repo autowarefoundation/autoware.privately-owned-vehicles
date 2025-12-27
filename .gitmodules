@@ -1,0 +1,3 @@
+[submodule "Modules/Simulation/CARLA/Zenoh/zenoh_carla_bridge"]
+	path = Modules/Simulation/CARLA/Zenoh/zenoh_carla_bridge
+	url = https://github.com/evshary/zenoh_carla_bridge.git
