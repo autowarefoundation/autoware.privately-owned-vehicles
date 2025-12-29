@@ -54,6 +54,10 @@ using AutoSteerEngine =
  #define M_PI 3.14159265358979323846
  #endif
 
+#ifndef VISIONPILOT_SHARE_DIR
+#define VISIONPILOT_SHARE_DIR "."
+#endif
+
 using namespace autoware_pov::vision::egolanes;
 using namespace autoware_pov::vision::camera;
 using namespace autoware_pov::vision::path_planning;
@@ -537,10 +541,10 @@ void displayThread(
     }
 
     // Load steering wheel images
-    std::string predSteeringImagePath = "images/wheel_green.png";
-    cv::Mat predSteeringWheelImg = cv::imread(predSteeringImagePath, cv::IMREAD_UNCHANGED);
-    std::string gtSteeringImagePath = "images/wheel_white.png";
-    cv::Mat gtSteeringWheelImg = cv::imread(gtSteeringImagePath, cv::IMREAD_UNCHANGED);
+  std::string predSteeringImagePath = std::string(VISIONPILOT_SHARE_DIR) + "/images/wheel_green.png";
+  cv::Mat predSteeringWheelImg = cv::imread(predSteeringImagePath, cv::IMREAD_UNCHANGED);
+  std::string gtSteeringImagePath = std::string(VISIONPILOT_SHARE_DIR) + "/images/wheel_white.png";
+  cv::Mat gtSteeringWheelImg = cv::imread(gtSteeringImagePath, cv::IMREAD_UNCHANGED);
 
     while (running.load()) {
         InferenceResult result;
@@ -778,7 +782,7 @@ void displayThread(
 
 int main(int argc, char** argv)
 {
-    std::string config_path = (argc >= 2) ? argv[1] : "VisionPilot.conf";
+    std::string config_path = (argc >= 2) ? argv[1] : "/usr/share/visionpilot/visionpilot.conf";
     Config config = ConfigReader::loadFromFile(config_path);
     std::cout << "Loaded configuration from: " << config_path << std::endl;
     
