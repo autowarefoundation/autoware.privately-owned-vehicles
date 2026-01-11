@@ -82,7 +82,6 @@ def main():
 
         # Inference
         prediction = model.inference(image)
-        prediction = np.moveaxis(prediction, 0, -1)
 
         # Frame preprocessing
         vis_image_data = make_visualization(image.copy(), prediction)
