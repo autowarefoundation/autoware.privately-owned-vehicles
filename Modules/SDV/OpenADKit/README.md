@@ -1,6 +1,6 @@
-# VisionPilot - OpenADKit Workloads
+# VisionPilot - Open AD Kit Demos
 
-Containerized VisionPilot workloads for Open AD Kit deployments.
+VisionPilot demos with Open AD Kit containers.
 
 ## Prerequisites
 
