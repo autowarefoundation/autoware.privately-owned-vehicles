@@ -19,4 +19,8 @@ Containerized DomainSeg Demo, roadwork scene segmentation.
 
 ## Output
 
-"The output will be displayed in a new window that shows roadwork scene segmentation of the input image.
+After the container is running, you can access the visualization by opening the following URL in your browser:
+
+<http://localhost:6080/vnc.html?resize=scale&autoconnect=true&password=visualizer>
+
+The output shows roadwork scene segmentation of the input video in real-time.

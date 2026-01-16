@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Enable X11 forwarding for visualization
-xhost +
-
 # Run the container
 docker run -it --rm \
     -p 6080:6080 \

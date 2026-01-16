@@ -19,4 +19,8 @@ Containerized EgoLanes Demo, semantic segmentation of driving lanes.
 
 ## Output
 
-The output will be displayed in a new window that shows semantic segmentation of the driving lanes of the input video.
+After the container is running, you can access the visualization by opening the following URL in your browser:
+
+<http://localhost:6080/vnc.html?resize=scale&autoconnect=true&password=visualizer>
+
+The output shows semantic segmentation of the driving lanes of the input video in real-time.

@@ -19,4 +19,8 @@ Containerized SceneSeg Demo, semantic segmentation of the scene.
 
 ## Output
 
-The output will be displayed in a new window that shows semantic segmentation of the scene of the input video.
+After the container is running, you can access the visualization by opening the following URL in your browser:
+
+<http://localhost:6080/vnc.html?resize=scale&autoconnect=true&password=visualizer>
+
+The output shows semantic segmentation of the scene of the input video in real-time.

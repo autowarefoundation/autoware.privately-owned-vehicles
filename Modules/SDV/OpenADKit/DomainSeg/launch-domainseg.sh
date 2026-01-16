@@ -1,5 +1,4 @@
 #!/bin/bash
-# Containerized DomainSeg standalone inference with ONNX Runtime
 
 # Run the container
 docker run -it --rm \

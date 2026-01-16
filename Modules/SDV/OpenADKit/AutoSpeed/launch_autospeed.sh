@@ -1,8 +1,4 @@
 #!/bin/bash
-# Containerized AutoSpeed(ObjectFinder) standalone inference with ONNX Runtime
-
-# Enable X11 forwarding for visualization
-xhost +
 
 # Run the container
 docker run -it --rm \
