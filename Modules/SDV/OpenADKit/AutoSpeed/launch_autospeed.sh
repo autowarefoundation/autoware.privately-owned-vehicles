@@ -7,7 +7,8 @@ xhost +
 # Run the container
 docker run -it --rm \
     -p 6080:6080 \
-    -v "$(pwd)/model-weights:/autoware/model-weights" \
-    -v "$(pwd)/test:/autoware/test" \
-    ghcr.io/autowarefoundation/visionpilot:latest \
-    /autoware/test/run_objectFinder.sh
+    -v "$PWD"/model-weights:/autoware/model-weights \
+    -v "$PWD"/launch:/autoware/launch \
+    -v "$PWD"/../Test:/autoware/test \
+    visionpilot:latest \
+    /autoware/launch/run_objectFinder.sh
