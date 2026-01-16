@@ -1,6 +1,6 @@
-# VisionPilot/AutoSpeed - OpenADKit Demo
+# AutoSpeed - Open AD Kit Demo
 
-Containerized AutoSpeed Demo for VisionPilot.
+Containerized AutoSpeed Demo, closest in-path object detection and tracking.
 
 ## Prerequisites
 

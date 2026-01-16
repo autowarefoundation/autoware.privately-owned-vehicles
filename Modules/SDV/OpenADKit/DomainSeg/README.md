@@ -1,6 +1,6 @@
-# VisionPilot/DomainSeg - OpenADKit Demo
+# DomainSeg - Open AD Kit Demo
 
-Containerized DomainSeg Demo for VisionPilot.
+Containerized DomainSeg Demo, roadwork scene segmentation.
 
 ## Prerequisites
 

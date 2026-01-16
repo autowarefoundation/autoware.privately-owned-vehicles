@@ -1,6 +1,6 @@
-# VisionPilot/Scene3D - OpenADKit Demo
+# Scene3D - Open AD Kit Demo
 
-Containerized Scene3D Demo for VisionPilot.
+Containerized Scene3D Demo, monocular depth estimation.
 
 ## Prerequisites
 
