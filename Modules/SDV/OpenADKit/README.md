@@ -15,7 +15,7 @@ VisionPilot demos with Open AD Kit containers.
 
 ### Building the Docker image from scratch
 
-The **visionpilot** container image is available on [GHCR](https://github.com/orgs/autowarefoundation/packages/container/package/visionpilot), but if you want to build it locally, you can do so by running the build command:
+The **visionpilot** container image is automatically pulled from [GHCR](https://github.com/orgs/autowarefoundation/packages/container/package/visionpilot) when running demos. To build it locally instead, run:
 
 ```bash
 # Run from project root
