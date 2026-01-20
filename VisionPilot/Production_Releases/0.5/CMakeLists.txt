@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(egolanes_pipeline LANGUAGES CXX)
+project(visionpilot VERSION 0.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -72,12 +72,12 @@ if(SKIP_ORT)
     )
     
     # EgoLanes inference backend (TensorRT)
-    add_library(egolanes_inference
+    add_library(visionpilot_inference
         src/inference/tensorrt_engine.cpp
         src/inference/tensorrt_autosteer_engine.cpp
     )
-    target_compile_definitions(egolanes_inference PRIVATE LOG_TYPE=0 SKIP_ORT=1)
-    target_link_libraries(egolanes_inference
+    target_compile_definitions(visionpilot_inference PRIVATE LOG_TYPE=0 SKIP_ORT=1)
+    target_link_libraries(visionpilot_inference
         ${OpenCV_LIBS}
         ${TENSORRT_LIBRARY}
         ${TENSORRT_ONNX_PARSER_LIBRARY}
@@ -119,18 +119,18 @@ else()
     )
 
     # EgoLanes inference backend (ONNX Runtime)
-    add_library(egolanes_inference
+    add_library(visionpilot_inference
         src/inference/onnxruntime_session.cpp
         src/inference/onnxruntime_engine.cpp
         src/inference/autosteer_engine.cpp
     )
-    target_compile_definitions(egolanes_inference PRIVATE LOG_TYPE=0)
-    target_link_libraries(egolanes_inference
+    target_compile_definitions(visionpilot_inference PRIVATE LOG_TYPE=0)
+    target_link_libraries(visionpilot_inference
         ${OpenCV_LIBS}
         ${ONNXRUNTIME_LIBRARY}
     )
     # Add RPATH so executable can find libonnxruntime.so at runtime
-    set_target_properties(egolanes_inference PROPERTIES
+    set_target_properties(visionpilot_inference PROPERTIES
         BUILD_RPATH ${ONNXRUNTIME_LIB_DIR}
         INSTALL_RPATH ${ONNXRUNTIME_LIB_DIR}
     )
@@ -141,21 +141,21 @@ else()
 endif()
 
 # Visualization module
-add_library(egolanes_visualization
+add_library(visionpilot_visualization
     src/visualization/draw_lanes.cpp
 )
-target_compile_definitions(egolanes_visualization PRIVATE LOG_TYPE=0)  # Use non-ROS logging
-target_link_libraries(egolanes_visualization
-    egolanes_inference
+target_compile_definitions(visionpilot_visualization PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_link_libraries(visionpilot_visualization
+    visionpilot_inference
     ${OpenCV_LIBS}
 )
 
 # Lane filtering module
-add_library(egolanes_lane_filtering
+add_library(visionpilot_lane_filtering
     src/lane_filtering/lane_filter.cpp
 )
-target_link_libraries(egolanes_lane_filtering
-    egolanes_inference
+target_link_libraries(visionpilot_lane_filtering
+    visionpilot_inference
     ${OpenCV_LIBS}
 )
 
@@ -231,7 +231,7 @@ if(ENABLE_RERUN)
             )
             target_compile_definitions(rerun_logger PRIVATE ENABLE_RERUN)
 target_link_libraries(rerun_logger
-    egolanes_inference
+    visionpilot_inference
                 ${OpenCV_LIBS}
                 rerun_sdk
             )
@@ -247,11 +247,11 @@ if(NOT RERUN_ENABLED)
 endif()
 
 # Lane tracking module
-add_library(egolanes_lane_tracking
+add_library(visionpilot_lane_tracking
     src/lane_tracking/lane_tracking.cpp
 )
-target_link_libraries(egolanes_lane_tracking
-    egolanes_inference
+target_link_libraries(visionpilot_lane_tracking
+    visionpilot_inference
     ${OpenCV_LIBS}
 )
 
@@ -264,17 +264,20 @@ add_library(config_reader
 file(COPY ${CMAKE_SOURCE_DIR}/images
         DESTINATION ${CMAKE_BINARY_DIR})
 
-add_executable(egolanes_pipeline
+add_executable(visionpilot
     main.cpp
 )
-target_compile_definitions(egolanes_pipeline PRIVATE LOG_TYPE=0)  # Use non-ROS logging
+target_compile_definitions(visionpilot PRIVATE
+        VISIONPILOT_SHARE_DIR="/usr/share/visionpilot"
+        LOG_TYPE=0
+)  # Use non-ROS logging
 
 # Link libraries
-set(EGOLANES_LIBS
-    egolanes_inference
-    egolanes_visualization
-    egolanes_lane_filtering
-    egolanes_lane_tracking
+set(VISIONPILOT_LIBS
+    visionpilot_inference
+    visionpilot_visualization
+    visionpilot_lane_filtering
+    visionpilot_lane_tracking
     camera_utils
     path_planning
     steering_control
@@ -285,11 +288,25 @@ set(EGOLANES_LIBS
 )
 
 if(ENABLE_RERUN AND RERUN_ENABLED)
-    target_compile_definitions(egolanes_pipeline PRIVATE ENABLE_RERUN)
-    list(APPEND EGOLANES_LIBS rerun_logger)
+    target_compile_definitions(visionpilot PRIVATE ENABLE_RERUN)
+    list(APPEND VISIONPILOT_LIBS rerun_logger)
 endif()
 
-target_link_libraries(egolanes_pipeline ${EGOLANES_LIBS})
+if(NOT SKIP_ORT)
+    target_link_libraries(visionpilot
+            ${VISIONPILOT_LIBS}
+            ${ONNXRUNTIME_LIBRARY}
+    )
+
+    set_target_properties(visionpilot PROPERTIES
+            BUILD_RPATH ${ONNXRUNTIME_LIB_DIR}
+            INSTALL_RPATH ${ONNXRUNTIME_LIB_DIR}
+    )
+else()
+    target_link_libraries(visionpilot
+            ${VISIONPILOT_LIBS}
+    )
+endif()
 
 # Test executable for AutoSteer (ONNX Runtime only)
 if(NOT SKIP_ORT)
@@ -297,13 +314,48 @@ if(NOT SKIP_ORT)
         test/test_autosteer.cpp
     )
     target_compile_definitions(test_autosteer PRIVATE LOG_TYPE=0)
-    target_link_libraries(test_autosteer ${EGOLANES_LIBS})
+    target_link_libraries(test_autosteer ${VISIONPILOT_LIBS})
 endif()
 
 # Installation
-install(TARGETS egolanes_pipeline
+install(TARGETS visionpilot
     RUNTIME DESTINATION bin
 )
 
+install(FILES ${CMAKE_SOURCE_DIR}/visionpilot.conf
+        DESTINATION share/visionpilot/)
+
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/images/"
+        DESTINATION "share/visionpilot/images")
+
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/models/"
+        DESTINATION "share/visionpilot/models"
+        FILES_MATCHING
+        PATTERN "*.onnx"
+        PATTERN "trt_cache" EXCLUDE)
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/onnxruntime/"
+        DESTINATION "share/visionpilot/onnxruntime")
+
 message(STATUS "OpenCV: ${OpenCV_VERSION}")
+
+# Include CPack and configure DEB-specific variables
+set(CPACK_PACKAGE_VENDOR "Autoware Foundation")
+set(CPACK_PACKAGE_CONTACT "")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "atanasko.mitrev@autoware.org, tran.huy@autoware.org, pranav.doma@autoware.org")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VisionPilot v0.5")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+        "cuda-toolkit-12-6,
+        libcudnn9-cuda-12,
+        libcublaslt11,
+        libcudart11.0,
+        libnvinfer10,
+        libnvinfer-plugin10,
+        libnvonnxparsers10,
+        cuda-drivers"
+)
+
+set(CPACK_SYSTEM_NAME "x86_64")
+set(CPACK_GENERATOR "DEB")
+include(CPack)
+
 
