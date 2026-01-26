@@ -5,6 +5,8 @@
 
 #include "steering_control/steering_controller.hpp"
 
+#include <iomanip>
+
 namespace autoware_pov::vision::steering_control {
 
 SteeringController::SteeringController(
@@ -14,6 +16,7 @@ SteeringController::SteeringController(
                                        double K_S)
     : K_p(K_p), K_i(K_i), K_d(K_d), K_S(K_S)
 {
+    std::cout << std::fixed << std::setprecision(6); // 4 decimal places
     std::cout << "Steering controller initialized with parameters:\n"
               << "  K_p: " << K_p << "\n"
               << "  K_i: " << K_i << "\n"
