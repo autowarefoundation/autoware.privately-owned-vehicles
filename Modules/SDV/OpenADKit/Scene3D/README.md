@@ -1,23 +1,14 @@
-# VisionPilot/Scene3D - OpenADKit Demo
+# Scene3D - Open AD Kit Demo
 
-Containerized Scene3D Demo for VisionPilot.
+Containerized Scene3D Demo, monocular depth estimation.
 
 ## Prerequisites
-
-- Docker
 
 - Download the [Scene3D PyTorch model weights](https://github.com/autowarefoundation/autoware.privately-owned-vehicles/tree/main/Models#scene3d---monocular-depth-estimation) and place it in the `model-weights` directory with the name `scene3d.pth`.
 
     ```bash
     mkdir -p model-weights
     curl "https://drive.usercontent.google.com/download?id=1MrKhfEkR0fVJt-SdZEc0QwjwVDumPf7B&confirm=xxx" -o model-weights/scene3d.pth
-    ```
-
-- Download the [Test image](https://drive.google.com/file/d/100rOuKXAFqaW7iZ5KHlamRtaSHoRVJaq/view?usp=drive_link) and place it in the `test` directory with the name `image.jpg`.
-
-    ```bash
-    mkdir -p test
-    curl "https://drive.usercontent.google.com/download?id=100rOuKXAFqaW7iZ5KHlamRtaSHoRVJaq&confirm=xxx" -o test/image.jpg
     ```
 
 ## Usage

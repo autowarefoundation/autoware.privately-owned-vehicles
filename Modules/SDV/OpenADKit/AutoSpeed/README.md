@@ -1,29 +1,14 @@
-# VisionPilot/AutoSpeed - OpenADKit Demo
+# AutoSpeed - Open AD Kit Demo
 
-Containerized AutoSpeed Demo for VisionPilot.
+Containerized AutoSpeed Demo, closest in-path object detection and tracking.
 
 ## Prerequisites
-
-- Docker
 
 - Download the [AutoSpeed ONNX model weights](https://drive.google.com/file/d/1Zhe8uXPbrPr8cvcwHkl1Hv0877HHbxbB/view?usp=drive_link) and place it in the `model-weights` directory with the name `autospeed.onnx`.
 
     ```bash
     mkdir -p model-weights
     curl "https://drive.usercontent.google.com/download?id=1Zhe8uXPbrPr8cvcwHkl1Hv0877HHbxbB&confirm=xxx" -o model-weights/autospeed.onnx
-    ```
-
-
-- Download the [Free Lane Driving video](https://drive.google.com/file/d/1QP9iboetxSHsmyQWOmrzOiqZWVCB-74C/view?usp=drive_link) and place it in the `test` directory with the name `free-lane-driving.mp4`.
-
-    ```bash
-    curl "https://drive.usercontent.google.com/download?id=1QP9iboetxSHsmyQWOmrzOiqZWVCB-74C&confirm=xxx" -o test/free-lane-driving.mp4
-    ```
-
-- Download the [Traffic Driving video](https://drive.google.com/file/d/1_mFCpsKkBrotVUiv_OIZi1B6Fd3UXUG3/view?usp=drive_link) and place it in the `test` directory with the name `traffic-driving.mp4`.
-
-    ```bash
-    curl "https://drive.usercontent.google.com/download?id=1_mFCpsKkBrotVUiv_OIZi1B6Fd3UXUG3&confirm=xxx" -o test/traffic-driving.mp4
     ```
 
 ## Usage
@@ -34,4 +19,8 @@ Containerized AutoSpeed Demo for VisionPilot.
 
 ## Output
 
-The output will be displayed in a new window that shows object detection and tracking of the input video.
+After the container is running, you can access the visualization by opening the following URL in your browser:
+
+<http://localhost:6080/vnc.html?resize=scale&autoconnect=true&password=visualizer>
+
+The output shows closest in-path object detection and tracking of the input video in real-time.

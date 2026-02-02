@@ -118,7 +118,7 @@ print_access_info() {
     echo -e "\033[32m═══════════════════════════════════════════════════════════════════════\033[0m"
     echo ""
     echo -e "  \033[36mBrowser Access (NoVNC):\033[0m"
-    echo -e "    http://${LOCAL_IP}:6080/vnc.html?resize=scale&autoconnect=true"
+    echo -e "    http://${LOCAL_IP}:6080/vnc.html?resize=scale&autoconnect=true&password=${VNC_PASSWORD}"
     echo ""
     echo -e "  \033[36mVNC Client Access:\033[0m"
     echo -e "    ${LOCAL_IP}:5999"
@@ -156,7 +156,7 @@ main() {
     
     # Execute any passed command, or keep container running
     if [ $# -gt 0 ]; then
-        log "Executing command: $@"
+        log "Executing command: $*"
         exec "$@"
     else
         log "Container running. Press Ctrl+C to stop."
