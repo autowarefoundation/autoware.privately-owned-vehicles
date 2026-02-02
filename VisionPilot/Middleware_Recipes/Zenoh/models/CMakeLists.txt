@@ -24,6 +24,16 @@ find_package(Torch REQUIRED HINTS ${LIBTORCH_INSTALL_ROOT}/share/cmake/Torch/ QU
 ## Find Zenoh-C installation
 find_package(zenohc REQUIRED)
 
+## Enable CUDA if available (for GPU-accelerated mask creation)
+find_package(CUDA QUIET)
+if(CUDA_FOUND)
+    enable_language(CUDA)
+    add_definitions(-DCUDA_FOUND)
+    message(STATUS "CUDA found. Enabling GPU acceleration for visualization.")
+else()
+    message(STATUS "CUDA not found. Using CPU-only visualization.")
+endif()
+
 string(APPEND CMAKE_CXX_FLAGS " -Wall -Wextra")
 string(APPEND CMAKE_C_FLAGS " -Wall -Wextra")
 
@@ -66,14 +76,29 @@ if(onnxruntime_USE_CUDA)
 endif()
 
 ## Build & Link
-add_executable(run_model run_model.cpp 
-                         ${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
-                         ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
-                         ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp
-                         ${MODEL_ROOTDIR}/visualizers/depth_visualization_engine.cpp
-                         ${MODEL_ROOTDIR}/benchmark/fps_timer.cpp
-              )
+set(RUN_MODEL_SOURCES
+    run_model.cpp
+    ${MODEL_ROOTDIR}/backends/tensorrt_backend.cpp
+    ${MODEL_ROOTDIR}/backends/onnx_runtime_backend.cpp
+    ${MODEL_ROOTDIR}/visualizers/masks_visualization_engine.cpp
+    ${MODEL_ROOTDIR}/visualizers/depth_visualization_engine.cpp
+    ${MODEL_ROOTDIR}/benchmark/fps_timer.cpp
+)
+
+if(CUDA_FOUND)
+    # Add CUDA kernel for GPU-accelerated mask creation
+    list(APPEND RUN_MODEL_SOURCES ${MODEL_ROOTDIR}/visualizers/cuda_visualization_kernels.cu)
+    set_property(SOURCE ${MODEL_ROOTDIR}/visualizers/cuda_visualization_kernels.cu PROPERTY LANGUAGE CUDA)
+endif()
+
+add_executable(run_model ${RUN_MODEL_SOURCES})
 target_compile_definitions(run_model PRIVATE LOG_TYPE=0)
+
+if(CUDA_FOUND)
+    target_include_directories(run_model PRIVATE ${CUDA_INCLUDE_DIRS})
+    set_target_properties(run_model PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+endif()
+
 target_link_libraries(run_model PRIVATE
                             onnxruntime
                             ${TENSORRT_LIBRARY}
@@ -85,6 +110,10 @@ target_link_libraries(run_model PRIVATE
                             opencv_highgui
                             zenohc::lib
                      )
+
+if(CUDA_FOUND)
+    target_link_libraries(run_model PRIVATE ${CUDA_LIBRARIES})
+endif()
 
 # Install
 install(TARGETS run_model DESTINATION bin)

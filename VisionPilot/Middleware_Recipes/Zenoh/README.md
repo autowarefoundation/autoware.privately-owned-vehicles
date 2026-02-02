@@ -36,7 +36,8 @@ scene3d -- Zenoh --> vsub
     sudo apt update
     sudo apt install libzenohc-dev
     ```
-
+- **Cmake**: For building the project.
+  - Ubuntu: `sudo apt install cmake`
 - **CLI11**: Used for the command line interface.
   - Ubuntu: `sudo apt install libcli11-dev`
 - **CUDA**: Optional for GPU processing.
@@ -65,6 +66,19 @@ scene3d -- Zenoh --> vsub
   ```bash
   sudo apt install parallel
   ```
+
+## Environment note
+
+This project relies on the system-installed `libzenohc`.
+If ROS 2 Humble is sourced and `ros-humble-rmw-zenoh-cpp` is installed, the ROS-provided `libzenohc.so` will be used instead, which is ABI-incompatible and may cause crashes.
+
+Build and run the examples in a shell where ROS 2 is not sourced.
+
+Verify the loaded library with:
+```bash
+$ ldd ./install/bin/video_publisher | grep -i zenoh
+# libzenohc.so => /lib/libzenohc.so
+```
 
 ## Usage
 
