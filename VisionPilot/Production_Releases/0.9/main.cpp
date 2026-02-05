@@ -149,6 +149,7 @@ struct InferenceResult {
     PathFinderOutput path_output; // Added for metric debug
     float autosteer_angle = 0.0f;  // Steering angle from AutoSteer (degrees)
     bool autosteer_valid = false;  // Whether AutoSteer ran (skips first frame)
+    bool lane_departure_warning = false; // Whether the vehicle is drifting outside the driving corridor
     CanVehicleState vehicle_state; // CAN bus data from capture thread
 };
 
@@ -458,6 +459,14 @@ void inferenceThread(
                             << "AutoSteer: " << std::fixed << std::setprecision(2) << autosteer_steering << " deg "
                             << "(PathFinder: invalid)" << std::endl;
               }
+
+              // 6. Issue lane departure warning if the vehicle is drifting outside the driving corridor
+              double drift_ratio = Math.abs(path_output.cte)/(path_output.lane_width*0.5 + 0.000001);
+              bool lane_departure_warning = false;
+
+              if(drift_ratio > 0.5){
+                lane_departure_warning = true;
+              }
           }
           // ========================================
 
@@ -478,6 +487,7 @@ void inferenceThread(
         result.path_output = path_output;        // Store for viz
         result.autosteer_angle = autosteer_steering;  // Store AutoSteer angle
         result.autosteer_valid = egolanes_tensor_buffer.full();
+        result.lane_departure_warning = lane_departure_warning;
         result.vehicle_state = tf.vehicle_state;  // Copy CAN bus data
         output_queue.push(result);
     }
