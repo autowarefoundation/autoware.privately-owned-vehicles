@@ -88,6 +88,11 @@ void drawMetricVerification(
     const std::vector<double>& right_metric_coeffs
 );
 
+/**
+ * @brief Visualizes predicted steering angle
+ * Rotates a steering wheel icon according to the predicted steering angle and shows it
+ * on top of the image
+ */
 cv::Mat rotateSteeringWheel(const cv::Mat& img, float steering_angle_deg);
 void visualizeWheel(const cv::Mat& img, const cv::Mat& wheelImg, const int x, const int y);
 void visualizeSteering(
@@ -95,8 +100,16 @@ void visualizeSteering(
   float steering_angle,
   const cv::Mat& rotatedPredSteeringWheelImg,
   std::optional<float> gtSteeringAngle,
-  const cv::Mat& rotatedGtSteeringWheelImg);
+  const cv::Mat& rotatedGtSteeringWheelImg
+);
 
-}  // namespace autoware_pov::vision::egolanes
+/**
+ * @brief Visualizes lane departure warning signal
+ * Shows when a lane departure warning has been triggered
+ */
+void showLaneDepartureWarning(
+  cv::Mat& img);
+
+} // namespace autoware_pov::vision::egolanes
 
 #endif  // AUTOWARE_POV_VISION_EGOLANES_DRAW_LANES_HPP_
