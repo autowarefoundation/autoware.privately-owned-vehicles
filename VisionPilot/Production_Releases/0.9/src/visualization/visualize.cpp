@@ -969,7 +969,7 @@ void showLaneDepartureWarning(cv::Mat& img){
   cv::Rect rect(x, y, width, height);
 
   // Draw background rectangle
-  cv::rectangle(img, rect, cv::Scalar(51, 153, 153))
+  cv::rectangle(img, rect, cv::Scalar(51, 153, 153));
 
   // Add text about lane departure warning
   cv::putText(img,                            //target image
