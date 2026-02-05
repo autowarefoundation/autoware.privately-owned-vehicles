@@ -15,7 +15,7 @@ ObjectFinder::ObjectFinder(const std::string& homography_yaml,
     : next_track_id_(0),
       image_width_(image_width),
       image_height_(image_height),
-      matching_threshold_(0.25f),
+      matching_threshold_(0.55f),
       max_frames_unmatched_(3),
       feature_match_threshold_(0.3f),
       debug_mode_(debug_mode),
@@ -409,6 +409,30 @@ CIPOInfo ObjectFinder::getCIPO(const cv::Mat& frame) {
     cipo.velocity_ms = main_cipo.velocity_ms;
     
     return cipo;
+}
+
+TrackingResult ObjectFinder::updateAndGetCIPO(
+    const std::vector<autospeed::Detection>& detections,
+    const cv::Mat& frame)
+{
+    // Step 1: Perform tracking update (modifies internal tracked_objects_)
+    update(detections, frame);
+    
+    // Step 2: Get CIPO (may modify main_CIPO's Kalman state in tracked_objects_)
+    CIPOInfo cipo = getCIPO(frame);
+    
+    // Step 3: Package complete result with consistent state
+    // All modifications to tracked_objects_ are done, so copy is consistent
+    TrackingResult result;
+    result.tracked_objects = tracked_objects_;  // Single copy after all modifications
+    result.cipo = cipo;
+    result.cut_in_detected = cut_in_detected_;
+    result.kalman_reset = kalman_reset_;
+    
+    // Step 4: Clear event flags (ready for next frame)
+    clearEventFlags();
+    
+    return result;
 }
 
 }  // namespace autoware_pov::vision

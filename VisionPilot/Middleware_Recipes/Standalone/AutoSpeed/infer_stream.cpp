@@ -156,11 +156,8 @@ void inferenceThread(autospeed::AutoSpeedOnnxEngine& backend,
         // Backend does: preprocess + inference + postprocess all in one call
         std::vector<Detection> detections = backend.inference(tf.frame, conf_thresh, iou_thresh);
         
-        // Update tracker with detections (pass frame for feature matching)
-        std::vector<TrackedObject> tracked_objects = finder.update(detections, tf.frame);
-        
-        // Get CIPO (pass frame for feature matching)
-        CIPOInfo cipo = finder.getCIPO(tf.frame);
+        // Update tracker and get CIPO in one atomic operation (no desync possible!)
+        TrackingResult tracking_result = finder.updateAndGetCIPO(detections, tf.frame);
         
         auto t_inference_end = std::chrono::steady_clock::now();
         
@@ -168,20 +165,17 @@ void inferenceThread(autospeed::AutoSpeedOnnxEngine& backend,
         long inference_us = std::chrono::duration_cast<std::chrono::microseconds>(
             t_inference_end - t_inference_start).count();
         
-        // Package result with timestamps and event flags
+        // Package result with timestamps and tracking data
         InferenceResult result;
         result.frame = tf.frame;
         result.detections = detections;
-        result.tracked_objects = tracked_objects;
-        result.cipo = cipo;
-        result.cut_in_detected = finder.wasCutInDetected();
-        result.kalman_reset = finder.wasKalmanReset();
+        result.tracked_objects = tracking_result.tracked_objects;  // Already consistent
+        result.cipo = tracking_result.cipo;
+        result.cut_in_detected = tracking_result.cut_in_detected;
+        result.kalman_reset = tracking_result.kalman_reset;
         result.capture_time = tf.timestamp;
         result.inference_time = t_inference_end;
         output_queue.push(result);
-        
-        // Clear event flags after packaging
-        finder.clearEventFlags();
         
         // Update metrics
         metrics.total_inference_us.fetch_add(inference_us);
