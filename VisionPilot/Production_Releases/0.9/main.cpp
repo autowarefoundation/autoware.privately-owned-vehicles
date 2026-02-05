@@ -25,7 +25,7 @@ using EgoLanesEngine =
 using AutoSteerEngine =
   autoware_pov::vision::egolanes::AutoSteerOnnxEngine;
 #endif
-#include "visualization/draw_lanes.hpp"
+#include "visualization/visualize.hpp"
 #include "lane_filtering/lane_filter.hpp"
 #include "lane_tracking/lane_tracking.hpp"
 #include "camera/camera_utils.hpp"
