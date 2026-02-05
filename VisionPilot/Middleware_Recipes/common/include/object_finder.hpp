@@ -51,6 +51,21 @@ struct CIPOInfo {
 };
 
 /**
+ * @brief Complete tracking result with all tracked objects and CIPO information
+ * 
+ * This structure bundles all tracking outputs into a single atomic result,
+ * ensuring consistency between tracked_objects and CIPO data (no desync possible).
+ */
+struct TrackingResult {
+    std::vector<TrackedObject> tracked_objects;  // All tracked objects with updated state
+    CIPOInfo cipo;                                // Main CIPO information
+    bool cut_in_detected;                         // Event: cut-in occurred this frame
+    bool kalman_reset;                            // Event: Kalman filter was reset this frame
+    
+    TrackingResult() : cut_in_detected(false), kalman_reset(false) {}
+};
+
+/**
  * @brief Multi-object tracker with homography-based distance estimation
  * 
  * Tracks all class 1 (CIPO level 1) and class 2 (CIPO level 2) objects.
@@ -110,6 +125,27 @@ public:
      * @return CIPO information, or empty if no valid CIPO
      */
     CIPOInfo getCIPO(const cv::Mat& frame);
+    
+    /**
+     * @brief Update tracking and get CIPO in one atomic operation (RECOMMENDED API)
+     * 
+     * This is the preferred method that combines update() and getCIPO() into a single
+     * atomic operation, ensuring the returned tracked_objects and CIPO data are always
+     * consistent (no desync possible).
+     * 
+     * Performs complete tracking pipeline:
+     * 1. Data association (detections → existing tracks)
+     * 2. Kalman filter prediction and update for all tracks
+     * 3. CIPO selection with cut-in detection
+     * 4. Feature matching for vehicle identity verification
+     * 5. Kalman state transfer or reset based on verification
+     * 
+     * @param detections Vector of detections from AutoSpeed
+     * @param frame Current frame (required for feature matching)
+     * @return Complete tracking result with consistent state and event flags
+     */
+    TrackingResult updateAndGetCIPO(const std::vector<autospeed::Detection>& detections,
+                                     const cv::Mat& frame);
     
     /**
      * @brief Get CIPO history manager (read-only access)
