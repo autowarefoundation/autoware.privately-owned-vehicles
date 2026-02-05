@@ -586,6 +586,7 @@ void displayThread(
 
         visualizeSteering(view_debug, steering_angle, rotatedPredSteeringWheelImg, gtSteeringAngle, rotatedGtSteeringWheelImg);
         drawRawMasksInPlace(view_debug, result.lanes);
+        showLaneDepartureWarning(view_debug);
 
 #ifdef ENABLE_RERUN
         // Log to Rerun (independent of visualization - works even if enable_viz=false)
