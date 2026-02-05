@@ -958,4 +958,28 @@ void visualizeSteering(
 
 }
 
+void showLaneDepartureWarning(cv::Mat& img){
+
+  // Create background colour by drawing a filled in rectangle
+  // Specifiy rectangle
+  int width = 200;
+  int height = 40;
+  int x = img.cols/2 - width/2;
+  int y = 20;
+  cv::Rect rect(x, y, width, height);
+
+  // Draw background rectangle
+  cv::rectangle(img, rect, cv::Scalar(51, 153, 153))
+
+  // Add text about lane departure warning
+  cv::putText(img,                            //target image
+            "LANE DEPARTURE WARNING",         //text
+            cv::Point(img.cols/2, 40),        //centre-top position
+            cv::FONT_HERSHEY_SIMPLEX,         //font-type
+            2.0,                              //font-scale
+            cv::Scalar(0, 0, 0),              //font color
+            2);                               //line thickness
+
+}
+
 }  // namespace autoware_pov::vision::egolanes
