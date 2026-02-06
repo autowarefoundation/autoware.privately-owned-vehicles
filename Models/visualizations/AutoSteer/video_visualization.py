@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from torch import get_file_path
 
 sys.path.append('../..')
-from Models.inference.auto_steer_infer import AutoSpeedNetworkInfer
+from Models.inference.auto_steer_infer import AutoSteerNetworkInfer
 
 
 def rotate_wheel(wheel_img, angle_deg):

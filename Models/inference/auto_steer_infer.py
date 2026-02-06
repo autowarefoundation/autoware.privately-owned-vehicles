@@ -14,7 +14,7 @@ from Models.model_components.ego_lanes_network import EgoLanesNetwork
 from Models.model_components.auto_steer_network import AutoSteerNetwork
 
 
-class AutoSpeedNetworkInfer():
+class AutoSteerNetworkInfer():
     def __init__(self, egolanes_checkpoint_path='', autosteer_checkpoint_path=''):
 
         # Image loader

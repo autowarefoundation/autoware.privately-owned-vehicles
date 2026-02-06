@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 
 sys.path.append('../..')
-from Models.inference.auto_steer_infer import AutoSpeedNetworkInfer
+from Models.inference.auto_steer_infer import AutoSteerNetworkInfer
 
 np.Inf = np.inf
 
