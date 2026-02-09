@@ -34,6 +34,12 @@ def main():
         dest = "output_video_path", 
         help = "Path to output video where the output video will be saved"
     )
+    parser.add_argument(
+        '-v', "--vis",
+        action='store_true',
+        default=False,
+        help="flag for whether to show frame by frame visualization while processing is occurring"
+    )
     args = parser.parse_args()
 
     # Saved model checkpoint path
@@ -88,12 +94,18 @@ def main():
         vis_image_data = np.array(vis_image_data)
         vis_image_data = cv2.resize(vis_image_data, FRAME_ORI_SIZE)
 
-        # Write to outputs
+        # Displaying the visualization
+        if args.vis:
+            cv2.imshow('EgoLanes Prediction', vis_image_data)
+            cv2.waitKey(10)
+
+        # Writing to video frame
         writer_data.write(vis_image_data)
 
     # Release resources
     cap.release()
     writer_data.release()
+    cv2.destroyAllWindows()
     print(f"Visualization video saved to: {output_filepath_data}")
 
 
