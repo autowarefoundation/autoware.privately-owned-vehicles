@@ -6,4 +6,4 @@ docker run -it --rm \
     -v "$PWD"/model-weights:/autoware/model-weights \
     -v "$PWD"/../Test:/autoware/test \
     ghcr.io/autowarefoundation/visionpilot:latest \
-    python3 /autoware/Models/visualizations/EgoLanes/video_visualization.py -p /autoware/model-weights/egolanes.pth -i /autoware/test/traffic-driving.mp4 -o /autoware/test/output_egolanes.avi
+    python3 /autoware/Models/visualizations/EgoLanes/video_visualization.py -v -p /autoware/model-weights/egolanes.pth -i /autoware/test/traffic-driving.mp4 -o /autoware/test/output_egolanes.avi
