@@ -19,4 +19,8 @@ Containerized Scene3D Demo, monocular depth estimation.
 
 ## Output
 
-The output will be displayed in a new window that shows monocular depth estimation of the input image.
+After the container is running, you can access the visualization by opening the following URL in your browser:
+
+<http://localhost:6080/vnc.html?resize=scale&autoconnect=true&password=visualizer>
+
+The output shows monocular depth estimation of the input video in real-time.

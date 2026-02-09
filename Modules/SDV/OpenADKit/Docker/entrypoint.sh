@@ -108,20 +108,17 @@ start_novnc() {
     log "NoVNC started on port 6080"
 }
 
-print_access_info() {
-    local LOCAL_IP
-    LOCAL_IP=$(hostname -I 2>/dev/null | cut -d' ' -f1 || echo "localhost")
-    
+print_access_info() {  
     echo ""
     echo -e "\033[32m═══════════════════════════════════════════════════════════════════════\033[0m"
     echo -e "\033[32m  GUI Visualizer Ready!\033[0m"
     echo -e "\033[32m═══════════════════════════════════════════════════════════════════════\033[0m"
     echo ""
     echo -e "  \033[36mBrowser Access (NoVNC):\033[0m"
-    echo -e "    http://${LOCAL_IP}:6080/vnc.html?resize=scale&autoconnect=true&password=${VNC_PASSWORD}"
+    echo -e "    http://localhost:6080/vnc.html?resize=scale&autoconnect=true&password=${VNC_PASSWORD}"
     echo ""
     echo -e "  \033[36mVNC Client Access:\033[0m"
-    echo -e "    ${LOCAL_IP}:5999"
+    echo -e "    localhost:5999"
     echo ""
     echo -e "  \033[36mPassword:\033[0m ${VNC_PASSWORD}"
     echo ""
