@@ -14,7 +14,7 @@ FRAME_INF_SIZE = (640, 320)
 def make_visualization(
         image: np.ndarray,
         prediction: np.ndarray,
-        alpha: float = 0.7
+        alpha: float = 0.5
 ):
     
     # Compute scale from prediction to image
@@ -36,11 +36,11 @@ def make_visualization(
     base_scale = min(scale_x, scale_y)
     radius = max(1, int(round(base_scale * 0.5)))
 
-    # Color codes (RGB)
+    # Color codes (BGR)
     colors = [
-        (166, 242, 255),     # Light blue
-        (255, 166, 242),     # Light purple
-        (167, 255, 166),     # Light green
+        (255, 0, 0),     # Blue
+        (255, 0, 255),   # Magenta
+        (0, 255, 0),     # Green
     ]
 
     overlay = np.zeros_like(img_bgr)
@@ -71,7 +71,10 @@ def make_visualization(
     # Blend
     if (alpha > 0.0):
         img_bgr = np.clip(
-            img_bgr.astype(np.float32) + overlay.astype(np.float32) * alpha,
+            (
+                img_bgr.astype(np.float32) + 
+                overlay.astype(np.float32) * alpha
+            ),
             0,
             255
         ).astype(np.uint8)
