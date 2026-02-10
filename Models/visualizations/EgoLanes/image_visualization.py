@@ -57,12 +57,26 @@ def make_visualization(
         color = colors[i] if i < len(colors) else (255,255,255)
         for x, y in zip(xs_scaled, ys_scaled):
             cv2.circle(
-                img_bgr, 
+                overlay, 
                 (int(x), int(y)), 
                 radius, color, thickness = -1, 
                 lineType=cv2.LINE_AA
             )
 
+    if (0.0 < alpha < 1.0):
+        diff_mask = np.any(
+            overlay != img_bgr, 
+            axis = 2
+        )
+        if (np.any(diff_mask)):
+            blended = (
+                overlay.astype(np.float32) * alpha +
+                img_bgr.astype(np.float32) * (1.0 - alpha)
+            )
+            img_bgr[diff_mask] = blended[diff_mask].astype(np.uint8)
+    else:
+        img_bgr = overlay
+    
     # Back to PIL Image
     vis_image = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
 
