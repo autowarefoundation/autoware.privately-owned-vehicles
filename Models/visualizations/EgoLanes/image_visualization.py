@@ -56,17 +56,17 @@ def make_visualization(
         xs_scaled = np.clip(xs_scaled, 0, img_w - 1)
         ys_scaled = np.clip(ys_scaled, 0, img_h - 1)
 
-        # Draw dots
+        # Draw points
         color = colors[i]
         for x, y in zip(xs_scaled, ys_scaled):
-            cv2.circle(
-                overlay, 
-                (int(x), int(y)), 
-                radius, 
-                color, 
-                thickness = -1, 
-                lineType = cv2.LINE_AA
-            )
+            x0 = max(0, int(x) - radius)
+            x1 = min(img_w - 1, int(x) + radius)
+            y0 = max(0, int(y) - radius)
+            y1 = min(img_h - 1, int(y) + radius)
+            overlay[
+                y0 : y1 + 1, 
+                x0 : x1 + 1
+            ] = color
 
     # Blend
     if (alpha > 0.0):
