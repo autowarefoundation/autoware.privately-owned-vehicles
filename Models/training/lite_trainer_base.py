@@ -89,10 +89,10 @@ class LiteTrainerBase(ABC):
                 freeze_encoder=self.backbone_cfg.get("freeze_encoder", False),
                 freeze_decoder=self.decoder_cfg.get("freeze_decoder", False),
                 #head params
-                head_upsampling=self.network_cfg.get("head_upsampling", 4),
-                head_activation=self.network_cfg.get("head_activation", None),       #activation function after each convolutional layer in the regression head (except the last one)
-                head_depth=self.network_cfg.get("head_depth", 1),               #how many convolutional layers to use in the regression head
-                head_mid_channels=self.network_cfg.get("head_mid_channels", None),
+                head_upsampling=self.head_cfg.get("head_upsampling", 1),
+                head_activation=self.head_cfg.get("head_activation", None),
+                head_depth=self.head_cfg.get("head_depth", 1),
+                head_mid_channels=self.head_cfg.get("head_mid_channels", None),
 
                 output_channels=self.network_cfg.get("output_channels", 1),   # for depth estimation, 1 channel depth map
             )
@@ -173,7 +173,7 @@ class LiteTrainerBase(ABC):
             Warning("No training set specified. Maybe performing validation only.")
 
         #depth specific : build pseudo-labeler if enabled
-        if self.task == "depth" :
+        if self.task == "DEPTH" :
             #retrive the pseudo labeling flag from the training config
             self.pseudo_labeling = dataset_cfg.get("pseudo_labeling", False)
 
@@ -196,7 +196,7 @@ class LiteTrainerBase(ABC):
 
             dataset_root = dataset_cfg[ds_yaml_key]
             dset = build_single_dataset(
-                ds_name, dataset_root, aug_cfg=augmentation_cfg, mode="train", data_type="DEPTH", pseudo_labeling=self.pseudo_labeling)
+                ds_name, dataset_root, aug_cfg=augmentation_cfg, mode="train", data_type=self.task, pseudo_labeling=self.pseudo_labeling)
             
             train_datasets.append(dset)
 
@@ -216,7 +216,7 @@ class LiteTrainerBase(ABC):
                 raise ValueError(f"Missing path for dataset '{ds_name}' -> key '{ds_yaml_key}'")
 
             dataset_root = dataset_cfg[ds_yaml_key]
-            val_dset = build_single_dataset(name=ds_name, dataset_root=dataset_root, mode="val", data_type="DEPTH", aug_cfg=augmentation_cfg, pseudo_labeling=self.pseudo_labeling)
+            val_dset = build_single_dataset(name=ds_name, dataset_root=dataset_root, mode="val", data_type=self.task, aug_cfg=augmentation_cfg, pseudo_labeling=self.pseudo_labeling)
             self.val_loaders[ds_name] = build_dataloader(val_dset, self.dl_cfg, mode="val")
 
         self.steps_per_epoch = len(self.train_loader)
@@ -362,6 +362,7 @@ class LiteTrainerBase(ABC):
 
         self.backbone_cfg = self.network_cfg.get("backbone", {})
         self.decoder_cfg = self.network_cfg.get("decoder", {})
+        self.head_cfg = self.network_cfg.get("head", {})
         
         #modify the name of the backbone type from efficientnet_b0 to timm-efficientnet-b0
         if "timm" not in self.backbone_cfg["type"]:

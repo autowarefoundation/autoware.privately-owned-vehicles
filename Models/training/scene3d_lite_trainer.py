@@ -26,7 +26,7 @@ from utils.logger import WandBLogger
 
 import cv2
 
-class Scene3DLite_trainer(LiteTrainerBase):
+class Scene3DLiteTrainer(LiteTrainerBase):
     """
     Minimal trainer that reproduces the current script behaviour:
       - Train: ConcatDataset across multiple training sets
@@ -44,12 +44,12 @@ class Scene3DLite_trainer(LiteTrainerBase):
     def __init__(self, cfg: dict):
 
 
-        self.task = "depth"
+        self.task = "DEPTH"
         
         # initialize base trainer with the configuration
         super().__init__(cfg)
 
-        print("[DeepLabV3PlusTrainer] Configuration : ", cfg)
+        print("[Scene3DLiteTrainer] Configuration : ", cfg)
 
         #build output directories, for checkpints and logs (without overwriting)
         self._build_output_dirs()       #in trainer base

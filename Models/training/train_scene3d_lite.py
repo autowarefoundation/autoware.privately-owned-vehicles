@@ -2,7 +2,7 @@
 import argparse
 from utils.training import load_yaml, set_global_seed
 
-from Models.training.scene3d_lite_trainer import Scene3DLite_trainer
+from Models.training.scene3d_lite_trainer import Scene3DLiteTrainer
 
 def main():
     parser = argparse.ArgumentParser()
@@ -19,7 +19,7 @@ def main():
     seed = cfg.get("experiment", {}).get("seed", 42)
     set_global_seed(seed)
 
-    trainer = Scene3DLite_trainer(cfg)
+    trainer = Scene3DLiteTrainer(cfg)
     
     trainer.run()
 
