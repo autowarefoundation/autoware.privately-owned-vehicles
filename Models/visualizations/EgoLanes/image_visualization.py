@@ -8,9 +8,13 @@ sys.path.append('../..')
 from inference.ego_lanes_infer import EgoLanesNetworkInfer
 
     
+FRAME_INF_SIZE = (640, 320)
+
+
 def make_visualization(
         image: np.ndarray,
-        prediction: np.ndarray
+        prediction: np.ndarray,
+        alpha: float = 0.5
 ):
     
     # Compute scale from prediction to image
@@ -32,12 +36,14 @@ def make_visualization(
     base_scale = min(scale_x, scale_y)
     radius = max(1, int(round(base_scale * 0.5)))
 
-    # Color codes (RGB)
+    # Color codes (BGR)
     colors = [
-        (0, 72, 255),        # Blue      (ego left)
-        (200, 0, 255),      # Magenta   (ego right)
-        (0, 153, 0),        # Green     (other lanes)
+        (255, 153, 0),     # Blue
+        (255, 56, 255),   # Magenta
+        (87, 255, 87),     # Green
     ]
+
+    overlay = np.zeros_like(img_bgr)
 
     # Draw
     for i, (ys, xs) in enumerate(pred_coords):
@@ -50,16 +56,29 @@ def make_visualization(
         xs_scaled = np.clip(xs_scaled, 0, img_w - 1)
         ys_scaled = np.clip(ys_scaled, 0, img_h - 1)
 
-        # Draw dots
-        color = colors[i] if i < len(colors) else (255,255,255)
+        # Draw points
+        color = colors[i]
         for x, y in zip(xs_scaled, ys_scaled):
-            cv2.circle(
-                img_bgr, 
-                (int(x), int(y)), 
-                radius, color, thickness = -1, 
-                lineType=cv2.LINE_AA
-            )
+            x0 = max(0, int(x) - radius)
+            x1 = min(img_w - 1, int(x) + radius)
+            y0 = max(0, int(y) - radius)
+            y1 = min(img_h - 1, int(y) + radius)
+            overlay[
+                y0 : y1 + 1, 
+                x0 : x1 + 1
+            ] = color
 
+    # Blend
+    if (alpha > 0.0):
+        img_bgr = np.clip(
+            (
+                img_bgr.astype(np.float32) + 
+                overlay.astype(np.float32) * alpha
+            ),
+            0,
+            255
+        ).astype(np.uint8)
+    
     # Back to PIL Image
     vis_image = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
 
@@ -120,7 +139,7 @@ def main():
 
             print(f"Reading Image: {input_image_filepath}")
             image = Image.open(input_image_filepath).convert("RGB")
-            image = image.resize((640, 320))
+            image = image.resize(FRAME_INF_SIZE)
             image = np.array(image)
 
             # Inference
