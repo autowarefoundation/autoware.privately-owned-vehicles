@@ -297,7 +297,7 @@ void captureThread(
 /**
  * @brief Inference thread - runs lane detection model
  */
-void inferenceThread(
+void lateralInferenceThread(
     EgoLanesEngine& engine,
     ThreadSafeQueue<TimestampedFrame>& input_queue,
     ThreadSafeQueue<InferenceResult>& output_queue,
@@ -1068,7 +1068,7 @@ int main(int argc, char** argv)
 
     std::thread t_capture(captureThread, source, is_camera, std::ref(capture_queue),
                           std::ref(metrics), std::ref(running), can_interface.get());
-    std::thread t_inference(inferenceThread, std::ref(engine),
+    std::thread t_lateral_inference(lateralInferenceThread, std::ref(engine),
                             std::ref(capture_queue), std::ref(display_queue),
                             std::ref(metrics), std::ref(running), threshold,
                             path_finder.get(),
@@ -1085,7 +1085,7 @@ int main(int argc, char** argv)
 
     // Wait for threads
     t_capture.join();
-    t_inference.join();
+    t_lateral_inference.join();
     t_display.join();
 
     std::cout << "\nInference pipeline stopped." << std::endl;
