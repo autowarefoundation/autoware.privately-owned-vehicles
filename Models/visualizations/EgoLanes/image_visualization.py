@@ -38,9 +38,9 @@ def make_visualization(
 
     # Color codes (BGR)
     colors = [
-        (255, 0, 0),     # Blue
-        (255, 0, 255),   # Magenta
-        (0, 255, 0),     # Green
+        (255, 153, 0),     # Blue
+        (255, 56, 255),   # Magenta
+        (87, 255, 87),     # Green
     ]
 
     overlay = np.zeros_like(img_bgr)
