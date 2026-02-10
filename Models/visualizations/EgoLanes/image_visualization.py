@@ -40,6 +40,8 @@ def make_visualization(
         (0, 153, 0),        # Green     (other lanes)
     ]
 
+    overlay = img_bgr.copy()
+
     # Draw
     for i, (ys, xs) in enumerate(pred_coords):
         if ys.size == 0:
