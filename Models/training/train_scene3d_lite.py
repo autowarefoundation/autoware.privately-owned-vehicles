@@ -8,7 +8,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c", "--config",
-        default="/home/sergey/DEV/AI/AEI/configs/Scene3D_lite.yaml",
+        default="Models/configs/Scene3DLite.yaml",
         help="Path to training YAML config"
     )
 

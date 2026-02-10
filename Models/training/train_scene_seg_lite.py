@@ -7,7 +7,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c", "--config",
-        default="configs/SceneSegLite.yaml",
+        default="Models/configs/SceneSegLite.yaml",
         help="Path to training YAML config"
     )
     args = parser.parse_args()
