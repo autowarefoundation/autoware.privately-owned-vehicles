@@ -12,7 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(
 )))
 from PIL import Image
 from typing import Literal, get_args
-from network.data_utils.check_data import CheckData
+from Models.model_components.lite_models.data_utils.check_data import CheckData
 
 VALID_DATASET_LITERALS = Literal[
     "BDD100K", 

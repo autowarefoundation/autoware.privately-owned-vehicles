@@ -8,10 +8,10 @@ from argparse import ArgumentParser
 from thop import profile
 from pytorch_model_summary import summary
 
-from network.awf.scene_seg_network import SceneSegNetwork
-from network.awf.scene_3d_network import  Scene3DNetwork
-from network.awf.ego_path_network import EgoPathNetwork
-from network.awf.domain_seg_network import DomainSegNetwork
+from Models.model_components.lite_models.awf.scene_seg_network import SceneSegNetwork
+from Models.model_components.lite_models.awf.scene_3d_network import  Scene3DNetwork
+from Models.model_components.lite_models.awf.ego_path_network import EgoPathNetwork
+from Models.model_components.lite_models.awf.domain_seg_network import DomainSegNetwork
 
 def benchmark(model, input_data, dtype='fp32', nwarmup=50, nruns=1000):
 

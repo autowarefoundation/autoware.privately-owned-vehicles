@@ -1,15 +1,15 @@
 import warnings
 from typing import Any, Dict, Sequence, Optional, Union, Callable
 
-from network.smp.segmentation_models_pytorch.base import (
+from Models.model_components.lite_models.smp.segmentation_models_pytorch.base import (
     ClassificationHead,
     DepthHead,
     DepthModel,
 )
-from network.smp.segmentation_models_pytorch.encoders import get_encoder
-from network.smp.segmentation_models_pytorch.base.hub_mixin import supports_config_loading
+from Models.model_components.lite_models.smp.segmentation_models_pytorch.encoders import get_encoder
+from Models.model_components.lite_models.smp.segmentation_models_pytorch.base.hub_mixin import supports_config_loading
 
-from network.smp.segmentation_models_pytorch.decoders.unetplusplus.decoder import UnetPlusPlusDecoder
+from Models.model_components.lite_models.smp.segmentation_models_pytorch.decoders.unetplusplus.decoder import UnetPlusPlusDecoder
 
 class UnetPlusPlusDepth(DepthModel):
     """Unet++ is a fully convolution neural network for image semantic segmentation. Consist of *encoder*

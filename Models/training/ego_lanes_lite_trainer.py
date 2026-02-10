@@ -1,4 +1,3 @@
-import segmentation_models_pytorch as smp
 
 from Models.data_utils.lite_models.optimizer import build_optimizer, build_scheduler
 from Models.data_utils.lite_models.loss import LanesLoss

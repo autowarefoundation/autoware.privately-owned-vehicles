@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from typing import Any, Literal, Optional
 
-from network.smp.segmentation_models_pytorch.base import (
+from Models.model_components.lite_models.smp.segmentation_models_pytorch.base import (
     ClassificationHead,
     DepthHead,
     DepthModel,

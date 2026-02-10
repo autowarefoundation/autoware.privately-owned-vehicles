@@ -12,13 +12,12 @@ from Models.data_utils.lite_models.training import (
     save_checkpoint,
     get_unique_experiment_dir,
 )
-from Models.data_utils.lite_models.depth import validate_depth, denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
+from Models.data_utils.lite_models.depth import denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
 from Models.data_utils.lite_models.logger import WandBLogger
 
-import cv2
 
-from network.smp.DeepLabv3Plus import DeepLabV3Plus
-from network.smp.UnetPlusPlus import UnetPlusPlus
+from Models.model_components.lite_models.smp.DeepLabv3Plus import DeepLabV3Plus
+from Models.model_components.lite_models.smp.UnetPlusPlus import UnetPlusPlus
 
 
 class LiteTrainerBase(ABC):

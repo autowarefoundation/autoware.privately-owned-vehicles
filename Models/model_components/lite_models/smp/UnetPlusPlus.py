@@ -1,16 +1,18 @@
 import torch
 import torch.nn as nn
 
-from typing import Optional
+import warnings
 
-from network.smp.heads import RegressionHead, ClassificationHead
-from network.smp.BaseModel import BaseModel
-from network.smp.modules import *
+from typing import Any, Dict, Sequence, Optional, Union
+
+from Models.model_components.lite_models.smp.heads import RegressionHead, ClassificationHead
+from Models.model_components.lite_models.smp.BaseModel import BaseModel
+from Models.model_components.lite_models.smp.modules import *
 
 from segmentation_models_pytorch.encoders import get_encoder
-from segmentation_models_pytorch.decoders.deeplabv3.decoder import DeepLabV3PlusDecoder
+from segmentation_models_pytorch.decoders.unetplusplus.decoder import UnetPlusPlusDecoder
 
-class DeepLabV3Plus(BaseModel):
+class UnetPlusPlus(BaseModel):
     """
     SMP-native DeepLabV3+ encoder+decoder, but with a regression head.
 
@@ -29,13 +31,12 @@ class DeepLabV3Plus(BaseModel):
         encoder_weights: str | None = "imagenet",
         in_channels: int = 3,
         encoder_depth: int = 5,
-        encoder_output_stride: int = 16,                 # 8 or 16
-        decoder_channels: int = 256,
-        decoder_atrous_rates=(12, 24, 36),
-        decoder_aspp_separable: bool = True,
-        decoder_aspp_dropout: float = 0.5,
+        decoder_use_norm: Union[bool, str, Dict[str, Any]] = "batchnorm",
+        decoder_channels: Sequence[int] = (256, 128, 64, 32, 16),
+        decoder_attention_type: Optional[str] = None,
+        decoder_interpolation: str = "nearest",
         aux_params: Optional[dict] = None,
-        output_channels: int = 3,
+        output_channels: int =1,
 
         # loading from your previous segmentation ckpt
         segmentation_ckpt: str | None = None,  # expects ckpt["model_state"] with encoder./decoder. keys
@@ -61,20 +62,25 @@ class DeepLabV3Plus(BaseModel):
         head_depth: int = 1,
         head_mid_channels: int | None = None,
         head_activation: Optional[str] = None,
-        head_upsampling: Optional[int] = 4,
-        head_kernel_size: int = 3,
 
         # kwargs forwarded to get_encoder (useful for timm)
-        **encoder_kwargs,
+        **kwargs,
     ):
         super().__init__()
 
-        if encoder_output_stride not in [8, 16]:
+        if encoder_name.startswith("mit_b"):
             raise ValueError(
-                "DeeplabV3 support output stride 8 or 16, got {}.".format(
-                    encoder_output_stride
-                )
+                "UnetPlusPlus is not support encoder_name={}".format(encoder_name)
             )
+
+        decoder_use_batchnorm = kwargs.pop("decoder_use_batchnorm", None)
+        if decoder_use_batchnorm is not None:
+            warnings.warn(
+                "The usage of decoder_use_batchnorm is deprecated. Please modify your code for decoder_use_norm",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            decoder_use_norm = decoder_use_batchnorm
         # -----------------
         # Encoder (SMP)
         # -----------------
@@ -83,21 +89,20 @@ class DeepLabV3Plus(BaseModel):
             in_channels=in_channels,
             depth=encoder_depth,
             weights=encoder_weights,
-            output_stride=encoder_output_stride,
-            **encoder_kwargs,
+            **kwargs,
         )
 
         # -----------------
         # Decoder (SMP DeepLabV3+)
         # -----------------
-        self.decoder = DeepLabV3PlusDecoder(
+        self.decoder = UnetPlusPlusDecoder(
             encoder_channels=self.encoder.out_channels,
-            encoder_depth=encoder_depth,
-            out_channels=decoder_channels,
-            atrous_rates=decoder_atrous_rates,
-            output_stride=encoder_output_stride,
-            aspp_separable=decoder_aspp_separable,
-            aspp_dropout=decoder_aspp_dropout,
+            decoder_channels=decoder_channels,
+            n_blocks=encoder_depth,
+            use_norm=decoder_use_norm,
+            center=True if encoder_name.startswith("vgg") else False,
+            attention_type=decoder_attention_type,
+            interpolation_mode=decoder_interpolation,
         )
 
         if bottleneck != "none":
@@ -118,13 +123,12 @@ class DeepLabV3Plus(BaseModel):
         # -----------------
 
         self.head = RegressionHead(
-            in_channels=decoder_channels,
+            in_channels=decoder_channels[-1],
             out_channels=output_channels,
             depth=head_depth,
             mid_channels=head_mid_channels,
             activation=head_activation,
-            upsampling=head_upsampling,
-            kernel_size=head_kernel_size
+            upsampling=1,           #unet++ already upsamples to input size
         )
 
 
@@ -161,10 +165,10 @@ class DeepLabV3Plus(BaseModel):
         # -----------------
         if freeze_encoder:
             if encoder_partial_load:
-                print("[DeepLabV3Plus] Using PARTIAL encoder freeze")
+                print("[UnetPlusPlus] Using PARTIAL encoder freeze")
                 self.freeze_encoder_partial()
             else:
-                print("[DeepLabV3Plus] Using FULL encoder freeze")
+                print("[UnetPlusPlus] Using FULL encoder freeze")
                 self.freeze_encoder()
 
 
@@ -207,7 +211,7 @@ class DeepLabV3Plus(BaseModel):
             if name in self._encoder_loaded_param_names:
                 param.requires_grad = False
                 frozen += 1
-                print(f"[DeepLabV3Plus] Freezing encoder param: {name}")
+                print(f"[UnetPlusPlus] Freezing encoder param: {name}")
             else:
                 param.requires_grad = True
                 trainable += 1
@@ -225,7 +229,7 @@ class DeepLabV3Plus(BaseModel):
 
 
         print(
-            f"[DeepLabV3Plus] Encoder PARTIALLY frozen | "
+            f"[UnetPlusPlus] Encoder PARTIALLY frozen | "
             f"frozen params={frozen} | trainable params={trainable}"
         )
 
