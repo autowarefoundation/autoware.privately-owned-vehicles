@@ -8,6 +8,9 @@ sys.path.append('../..')
 from inference.ego_lanes_infer import EgoLanesNetworkInfer
 
     
+FRAME_INF_SIZE = (640, 320)
+
+
 def make_visualization(
         image: np.ndarray,
         prediction: np.ndarray,
@@ -137,7 +140,7 @@ def main():
 
             print(f"Reading Image: {input_image_filepath}")
             image = Image.open(input_image_filepath).convert("RGB")
-            image = image.resize((640, 320))
+            image = image.resize(FRAME_INF_SIZE)
             image = np.array(image)
 
             # Inference
