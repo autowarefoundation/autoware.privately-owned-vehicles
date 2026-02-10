@@ -1,4 +1,4 @@
-# VisionPilot 0.5 - AutoSteer Production Release
+# VisionPilot 0.9 - L2+ Highway Pilot Production Release
 
 This release enables autonomous steering using the EgoLanes and AutoSteer neural networks to detect lane lines determine
 steering angle and navigate roads at a predetermined, desired speed.
