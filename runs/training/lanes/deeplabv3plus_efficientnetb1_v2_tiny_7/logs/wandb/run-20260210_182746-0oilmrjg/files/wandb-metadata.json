@@ -1,0 +1,43 @@
+{
+  "os": "Linux-5.15.0-1026-intel-iotg-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.0",
+  "startedAt": "2026-02-10T17:27:46.031026Z",
+  "args": [
+    "-c=configs/lanes_detection/deeplabv3plus_efficientnetb1_v8_tiny.yaml"
+  ],
+  "program": "/home/sergey/DEV/AI/autoware.privately-owned-vehicles/Models/training/train_ego_lanes_lite.py",
+  "codePath": "Models/training/train_ego_lanes_lite.py",
+  "codePathLocal": "Models/training/train_ego_lanes_lite.py",
+  "git": {
+    "remote": "https://github.com/alessandromarchei/autoware.privately-owned-vehicles.git",
+    "commit": "52a25bfe144aa4a91a07f7bbb12a87e48426da0d"
+  },
+  "email": "amarchei@iis.ee.ethz.ch",
+  "root": "runs/training/lanes/deeplabv3plus_efficientnetb1_v2_tiny_7/logs",
+  "host": "sergey-Predator-PO7-660",
+  "executable": "/home/sergey/miniconda3/envs/auto/bin/python",
+  "cpu_count": 24,
+  "cpu_count_logical": 24,
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "2014574526464",
+      "used": "1627546472448"
+    }
+  },
+  "memory": {
+    "total": "66770464768"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 5090",
+      "memoryTotal": "34190917632",
+      "cudaCores": 21760,
+      "architecture": "Blackwell",
+      "uuid": "GPU-e27aff7a-04cf-3c0b-c168-21445270b07f"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "writerId": "stbjed2ntevcadvwio1y44hsuyl0p6y4"
+}

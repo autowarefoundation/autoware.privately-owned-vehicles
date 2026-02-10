@@ -1,0 +1,177 @@
+_wandb:
+    value:
+        cli_version: 0.23.0
+        e:
+            ofhtha8c2ckwgaesn5832egqnsd5tz17:
+                args:
+                    - -c=configs/lanes_detection/deeplabv3plus_efficientnetb1_v8_tiny.yaml
+                codePath: Models/training/train_ego_lanes_lite.py
+                codePathLocal: Models/training/train_ego_lanes_lite.py
+                email: amarchei@iis.ee.ethz.ch
+                executable: /home/sergey/miniconda3/envs/auto/bin/python
+                git:
+                    commit: 52a25bfe144aa4a91a07f7bbb12a87e48426da0d
+                    remote: https://github.com/alessandromarchei/autoware.privately-owned-vehicles.git
+                host: sergey-Predator-PO7-660
+                os: Linux-5.15.0-1026-intel-iotg-x86_64-with-glibc2.35
+                program: /home/sergey/DEV/AI/autoware.privately-owned-vehicles/Models/training/train_ego_lanes_lite.py
+                python: CPython 3.10.0
+                root: runs/training/lanes/deeplabv3plus_efficientnetb1_v2_tiny/logs
+                startedAt: "2026-02-10T17:09:46.940100Z"
+                writerId: ofhtha8c2ckwgaesn5832egqnsd5tz17
+        m: []
+        python_version: 3.10.0
+        t:
+            "1":
+                - 1
+                - 41
+                - 49
+                - 63
+                - 74
+                - 80
+            "2":
+                - 1
+                - 41
+                - 49
+                - 63
+                - 74
+                - 80
+            "3":
+                - 13
+                - 16
+            "4": 3.10.0
+            "5": 0.23.0
+            "10":
+                - 20
+            "12": 0.23.0
+            "13": linux-x86_64
+checkpoint:
+    value:
+        load_from: null
+        strict_load: true
+dataloader:
+    value:
+        batch_size: 8
+        drop_last: true
+        num_workers: 8
+        persistent_workers: true
+        pin_memory: true
+        prefetch_factor: 2
+        shuffle_train: true
+        shuffle_val: false
+dataset:
+    value:
+        acdc_root: /home/sergey/DEV/AI/datasets/acdc
+        augmentations:
+            flip_prob: 0.5
+            noise:
+                prob: 0.5
+                profile: none
+            normalize:
+                enabled: true
+                mean:
+                    - 0.485
+                    - 0.456
+                    - 0.406
+                std:
+                    - 0.229
+                    - 0.224
+                    - 0.225
+            random_grid_shuffle:
+                enabled: false
+                grid:
+                    - 1
+                    - 2
+                prob: 0.25
+            rescaling:
+                enabled: true
+                height: 10
+                mode: fixed_resize
+                scale_range:
+                    - 1
+                    - 1
+                width: 20
+        bdd100k_root: /home/sergey/DEV/AI/datasets/BDD100K
+        cityscapes_root: /home/sergey/DEV/AI/datasets/cityscapes
+        curvelanes_root: /home/sergey/DEV/AI/datasets/Curvelanes
+        idda_root: /home/sergey/DEV/AI/datasets/idda
+        mapillary_root: /home/sergey/DEV/AI/datasets/mapillary
+        muses_root: /home/sergey/DEV/AI/datasets/MUSES
+        training_sets:
+            - tusimple
+            - curvelanes
+        tusimple_root: /home/sergey/DEV/AI/datasets/TUSimple
+        validation_sets:
+            - tusimple
+            - curvelanes
+experiment:
+    value:
+        device: cuda
+        name: deeplabv3plus_efficientnetb1_v2_tiny
+        output_dir: runs/training/lanes/
+        seed: 42
+        wandb:
+            enabled: true
+            project_name: lanes
+loss:
+    value: null
+network:
+    value:
+        backbone:
+            encoder_depth: 5
+            encoder_partial_depth: 4
+            encoder_partial_load: false
+            freeze_encoder: false
+            load_encoder: false
+            output_stride: 16
+            pretrained: true
+            type: efficientnet_b1
+        bottleneck:
+            type: none
+        decoder:
+            aspp_dilations:
+                - 12
+                - 24
+                - 36
+            deeplabv3plus_decoder_channels: 64
+            freeze_decoder: false
+            load_decoder: false
+        head:
+            head_activation: null
+            head_depth: 1
+            head_kernel_size: 3
+            head_mid_channels: None
+            head_upsampling: 1
+        model: deeplabv3plus
+        output_channels: 3
+        pretrained_model_path: null
+        type: custom
+optimizer:
+    value:
+        betas:
+            - 0.9
+            - 0.999
+        lr: 0.0001
+        type: adamw
+        weight_decay: 0.01
+scheduler:
+    value:
+        gamma: 0.1
+        min_lr: 5e-06
+        step_size: 30
+        type: warmup_cosine
+        warmup_steps: 1000
+training:
+    value:
+        grad_accum_steps: 1
+        logging:
+            log_every_steps: 50
+        max_epochs: 40
+        max_steps: 150000
+        mode: steps
+        save_best: true
+        save_last: true
+        validation:
+            every_n_epochs: 1
+            every_n_steps: 2000
+            mode: steps
