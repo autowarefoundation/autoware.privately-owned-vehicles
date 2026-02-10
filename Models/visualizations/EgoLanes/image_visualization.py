@@ -57,13 +57,15 @@ def make_visualization(
         ys_scaled = np.clip(ys_scaled, 0, img_h - 1)
 
         # Draw dots
-        color = colors[i] if i < len(colors) else (255,255,255)
+        color = colors[i] if i < len(colors) else (255, 255, 255)
         for x, y in zip(xs_scaled, ys_scaled):
             cv2.circle(
                 overlay, 
                 (int(x), int(y)), 
-                radius, color, thickness = -1, 
-                lineType=cv2.LINE_AA
+                radius, 
+                color, 
+                thickness = -1, 
+                lineType = cv2.LINE_AA
             )
 
     if (0.0 < alpha < 1.0):
