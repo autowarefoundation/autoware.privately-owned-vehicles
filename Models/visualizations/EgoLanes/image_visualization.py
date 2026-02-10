@@ -14,7 +14,7 @@ FRAME_INF_SIZE = (640, 320)
 def make_visualization(
         image: np.ndarray,
         prediction: np.ndarray,
-        alpha: float = 0.5
+        alpha: float = 0.7
 ):
     
     # Compute scale from prediction to image
@@ -38,12 +38,12 @@ def make_visualization(
 
     # Color codes (RGB)
     colors = [
-        (0, 72, 255),       # Blue      (ego left)
-        (200, 0, 255),      # Magenta   (ego right)
-        (0, 153, 0),        # Green     (other lanes)
+        (166, 242, 255),     # Light blue
+        (255, 166, 242),     # Light purple
+        (167, 255, 166),     # Light green
     ]
 
-    overlay = img_bgr.copy()
+    overlay = np.zeros_like(img_bgr)
 
     # Draw
     for i, (ys, xs) in enumerate(pred_coords):
@@ -57,7 +57,7 @@ def make_visualization(
         ys_scaled = np.clip(ys_scaled, 0, img_h - 1)
 
         # Draw dots
-        color = colors[i] if i < len(colors) else (255, 255, 255)
+        color = colors[i]
         for x, y in zip(xs_scaled, ys_scaled):
             cv2.circle(
                 overlay, 
@@ -68,19 +68,13 @@ def make_visualization(
                 lineType = cv2.LINE_AA
             )
 
-    if (0.0 < alpha < 1.0):
-        diff_mask = np.any(
-            overlay != img_bgr, 
-            axis = 2
-        )
-        if (np.any(diff_mask)):
-            blended = (
-                overlay.astype(np.float32) * alpha +
-                img_bgr.astype(np.float32) * (1.0 - alpha)
-            )
-            img_bgr[diff_mask] = blended[diff_mask].astype(np.uint8)
-    else:
-        img_bgr = overlay
+    # Blend
+    if (alpha > 0.0):
+        img_bgr = np.clip(
+            img_bgr.astype(np.float32) + overlay.astype(np.float32) * alpha,
+            0,
+            255
+        ).astype(np.uint8)
     
     # Back to PIL Image
     vis_image = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
