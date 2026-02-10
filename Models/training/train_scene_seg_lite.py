@@ -1,13 +1,13 @@
 #! /usr/bin/env python3
 import argparse
-from utils.training import load_yaml, set_global_seed
+from Models.data_utils.lite_models.training import load_yaml, set_global_seed
 from Models.training.scene_seg_lite_trainer import SceneSegLiteTrainer
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c", "--config",
-        default="Models/configs/SceneSegLite.yaml",
+        default="Models/config/SceneSegLite.yaml",
         help="Path to training YAML config"
     )
     args = parser.parse_args()

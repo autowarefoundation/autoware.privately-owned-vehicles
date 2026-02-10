@@ -6,14 +6,14 @@ from torch.utils.data import ConcatDataset
 
 from abc import ABC, abstractmethod
 
-from utils.training import (
+from Models.data_utils.lite_models.training import (
     build_single_dataset,
     build_dataloader,
     save_checkpoint,
     get_unique_experiment_dir,
 )
-from utils.depth import validate_depth, denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
-from utils.logger import WandBLogger
+from Models.data_utils.lite_models.depth import validate_depth, denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
+from Models.data_utils.lite_models.logger import WandBLogger
 
 import cv2
 
@@ -22,19 +22,6 @@ from network.smp.UnetPlusPlus import UnetPlusPlus
 
 
 class LiteTrainerBase(ABC):
-    """
-    Trainer for monocular relative depth.
-
-    Features:
-      - Multi-dataset training via ConcatDataset
-      - Per-dataset validation loaders
-      - SSI + multi-scale edge loss (DepthLoss)
-      - grad accumulation (correct micro-step handling)
-      - step-based or epoch-based training
-      - validation-based checkpointing:
-          * last.pth saved at every validation
-          * best_val_loss.pth saved on improvement
-    """
 
     # -------------------------
     # Construction
@@ -66,15 +53,11 @@ class LiteTrainerBase(ABC):
         print(f"Backbone config: {self.backbone_cfg}")
         print(f"Decoder config: {self.decoder_cfg}")
 
-        #pass configuration of the architecture to the model
-                # SMP supporta output_stride = 8 o 16
         
-        network_model = self.network_cfg.get("model", "deeplabv3plus")    #deeplabv3plus | fcn | unetplusplus
+        network_model = self.network_cfg.get("model", "deeplabv3plus")    
 
         if network_model == "deeplabv3plus":
-            #choose between standard smp implementation or custom integrated one
             
-            #custom implementation of DeeplabV3Plus for depth estimation
             self.model = DeepLabV3Plus(
                 encoder_name=self.backbone_cfg["type"],
                 segmentation_ckpt=self.network_cfg.get("pretrained_model_path", None),
@@ -265,7 +248,7 @@ class LiteTrainerBase(ABC):
 
     def _build_pseudo_labeler(self):
         """Build the pseudo-labeling model (DepthAnythingV2 large)."""
-        from AEI.preprocessing.scene3d.depth_anything_v2.depth_anything_v2.dpt import DepthAnythingV2
+        from Models.data_utils.lite_models.depth_anything_v2.depth_anything_v2.dpt import DepthAnythingV2
 
         # Model configuration - we use vitl for pseudo labels
         model_configs = {
@@ -282,7 +265,7 @@ class LiteTrainerBase(ABC):
         
 
         #insert path of depth aything v2
-        checkpoint = f"AEI/preprocessing/scene3d/depth_anything_v2/depth_anything_v2_{encoder}.pth"
+        checkpoint = f"Models/data_utils/lite_models/depth_anything_v2/depth_anything_v2_{encoder}.pth"
 
         depth_anything = DepthAnythingV2(**model_configs[encoder])
 

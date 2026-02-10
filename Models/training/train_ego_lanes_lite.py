@@ -1,5 +1,5 @@
 import argparse
-from utils.training import load_yaml, set_global_seed
+from Models.data_utils.lite_models.training import load_yaml, set_global_seed
 from Models.training.ego_lanes_lite_trainer import EgoLanesLiteTrainer
 
 
@@ -7,7 +7,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c", "--config",
-        default="Models/configs/EgoLanesLite.yaml",
+        default="Models/config/EgoLanesLite.yaml",
         help="Path to lane detection training YAML config"
     )
 

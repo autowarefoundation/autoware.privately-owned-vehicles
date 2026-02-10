@@ -1,7 +1,7 @@
 import segmentation_models_pytorch as smp
 
-from utils.optimizer import build_optimizer, build_scheduler
-from utils.loss import DepthLoss
+from Models.data_utils.lite_models.optimizer import build_optimizer, build_scheduler
+from Models.data_utils.lite_models.loss import DepthLoss
 
 from Models.training.lite_trainer_base import LiteTrainerBase
 
@@ -15,14 +15,14 @@ from torch.utils.data import ConcatDataset
 
 from abc import ABC, abstractmethod
 
-from utils.training import (
+from Models.data_utils.lite_models.training import (
     build_single_dataset,
     build_dataloader,
     save_checkpoint,
     get_unique_experiment_dir,
 )
-from utils.depth import validate_depth, denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
-from utils.logger import WandBLogger
+from Models.data_utils.lite_models.depth import validate_depth, denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
+from Models.data_utils.lite_models.logger import WandBLogger
 
 import cv2
 
