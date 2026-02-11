@@ -111,3 +111,58 @@ Main script for training DomainSeg neural network
 ## domain_seg_trainer.py
 
 Helper class for training DomainSeg
+
+---
+
+
+# Lite Models Training
+
+## Environment Setup
+
+Before launching any training job, ensure that the repository root is added to your `PYTHONPATH`.
+
+From the repository root directory, run:
+
+```bash
+export PYTHONPATH=$(pwd)
+```
+
+This guarantees that all internal modules are correctly resolved during execution.
+
+All training commands **must be executed from the repository root directory**.
+
+---
+
+## Training Commands
+
+### SceneSegLite
+
+```bash
+python Models/training/train_scene_seg_lite.py -c=Models/config/SceneSegLite.yaml
+```
+
+### Scene3DLite
+
+```bash
+python Models/training/train_scene3d_lite.py -c=Models/config/Scene3DLite.yaml
+```
+
+### EgoLanesLite
+
+```bash
+python Models/training/train_ego_lane_lite.py -c=Models/config/EgoLanesLite.yaml
+```
+
+---
+
+## Configuration-Driven Training
+
+All Lite models are fully controlled through their respective YAML configuration files:
+
+- `Models/config/SceneSegLite.yaml`
+- `Models/config/Scene3DLite.yaml`
+- `Models/config/EgoLanesLite.yaml`
+
+
+No modifications to the training scripts are required when adjusting architectural components or hyperparameters.
+

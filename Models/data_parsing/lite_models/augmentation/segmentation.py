@@ -9,60 +9,6 @@ import numpy as np
 
 import torch
 
-# def save_img_debug(
-#     batch,
-#     batch_id: int,
-#     out_dir: str,
-#     ignore_index=255,
-# ):
-#     """
-#     Save ALL images + masks from a batch (PRE-normalization).
-
-#     batch:
-#         {
-#           "image": Tensor or np.ndarray [3, H, W],
-#           "gt"   : Tensor or np.ndarray [H, W]
-#         }
-#     """
-
-#     os.makedirs(out_dir, exist_ok=True)
-
-#     img = batch["image"]
-#     mask = batch["mask"]
-
-#     # ---------- IMAGE ----------
-
-#     # tensor → numpy
-#     if isinstance(img, torch.Tensor):
-#         img = img.cpu().numpy()
-
-#     # CHW → HWC
-#     if img.ndim == 3 and img.shape[0] == 3:
-#         img = np.transpose(img, (1, 2, 0))
-
-#     # ensure uint8
-#     if img.dtype != np.uint8:
-#         img = np.clip(img, 0, 255)
-#         if img.max() <= 1.0:
-#             img = img * 255.0
-#         img = img.astype(np.uint8)
-
-#     # ---------- MASK ----------
-#     if isinstance(mask, torch.Tensor):
-#         mask = mask.cpu().numpy()
-
-#     mask = mask.astype(np.uint8)
-#     mask[mask == ignore_index] = 0
-
-#     # ---------- SAVE ----------
-#     img_path = os.path.join(out_dir, f"batch{batch_id}_img.png")
-#     mask_path = os.path.join(out_dir, f"batch{batch_id}_mask.png")
-
-#     cv2.imwrite(img_path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-#     cv2.imwrite(mask_path, mask)
-
-#     print(f"[DEBUG] Saved batch {batch_id} with 1 samples → {out_dir}")
-
 
 class SegmentationAugmentation(BaseAugmentation):
     def _build(self):
@@ -197,14 +143,6 @@ class SegmentationAugmentation(BaseAugmentation):
         out = self.transform(image=image, mask=label)
         image, label = out["image"], out["mask"]
 
-        #save the intermediate result for debug
-        # if self.mode == "train":
-        #     self.batch_id += 1
-        #     save_img_debug(
-        #         out,
-        #         batch_id=self.batch_id,
-        #         out_dir="debug_batches",
-        #     )
 
         # 3) noise + normalize (image only)
         image = self._apply_noise_img(image)
