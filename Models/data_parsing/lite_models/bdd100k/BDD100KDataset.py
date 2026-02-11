@@ -38,6 +38,7 @@ self.invalid_paths = {
 }
 """
 
+#invalid paths due to pitch black images
 invalid_paths = [
     "/home/sergey/DEV/AI/datasets/BDD100K/10k/train/3d581db5-2564fb7e.jpg",
     "/home/sergey/DEV/AI/datasets/BDD100K/10k/train/52e3fd10-c205dec2.jpg",
@@ -57,14 +58,6 @@ class BDD100KDataset(BaseDataset):
         - augmentations: dict
         - strict_pairs: bool (default True) -> se True, scarta immagini senza GT (train/val)
         - check_consistency: bool (default True) -> controlla che GT esista per ogni img
-
-        PREPROCESSING : knowledge distillation from DepthAnythingV2, large. pseudo labels are generated with
-        
-        patch size = 14x14, on naturally scaled images.
-        INPUT IMAGE (BDD100K only) : 1280x720 RGB
-        CAR_HOOD REMOVED : remove bottom 80 pixels (1280x640) (NOTE: this is heuristic, since car hood varies frame by frame. Done also to maintain the aspect ratio)
-        SCALED TO CLOSEST MULTIPLE OF 14 LARGER THAN 640x320 : (644x322)
-        CROP TO CENTER 640x320 : final input to the network is 640x320 RGB
         -----------
         """
         super().__init__(dataset_root, aug_cfg=aug_cfg, mode=mode, data_type=data_type, pseudo_labeling=pseudo_labeling)

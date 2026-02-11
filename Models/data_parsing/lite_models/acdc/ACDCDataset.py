@@ -76,6 +76,7 @@ class ACDCDataset(BaseDataset):
             inner_folder = "gt"
             suffix = "gt_labelTrainIds.png"
         elif self.data_type == "DEPTH":
+            #not used, since pseudo labeling is used on the fly
             inner_folder = "depth"
             suffix = "depth.npy"
         else:

@@ -45,7 +45,7 @@ def build_dataloader(dataset, cfg_dl, mode: str):
         cfg_dl = {"batch_size": 2, "shuffle_train": True, "shuffle_val": False, "num_workers": 2, "pin_memory": True, "drop_last": mode == "train", "persistent_workers": True if mode == "train" else False, "prefetch_factor": 2 if mode == "train" else 1}
 
     if "mapillary" in dataset.__class__.__name__.lower():
-        # MapillaryDataset needs batch_size=1 due to variable image sizes
+        # MapillaryDataset needs batch_size=1 due to variable image sizes. otherwise usually OOM
         val_batch_size = 1
     elif "batch_size_val" in cfg_dl:
         # use specific val batch size if provided

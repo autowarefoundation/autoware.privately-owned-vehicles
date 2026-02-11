@@ -64,14 +64,14 @@ class CurveLanesDataset(BaseDataset):
         self.samples = self._build_file_list()
 
     # ------------------------------------------------------------
-    # Build file list (replicates authors' split logic)
+    # Build file list 
     # ------------------------------------------------------------
     def _build_file_list(self):
 
         MAX_VAL_SAMPLES = 500       #limit max number of validation samples to 500 (otherwise they would be )
 
         """
-        Replicates the original authors' splitting logic:
+        Build file list for CurveLanes dataset.:
             - Sort all frames deterministically
             - Every 10th sample goes to validation
             - The rest goes to training
@@ -108,7 +108,7 @@ class CurveLanesDataset(BaseDataset):
         samples = []
 
         # --------------------------------------------------
-        # Deterministic split (authors logic)
+        # Deterministic split
         # --------------------------------------------------
         for idx, img_path in enumerate(img_files):
 

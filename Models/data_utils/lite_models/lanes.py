@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 
 # ============================================================
-# Visualization utils (unchanged logic)
+# Visualization utils
 # ============================================================
 
 LANE_COLORS_RGB = {
@@ -227,7 +227,7 @@ def validate_lanes(
 
 
             # -------------------------------------------------
-            # Downsample GT for metrics + visualization (EgoLanes behavior)
+            # Downsample GT for metrics + visualization
             # -------------------------------------------------
             gt = gt_full.float()
 

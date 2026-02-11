@@ -43,7 +43,6 @@ class SegmentationLoss(nn.Module):
 
 class LanesLoss(nn.Module):
     """
-    Replicates exactly the loss used in the original EgoLanesTrainer:
 
         loss(channel) =
             BCEWithLogitsLoss(pred, gt)
@@ -172,7 +171,7 @@ class LanesLoss(nn.Module):
 
 
     # -------------------------------------------------
-    # Edge loss (Sobel)
+    # Edge loss (Sobel filters + L1)
     # -------------------------------------------------
     def _edge_loss(self, pred, gt):
         # pred, gt: [B, H, W] → add channel dim
@@ -190,7 +189,7 @@ class LanesLoss(nn.Module):
 
 
 # ============================================================
-# DEPTH Loss (for depth models)
+# DEPTH Loss
 # ============================================================
 
 EDGE_SCALE_FACTOR_DEFAULT = 4.0  # same as self.edge_scale_factor in Scene3DTrainer

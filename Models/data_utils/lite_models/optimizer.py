@@ -64,7 +64,7 @@ def build_scheduler(cfg_sch, optimizer, train_cfg, steps_per_epoch):
         return CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=min_lr)
 
     # ==================================================
-    # WARMUP + COSINE DECAY (recommended)
+    # WARMUP + COSINE DECAY 
     # ==================================================
     elif sch_type == "warmup_cosine":
         warmup_steps = cfg_sch.get("warmup_steps", 3)
