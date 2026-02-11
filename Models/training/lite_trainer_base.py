@@ -75,6 +75,7 @@ class LiteTrainerBase(ABC):
                 head_activation=self.head_cfg.get("head_activation", None),
                 head_depth=self.head_cfg.get("head_depth", 1),
                 head_mid_channels=self.head_cfg.get("head_mid_channels", None),
+                head_kernel_size=self.head_cfg.get("head_kernel_size", 3),
 
                 output_channels=self.network_cfg.get("output_channels", 1),   # for depth estimation, 1 channel depth map
             )
@@ -234,7 +235,7 @@ class LiteTrainerBase(ABC):
         self.global_step = 0   # optimizer updates count
         self.best_val_loss = float("inf")
 
-        self.batch_size = int(self.dl_cfg["batch_size"])
+        self.batch_size = int(self.dl_cfg.get("batch_size", 1))
         self.effective_batch = self.batch_size * self.grad_accum_steps
 
     def _build_logger(self):
@@ -301,6 +302,11 @@ class LiteTrainerBase(ABC):
             print("  Missing keys:", missing)
             print("  Unexpected keys:", unexpected)
 
+        if self.exp_name == "val":
+            print("Experiment name is 'val', not resuming optimizer/scheduler/counters even if checkpoint is loaded.")
+            return
+        
+        
         # ============================================================
         # Resume mode (true resume of training)
         # ============================================================

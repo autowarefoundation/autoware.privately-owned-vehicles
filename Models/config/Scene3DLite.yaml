@@ -129,16 +129,16 @@ network:
     pretrained: true         # whether to use ImageNet pre-trained weights
     encoder_depth: 5      #the encoder features that will be used in decoder (5 means the last stage before 1x1conv, 4 means the one before that, etc.)
 
-    encoder_partial_load: true      # whether to partially load encoder weights from the pretrained model specified in pretrained_model_path
+    encoder_partial_load: false      # whether to partially load encoder weights from the pretrained model specified in pretrained_model_path
     encoder_partial_depth: 3        # how many stages to load if encoder_partial_load is
     
     #if pretrained model is used. Ignore the type and pretrained flags
-    load_encoder: true             # whether to load encoder weights from the pretrained model specified in pretrained_model_path
-    freeze_encoder: true            # whether to freeze backbone weights during training
+    load_encoder: false             # whether to load encoder weights from the pretrained model specified in pretrained_model_path
+    freeze_encoder: false            # whether to freeze backbone weights during training
 
   bottleneck:
     #used to better map the backbone features to the decoder input
-    type : "fcn_skip"   # "none" | "fcn" | "fcn_cbam" | "fcn_skip" | "fcn_skip_cbam"
+    type : "none"   # "none" | "fcn" | "fcn_cbam" | "fcn_skip" | "fcn_skip_cbam"
     #number of channels is the same of the backbone output channels
 
   decoder:
@@ -147,13 +147,13 @@ network:
     freeze_decoder: false    # whether to freeze decoder weights during training
     #for deeplabv3plus
     aspp_dilations: [12, 24, 36]   #dilation rates for ASPP module
-    deeplabv3plus_decoder_channels: 128        #number of channels in decoder
+    deeplabv3plus_decoder_channels: 256        #number of channels in decoder
 
   head:
     head_upsampling: 4    # upsampling factor to match input size (4 for deeplabv3plus with output_stride 16)
-    head_activation: "ReLU"      #activation function after each convolutional layer in the regression head (except the last one)
-    head_depth: 3               #how many convolutional layers to use in the regression head
-    head_mid_channels: 128      #if None, same as decoder last channels
+    head_activation: None      #activation function after each convolutional layer in the regression head (except the last one)
+    head_depth: 1               #how many convolutional layers to use in the regression head
+    head_mid_channels: None      #if None, same as decoder last channels
     head_kernel_size: 3
 
   output_channels: 1    # for depth estimation, usually 1 (single channel depth map)

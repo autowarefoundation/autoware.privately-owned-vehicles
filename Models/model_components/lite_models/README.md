@@ -246,6 +246,46 @@ All results are reported in **FP32 precision**.
 
 This corresponds to a **~24× reduction in operations**, while maintaining competitive performance on those datasets.
 
+
+## Inference Speed
+
+The following results report **forward-pass performance only** (no preprocessing).  
+The forward pass includes:
+
+- Host → Device transfer (H2D)  
+- Network inference  
+- Device → Host transfer (D2H)  
+
+All benchmarks were executed on a **Jetson Orin Nano (8GB)**.
+
+---
+
+### Forward Pass Performance (Segmentation, Depth, EgoLanes)
+
+| Model              | Backend        | Forward [ms] | FPS |
+|--------------------|---------------|--------------|---------------|
+| **SceneSeg**       | FP32 ONNX     | 159.6        | 6.3           |
+|                    | FP32 TensorRT | 98.1         | 10.2          |
+|                    | INT8 TensorRT | —            | —             |
+| **SceneSegLite**   | FP32 ONNX     | 43.5         | 23.0          |
+|                    | FP32 TensorRT | 23.9         | 41.8          |
+|                    | INT8 TensorRT | 11.4         | 87.6          |
+|--------------------|---------------|--------------|---------------|
+| **Scene3D**        | FP32 ONNX     | 168.4        | 5.9           |
+|                    | FP32 TensorRT | 99.7         | 10.0          |
+|                    | INT8 TensorRT | —            | —             |
+| **Scene3DLite**    | FP32 ONNX     | 41.0         | 24.4          |
+|                    | FP32 TensorRT | 23.4         | 42.7          |
+|                    | INT8 TensorRT | 10.9         | 91.4          |
+|--------------------|---------------|--------------|---------------|
+| **EgoLanes**       | FP32 ONNX     | 94.9         | 10.5          |
+|                    | FP32 TensorRT | 48.8         | 20.5          |
+|                    | INT8 TensorRT | —            | —             |
+| **EgoLanesLite**   | FP32 ONNX     | 38.1         | 26.2          |
+|                    | FP32 TensorRT | 21.5         | 46.6          |
+|                    | INT8 TensorRT | 10.2         | 98.5          |
+
+
 ---
 
 ## Limitations

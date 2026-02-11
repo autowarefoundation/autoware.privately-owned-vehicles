@@ -174,7 +174,7 @@ network:
   decoder:
     #for deeplabv3plus
     aspp_dilations: [12, 24, 36]   #dilation rates for ASPP module
-    deeplabv3plus_decoder_channels: 64        #number of channels in decoder
+    deeplabv3plus_decoder_channels: 128        #number of channels in decoder
 
     load_decoder: false    # whether to load decoder weights from the pretrained model specified in backbone.pretrained_model_path
     freeze_decoder: false    # whether to freeze decoder weights during training

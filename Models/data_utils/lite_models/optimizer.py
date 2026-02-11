@@ -28,13 +28,13 @@ def build_optimizer(cfg_optim, model_params):
 
 def build_scheduler(cfg_sch, optimizer, train_cfg, steps_per_epoch):
 
-    train_mode = train_cfg["mode"]      #"epoch" or "step"
+    train_mode = train_cfg.get("mode", "epoch")      #"epoch" or "step"
 
     if train_mode == "epoch":
-        training_epochs = train_cfg["max_epochs"]
+        training_epochs = train_cfg.get("max_epochs", 10)
         total_steps = training_epochs * steps_per_epoch
     elif train_mode == "steps":
-        total_steps = train_cfg["max_steps"]
+        total_steps = train_cfg.get("max_steps", 150000)
     else:
         raise ValueError(f"Unsupported training mode: {train_mode}")
     

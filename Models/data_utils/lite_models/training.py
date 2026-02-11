@@ -15,7 +15,6 @@ from Models.data_parsing.lite_models.cityscapes.CityscapesDataset import Citysca
 from Models.data_parsing.lite_models.curvelanes.CurveLanesDataset import CurveLanesDataset
 from Models.data_parsing.lite_models.tusimple.TUSimpleDataset import TUSimpleDataset
 from Models.data_parsing.lite_models.idda.IDDADataset import IDDADataset
-from Models.data_parsing.lite_models.carla.CarlaDataset import CarlaDataset
 
 
 def load_yaml(path: str):
