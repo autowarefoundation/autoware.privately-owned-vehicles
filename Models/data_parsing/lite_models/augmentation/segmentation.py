@@ -63,7 +63,7 @@ class SegmentationAugmentation(BaseAugmentation):
                 def scale_image(img, **kwargs):
                     h, w = img.shape[:2]
                     scale = sample_valid_scale(h, w)
-                    shared["scale"] = scale  # salva la scala
+                    shared["scale"] = scale  
                     return cv2.resize(
                         img,
                         (int(w * scale), int(h * scale)),
@@ -72,7 +72,7 @@ class SegmentationAugmentation(BaseAugmentation):
 
                 def scale_mask(mask, **kwargs):
                     h, w = mask.shape[:2]
-                    scale = shared["scale"]  # RIUSA la scala
+                    scale = shared["scale"] 
                     return cv2.resize(
                         mask,
                         (int(w * scale), int(h * scale)),
@@ -80,12 +80,12 @@ class SegmentationAugmentation(BaseAugmentation):
                     )
 
                 tfs.extend([
-                    # 1) global multi-scale (SAFE)
+                    # 1) global multi-scale
                     A.Lambda(
                         image=scale_image,
                         mask=scale_mask,
                     ),
-                    # 2) padding minimo (raramente attivo)
+                    # 2) min padding
                     A.PadIfNeeded(
                         min_height=crop_h,
                         min_width=crop_w,
@@ -93,7 +93,7 @@ class SegmentationAugmentation(BaseAugmentation):
                         value=0,
                         mask_value=255,
                     ),
-                    # 3) random crop FINALE
+                    # 3) random crop to final size
                     A.RandomCrop(height=crop_h, width=crop_w),
                 ])
 
@@ -108,7 +108,7 @@ class SegmentationAugmentation(BaseAugmentation):
         else:
             # validation / test
             if mode == "fixed_resize":
-                # explicit fixed-res validation (if you really want it)
+                # explicit fixed-res validation 
                 tfs.append(
                     A.Resize(
                         height=int(self.cfg["rescaling"]["height"]),

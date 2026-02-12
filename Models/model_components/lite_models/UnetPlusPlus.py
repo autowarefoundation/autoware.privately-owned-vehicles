@@ -22,7 +22,6 @@ class UnetPlusPlus(BaseModel):
       - all SMP encoder/decoder internals
     """
 
-    # DeepLab-like models require divisible input (SMP enforces)
     requires_divisible_input_shape = True
 
     def __init__(
@@ -38,7 +37,7 @@ class UnetPlusPlus(BaseModel):
         aux_params: Optional[dict] = None,
         output_channels: int =1,
 
-        # loading from your previous segmentation ckpt
+        # loading from previous segmentation ckpt
         segmentation_ckpt: str | None = None,  # expects ckpt["model_state"] with encoder./decoder. keys
         strict_load: bool = True,
 
@@ -63,7 +62,6 @@ class UnetPlusPlus(BaseModel):
         head_mid_channels: int | None = None,
         head_activation: Optional[str] = None,
 
-        # kwargs forwarded to get_encoder (useful for timm)
         **kwargs,
     ):
         super().__init__()
@@ -110,9 +108,9 @@ class UnetPlusPlus(BaseModel):
                 in_channels=self.encoder.out_channels[-1],
                 out_channels=self.encoder.out_channels[-1],
                 mode=bottleneck,
-                hidden_ratio=1.0,        # puoi provare 0.5 / 1.0 / 2.0
-                residual_scale=0.1,      # 0.05–0.2 sono buoni range
-                use_depthwise=False,     # True se vuoi ultra-light
+                hidden_ratio=1.0,       
+                residual_scale=0.1,    
+                use_depthwise=False,  
             )
             print(f"Using bottleneck: {bottleneck}")
 

@@ -50,16 +50,7 @@ invalid_paths = [
 
 class BDD100KDataset(BaseDataset):
     def __init__(self, dataset_root: str, aug_cfg: dict = {}, mode="train", data_type="SEGMENTATION", pseudo_labeling: bool = False):
-        """
-        cfg contains:
-        - root: dataset root (e.g. /home/sergey/DEV/AI/datasets/BDD100K)
-        - split: "train" | "val" | "test"
-        - config: "10k" | "100k"   (default "10k")
-        - augmentations: dict
-        - strict_pairs: bool (default True) -> se True, scarta immagini senza GT (train/val)
-        - check_consistency: bool (default True) -> controlla che GT esista per ogni img
-        -----------
-        """
+
         super().__init__(dataset_root, aug_cfg=aug_cfg, mode=mode, data_type=data_type, pseudo_labeling=pseudo_labeling)
 
         self.root = dataset_root
