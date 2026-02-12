@@ -5,9 +5,9 @@ import warnings
 
 from typing import Any, Dict, Sequence, Optional, Union
 
-from Models.model_components.lite_models.smp.heads import RegressionHead, ClassificationHead
-from Models.model_components.lite_models.smp.BaseModel import BaseModel
-from Models.model_components.lite_models.smp.modules import *
+from Models.model_components.lite_models.heads import RegressionHead, ClassificationHead
+from Models.model_components.lite_models.BaseModel import BaseModel
+from Models.model_components.lite_models.modules import *
 
 from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.decoders.unetplusplus.decoder import UnetPlusPlusDecoder
@@ -82,7 +82,7 @@ class UnetPlusPlus(BaseModel):
             )
             decoder_use_norm = decoder_use_batchnorm
         # -----------------
-        # Encoder (SMP)
+        # Encoder
         # -----------------
         self.encoder = get_encoder(
             encoder_name,
@@ -93,7 +93,7 @@ class UnetPlusPlus(BaseModel):
         )
 
         # -----------------
-        # Decoder (SMP DeepLabV3+)
+        # Decoder 
         # -----------------
         self.decoder = UnetPlusPlusDecoder(
             encoder_channels=self.encoder.out_channels,
@@ -188,9 +188,9 @@ class UnetPlusPlus(BaseModel):
             features = self.bottleneck(features)
         
         #decoder pass
-        decoder = self.decoder(features)  # BxCxhxw
+        decoder = self.decoder(features)
 
-        output = self.head(decoder)  # Bx1xHxW
+        output = self.head(decoder) 
         return output
 
 

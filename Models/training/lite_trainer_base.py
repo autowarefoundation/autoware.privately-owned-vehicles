@@ -16,8 +16,8 @@ from Models.data_utils.lite_models.depth import denormalize_image, center_crop_v
 from Models.data_utils.lite_models.logger import WandBLogger
 
 
-from Models.model_components.lite_models.smp.DeepLabv3Plus import DeepLabV3Plus
-from Models.model_components.lite_models.smp.UnetPlusPlus import UnetPlusPlus
+from Models.model_components.lite_models.DeepLabv3Plus import DeepLabV3Plus
+from Models.model_components.lite_models.UnetPlusPlus import UnetPlusPlus
 
 
 class LiteTrainerBase(ABC):

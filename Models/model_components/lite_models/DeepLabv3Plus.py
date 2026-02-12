@@ -3,24 +3,16 @@ import torch.nn as nn
 
 from typing import Optional
 
-from Models.model_components.lite_models.smp.heads import RegressionHead, ClassificationHead
-from Models.model_components.lite_models.smp.BaseModel import BaseModel
-from Models.model_components.lite_models.smp.modules import *
+from Models.model_components.lite_models.heads import RegressionHead, ClassificationHead
+from Models.model_components.lite_models.BaseModel import BaseModel
+from Models.model_components.lite_models.modules import *
 
 from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.decoders.deeplabv3.decoder import DeepLabV3PlusDecoder
 
 class DeepLabV3Plus(BaseModel):
-    """
-    SMP-native DeepLabV3+ encoder+decoder, but with a regression head.
 
-    You keep:
-      - check_input_shape
-      - freeze_encoder / unfreeze_encoder behavior (BN stats handled)
-      - all SMP encoder/decoder internals
-    """
-
-    # DeepLab-like models require divisible input (SMP enforces)
+    # DeepLab-like models require divisible input
     requires_divisible_input_shape = True
 
     def __init__(
@@ -76,7 +68,7 @@ class DeepLabV3Plus(BaseModel):
                 )
             )
         # -----------------
-        # Encoder (SMP)
+        # Encoder
         # -----------------
         self.encoder = get_encoder(
             encoder_name,
@@ -88,7 +80,7 @@ class DeepLabV3Plus(BaseModel):
         )
 
         # -----------------
-        # Decoder (SMP DeepLabV3+)
+        # Decoder DeepLabV3+
         # -----------------
         self.decoder = DeepLabV3PlusDecoder(
             encoder_channels=self.encoder.out_channels,
@@ -105,9 +97,9 @@ class DeepLabV3Plus(BaseModel):
                 in_channels=self.encoder.out_channels[-1],
                 out_channels=self.encoder.out_channels[-1],
                 mode=bottleneck,
-                hidden_ratio=1.0,        # puoi provare 0.5 / 1.0 / 2.0
-                residual_scale=0.1,      # 0.05–0.2 sono buoni range
-                use_depthwise=False,     # True se vuoi ultra-light
+                hidden_ratio=1.0,        
+                residual_scale=0.1,      
+                use_depthwise=False,    
             )
             print(f"Using bottleneck: {bottleneck}")
 
@@ -129,7 +121,7 @@ class DeepLabV3Plus(BaseModel):
 
 
         # -----------------
-        # Optional: load encoder/decoder weights from your segmentation ckpt
+        # Optional: 
         # -----------------
         if segmentation_ckpt is not None:
             self.load_from_segmentation_checkpoint(
@@ -169,7 +161,7 @@ class DeepLabV3Plus(BaseModel):
 
 
         if freeze_decoder:
-            self.freeze_decoder()  # custom below (params + norm layers eval)
+            self.freeze_decoder()  
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Keep SMP input checks (divisible by output_stride)
@@ -229,5 +221,5 @@ class DeepLabV3Plus(BaseModel):
             f"frozen params={frozen} | trainable params={trainable}"
         )
 
-        self._is_encoder_frozen = False   # important: avoid SMP global freeze logic
+        self._is_encoder_frozen = False
         return self
