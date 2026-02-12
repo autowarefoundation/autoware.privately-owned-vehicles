@@ -35,7 +35,7 @@ You can override this by specifying a custom output directory:
 python Models/exports/lite_models/eval_egolaneslite.py \
     --checkpoint /path/to/egolaneslite.pth \
     --datasets TUSimple CurveLanes \
-    --height 400 --width 800
+    --height 320 --width 640
 ```
 
 ### Evaluate using ONNX model
@@ -44,7 +44,7 @@ python Models/exports/lite_models/eval_egolaneslite.py \
 python Models/exports/lite_models/eval_egolaneslite.py \
     --onnx /path/to/egolaneslite.onnx \
     --datasets TUSimple CurveLanes \
-    --height 400 --width 800
+    --height 320 --width 640
 ```
 
 ---
@@ -59,7 +59,7 @@ python Models/exports/lite_models/eval_egolaneslite.py \
 python Models/exports/lite_models/eval_scene3dlite.py \
     --checkpoint /path/to/scene3dlite.pth \
     --datasets TUSimple CurveLanes \
-    --height 400 --width 800
+    --height 320 --width 640
 ```
 
 ### Evaluate using ONNX model
@@ -68,7 +68,7 @@ python Models/exports/lite_models/eval_scene3dlite.py \
 python Models/exports/lite_models/eval_scene3dlite.py \
     --onnx /path/to/scene3dlite.onnx \
     --datasets TUSimple CurveLanes \
-    --height 400 --width 800
+    --height 320 --width 640
 ```
 
 ---
@@ -83,7 +83,7 @@ python Models/exports/lite_models/eval_scene3dlite.py \
 python Models/exports/lite_models/eval_sceneseglite.py \
     --checkpoint /path/to/sceneseglite.pth \
     --datasets acdc mapillary \
-    --height 400 --width 800
+    --height 320 --width 640
 ```
 
 ### Evaluate using ONNX model
@@ -92,7 +92,7 @@ python Models/exports/lite_models/eval_sceneseglite.py \
 python Models/exports/lite_models/eval_sceneseglite.py \
     --onnx /path/to/sceneseglite.onnx \
     --datasets acdc mapillary \
-    --height 400 --width 800
+    --height 320 --width 640
 ```
 
 ---
