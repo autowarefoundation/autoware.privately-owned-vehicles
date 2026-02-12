@@ -25,8 +25,6 @@ class BaseDataset(Dataset):
         # ---- Build augmentations (does not know about pseudo-labeling) ----
 
         self.aug_type = self.data_type
-        if self.aug_type == "LANE_DETECTION":
-            self.aug_type = "SEGMENTATION"  # lane detection uses segmentation augmentations
 
         self.aug = build_aug(
             data_type=self.aug_type,
