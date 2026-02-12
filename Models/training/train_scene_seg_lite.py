@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 import argparse
-from Models.data_utils.lite_models.training import load_yaml, set_global_seed
+from Models.data_utils.lite_models.helpers.training import load_yaml, set_global_seed
 from Models.training.scene_seg_lite_trainer import SceneSegLiteTrainer
 
 def main():

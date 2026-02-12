@@ -12,7 +12,6 @@ OUTPUT:
   - A mapping summary file (mapillary_to_cityscapes_summary.txt)
   - Multi-processing with tqdm progress bar
 
-Author: ChatGPT + Alessandro
 """
 
 import os
@@ -115,7 +114,6 @@ def convert_mask(in_path, out_path, rgb_to_id, id_to_city, rgb_encoded_to_id):
         Image.fromarray(out).save(out_path)
 
     except Exception as e:
-        # Keep this visible, but don't spam per-pixel logs
         log_err(f"Failed to process file: {in_path}\n{e}")
 
 
@@ -154,7 +152,6 @@ def process_folder(input_dir, output_dir, rgb_to_id, id_to_city, num_workers=8):
 
     log(f"[MP] Using {num_workers} workers...")
 
-    # -------- FIX: use chunks + starmap instead of lambda ----------
     chunk_size = 64  # faster multiprocessing
 
     with mp.Pool(num_workers) as pool:

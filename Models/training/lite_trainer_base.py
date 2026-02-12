@@ -6,14 +6,14 @@ from torch.utils.data import ConcatDataset
 
 from abc import ABC, abstractmethod
 
-from Models.data_utils.lite_models.training import (
+from Models.data_utils.lite_models.helpers.training import (
     build_single_dataset,
     build_dataloader,
     save_checkpoint,
     get_unique_experiment_dir,
 )
-from Models.data_utils.lite_models.depth import denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
-from Models.data_utils.lite_models.logger import WandBLogger
+from Models.data_utils.lite_models.helpers.depth import denormalize_image, center_crop_vit_safe_lower, pad_to_target_center
+from Models.data_utils.lite_models.helpers.logger import WandBLogger
 
 
 from Models.model_components.lite_models.DeepLabv3Plus import DeepLabV3Plus

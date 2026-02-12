@@ -1,6 +1,6 @@
 
-from Models.data_utils.lite_models.optimizer import build_optimizer, build_scheduler
-from Models.data_utils.lite_models.loss import DepthLoss
+from Models.data_utils.lite_models.helpers.optimizer import build_optimizer, build_scheduler
+from Models.data_utils.lite_models.helpers.loss import DepthLoss
 
 from Models.training.lite_trainer_base import LiteTrainerBase
 
@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from Models.data_utils.lite_models.depth import validate_depth
+from Models.data_utils.lite_models.helpers.depth import validate_depth
 
 
 class Scene3DLiteTrainer(LiteTrainerBase):

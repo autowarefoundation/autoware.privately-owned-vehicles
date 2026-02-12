@@ -8,8 +8,8 @@ import numpy as np
 import cv2
 
 from Models.training.scene_seg_lite_trainer import SceneSegLiteTrainer
-from Models.data_utils.lite_models.segmentation import validate_segmentation
-from Models.data_utils.lite_models.training import set_global_seed
+from Models.data_utils.lite_models.helpers.segmentation import validate_segmentation
+from Models.data_utils.lite_models.helpers.training import set_global_seed
 from Models.exports.lite_models.helpers import ensure, SCENESEGLITE_DEFAULT_CONFIG
 import onnxruntime as ort
 

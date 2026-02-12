@@ -2,7 +2,7 @@ import os
 import glob
 import cv2
 import numpy as np
-from Models.data_parsing.lite_models.BaseDataset.BaseDataset import BaseDataset
+from Models.data_utils.lite_models.dataloaders.BaseDataset import BaseDataset
 
 """
 Tree structure. This script uses for now only the v1.2 version, wihch has been adapted to be cityscapes

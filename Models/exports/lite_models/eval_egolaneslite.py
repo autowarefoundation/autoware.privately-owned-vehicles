@@ -8,8 +8,8 @@ import numpy as np
 import cv2
 
 from Models.training.ego_lanes_lite_trainer import EgoLanesLiteTrainer
-from Models.data_utils.lite_models.lanes import validate_lanes
-from Models.data_utils.lite_models.training import set_global_seed
+from Models.data_utils.lite_models.helpers.lanes import validate_lanes
+from Models.data_utils.lite_models.helpers.training import set_global_seed
 from Models.exports.lite_models.helpers import ensure, EGOLANESLITE_DEFAULT_CONFIG
 import onnxruntime as ort
 

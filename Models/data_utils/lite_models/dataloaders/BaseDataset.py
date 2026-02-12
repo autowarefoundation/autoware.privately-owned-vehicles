@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
-from Models.data_parsing.lite_models.augmentation.factory import build_aug
+from Models.data_utils.lite_models.augmentation.factory import build_aug
 
 
 

@@ -1,7 +1,7 @@
 # dataloader/augmentations/factory.py
 
-from Models.data_parsing.lite_models.augmentation.segmentation import SegmentationAugmentation
-from Models.data_parsing.lite_models.augmentation.depth import DepthAugmentation
+from Models.data_utils.lite_models.augmentation.segmentation import SegmentationAugmentation
+from Models.data_utils.lite_models.augmentation.depth import DepthAugmentation
 
 
 

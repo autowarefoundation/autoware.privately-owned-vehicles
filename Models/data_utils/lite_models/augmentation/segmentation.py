@@ -1,6 +1,6 @@
 # dataloader/augmentations/segmentation.py
 import albumentations as A
-from Models.data_parsing.lite_models.augmentation.BaseAugmentation import BaseAugmentation
+from Models.data_utils.lite_models.augmentation.BaseAugmentation import BaseAugmentation
 import random
 import cv2
 

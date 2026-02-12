@@ -8,8 +8,8 @@ import cv2
 import onnxruntime as ort
 
 from Models.training.scene3d_lite_trainer import Scene3DLiteTrainer
-from Models.data_utils.lite_models.depth import validate_depth
-from Models.data_utils.lite_models.training import set_global_seed
+from Models.data_utils.lite_models.helpers.depth import validate_depth
+from Models.data_utils.lite_models.helpers.training import set_global_seed
 from Models.exports.lite_models.helpers import ensure, SCENE3DLITE_DEFAULT_CONFIG
 
 

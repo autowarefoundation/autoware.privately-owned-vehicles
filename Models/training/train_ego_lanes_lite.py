@@ -1,5 +1,5 @@
 import argparse
-from Models.data_utils.lite_models.training import load_yaml, set_global_seed
+from Models.data_utils.lite_models.helpers.training import load_yaml, set_global_seed
 from Models.training.ego_lanes_lite_trainer import EgoLanesLiteTrainer
 
 

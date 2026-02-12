@@ -1,14 +1,12 @@
-import segmentation_models_pytorch as smp
-
-from Models.data_utils.lite_models.optimizer import build_optimizer, build_scheduler
-from Models.data_utils.lite_models.loss import SegmentationLoss
+from Models.data_utils.lite_models.helpers.optimizer import build_optimizer, build_scheduler
+from Models.data_utils.lite_models.helpers.loss import SegmentationLoss
 
 from Models.training.lite_trainer_base import LiteTrainerBase
 
 from tqdm import tqdm
 import os
 
-from Models.data_utils.lite_models.segmentation import validate_segmentation
+from Models.data_utils.lite_models.helpers.segmentation import validate_segmentation
 
 import numpy as np
 

@@ -6,15 +6,15 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from Models.data_parsing.lite_models.acdc.ACDCDataset import ACDCDataset
-from Models.data_parsing.lite_models.mapillary.MapillaryDataset import MapillaryDataset
-from Models.data_parsing.lite_models.muses.MUSESDataset import MUSESDataset
-from Models.data_parsing.lite_models.idda.IDDADataset import IDDADataset
-from Models.data_parsing.lite_models.bdd100k.BDD100KDataset import BDD100KDataset
-from Models.data_parsing.lite_models.cityscapes.CityscapesDataset import CityscapesDataset
-from Models.data_parsing.lite_models.curvelanes.CurveLanesDataset import CurveLanesDataset
-from Models.data_parsing.lite_models.tusimple.TUSimpleDataset import TUSimpleDataset
-from Models.data_parsing.lite_models.idda.IDDADataset import IDDADataset
+from Models.data_utils.lite_models.dataloaders.ACDCDataset import ACDCDataset
+from Models.data_utils.lite_models.dataloaders.MapillaryDataset import MapillaryDataset
+from Models.data_utils.lite_models.dataloaders.MUSESDataset import MUSESDataset
+from Models.data_utils.lite_models.dataloaders.IDDADataset import IDDADataset
+from Models.data_utils.lite_models.dataloaders.BDD100KDataset import BDD100KDataset
+from Models.data_utils.lite_models.dataloaders.CityscapesDataset import CityscapesDataset
+from Models.data_utils.lite_models.dataloaders.CurveLanesDataset import CurveLanesDataset
+from Models.data_utils.lite_models.dataloaders.TUSimpleDataset import TUSimpleDataset
+from Models.data_utils.lite_models.dataloaders.IDDADataset import IDDADataset
 
 
 def load_yaml(path: str):

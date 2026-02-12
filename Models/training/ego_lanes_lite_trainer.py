@@ -1,11 +1,11 @@
 
-from Models.data_utils.lite_models.optimizer import build_optimizer, build_scheduler
-from Models.data_utils.lite_models.loss import LanesLoss
+from Models.data_utils.lite_models.helpers.optimizer import build_optimizer, build_scheduler
+from Models.data_utils.lite_models.helpers.loss import LanesLoss
 
 from Models.training.lite_trainer_base import LiteTrainerBase
 from tqdm import tqdm
 
-from Models.data_utils.lite_models.lanes import validate_lanes   
+from Models.data_utils.lite_models.helpers.lanes import validate_lanes   
 import numpy as np
 
 class EgoLanesLiteTrainer(LiteTrainerBase):

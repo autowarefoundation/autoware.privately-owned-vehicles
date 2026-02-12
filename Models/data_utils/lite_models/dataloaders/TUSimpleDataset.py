@@ -1,17 +1,17 @@
-# dataloader/CurveLanesDataset.py
+# dataloader/TUSimpleDataset.py
 
 import os
 import glob
 
-from Models.data_parsing.lite_models.BaseDataset.BaseDataset import BaseDataset
+from Models.data_utils.lite_models.dataloaders.BaseDataset import BaseDataset
 
 
 """
-CurveLanes Dataset (processed version).
+TUSimple Dataset (processed version).
 
 Expected structure:
 
-CurveLanes/processed/
+TUSimple/processed/
 ├── image/            (*.jpg)
 ├── mask/             (*.png)
 ├── visualization/
@@ -23,7 +23,7 @@ Example:
     mask/000123.png
 """
 
-class CurveLanesDataset(BaseDataset):
+class TUSimpleDataset(BaseDataset):
 
     def __init__(
         self,
@@ -46,17 +46,17 @@ class CurveLanesDataset(BaseDataset):
         # Force processed version
         if "processed" not in os.path.basename(self.root):
             print(
-                "[CurveLanesDataset] WARNING: dataset_root does not point to 'processed/'. "
+                "[TUSimpleDataset] WARNING: dataset_root does not point to 'processed/'. "
                 "Appending '/processed'."
             )
             self.root = os.path.join(self.root, "processed")
 
         self.split = mode.lower()   # "train" | "val" | "test"
-        self.dataset_name = "Curvelanes"
+        self.dataset_name = "tusimple"
 
         if self.data_type != "LANE_DETECTION":
             raise ValueError(
-                f"[CurveLanesDataset] Unsupported data_type: {self.data_type}. "
+                f"[TUSimpleDataset] Unsupported data_type: {self.data_type}. "
                 "Only 'LANE_DETECTION' is supported."
             )
 
@@ -71,7 +71,7 @@ class CurveLanesDataset(BaseDataset):
         MAX_VAL_SAMPLES = 500       #limit max number of validation samples to 500 (otherwise they would be )
 
         """
-        Build file list for CurveLanes dataset.:
+        Build file list for TUSimple dataset.:
             - Sort all frames deterministically
             - Every 10th sample goes to validation
             - The rest goes to training
@@ -81,7 +81,7 @@ class CurveLanesDataset(BaseDataset):
         """
 
         print(
-            f"[CurveLanesDataset] Building file list for split='{self.split}', "
+            f"[TUSimpleDataset] Building file list for split='{self.split}', "
             f"data_type='{self.data_type}'"
         )
 
@@ -101,9 +101,9 @@ class CurveLanesDataset(BaseDataset):
         )
 
         if len(img_files) == 0:
-            raise RuntimeError(f"[CurveLanesDataset] No images found in {image_root}")
+            raise RuntimeError(f"[TUSimpleDataset] No images found in {image_root}")
 
-        print(f"[CurveLanesDataset] Found {len(img_files)} images total.")
+        print(f"[TUSimpleDataset] Found {len(img_files)} images total.")
 
         samples = []
 
@@ -116,7 +116,7 @@ class CurveLanesDataset(BaseDataset):
             gt_path = os.path.join(mask_root, f"{basename}.png")
 
             if not os.path.isfile(gt_path):
-                print(f"[CurveLanesDataset] WARNING: Missing GT mask for {img_path}")
+                print(f"[TUSimpleDataset] WARNING: Missing GT mask for {img_path}")
                 continue
 
             is_val = (idx % 10 == 0)
@@ -131,12 +131,12 @@ class CurveLanesDataset(BaseDataset):
 
 
         print(
-            f"[CurveLanesDataset] Loaded {len(samples)} samples for split='{self.split}'."
+            f"[TUSimpleDataset] Loaded {len(samples)} samples for split='{self.split}'."
         )
 
         if len(samples) == 0:
             raise RuntimeError(
-                f"[CurveLanesDataset] Empty dataset split='{self.split}'. "
+                f"[TUSimpleDataset] Empty dataset split='{self.split}'. "
                 "Check dataset path and split logic."
             )
 
