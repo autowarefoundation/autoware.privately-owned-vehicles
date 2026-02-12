@@ -489,16 +489,17 @@ Classes:
 - `Rightmost Lane`
 - `Other Lanes`
 
-The model maintains full input resolution and is optimized for embedded real-time deployment.
+The model's output maintain the same spatial resolution as the input, instead of the original EgoLanes model which outputs at 1/4 resolution. 
 
 ---
 
 ## Validation Performance (640×320 input)
+To allow for a fair comparison against EgoLanes baseline, we report the metrics of the same model trained with output stride = 1/4, like EgoLanes.
 
-| Dataset     | Metric | EgoLanes | EgoLanesLite |
-|------------|--------|----------|--------------|
-| CurveLanes | mIoU   | 46.9     | 44.63        |
-| TuSimple   | mIoU   | 43.6     | 51.4         |
+| Dataset     | Metric | EgoLanes | EgoLanesLite (OS = 1/4) | EgoLanesLite (OS = 1) |
+|------------|--------|----------|--------------|--------------|
+| CurveLanes | mIoU   | 46.9     | 44.6         |   24.6    |
+| TuSimple   | mIoU   | 43.6     | 51.4         |   24.2    |
 
 ---
 
@@ -512,10 +513,14 @@ The model maintains full input resolution and is optimized for embedded real-tim
 |--------------|------|---------------|--------------|------|
 | EgoLanes     | 119  | FP32 ONNX     | 94.9         | 10.5 |
 | EgoLanes     | 119  | FP32 TensorRT | 48.8         | 20.5 |
-| EgoLanesLite | 4.85 | FP32 ONNX     | 38.1         | 26.2 |
-| EgoLanesLite | 4.85 | FP32 TensorRT | 21.5         | 46.6 |
-| EgoLanesLite | 4.85 | INT8 TensorRT | 10.2         | 98.5 |
+| EgoLanesLite (OS = 1/4) | 4.85 | FP32 ONNX     | 38.1         | 26.2 |
+| EgoLanesLite (OS = 1/4) | 4.85 | FP32 TensorRT | 21.5         | 46.6 |
+| EgoLanesLite (OS = 1/4) | 4.85 | INT8 TensorRT | 10.2         | 98.5 |
+| EgoLanesLite (OS = 1) | 9.69 | FP32 ONNX     | 38.6         | 25.9 |
+| EgoLanesLite (OS = 1) | 9.69 | FP32 TensorRT | 21.6         | 46.4 |
+| EgoLanesLite (OS = 1) | 9.69 | INT8 TensorRT | 10.4         | 96.1 |
 
+As shown, EgoLanesLite with OS = 1 doubles the number of operations with respect to the model trained with OS = 1/4, however, its inference time (on Jetson Orin Nano) remains almost unchanged.
 
 ---
 
