@@ -383,7 +383,7 @@ if __name__ == "__main__":
 
     # ============================== Dataset structure ============================== #
 
-    root_dir = "TUSimple"
+    root_dir = ""
     train_dir = "train_set"
     test_dir = "test_set"
 
