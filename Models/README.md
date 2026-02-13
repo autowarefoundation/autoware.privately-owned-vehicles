@@ -434,8 +434,6 @@ The 19 classes are grouped into the following categories:
 
 ### [Download PyTorch Weights (*.pth)](#)
 ### [Download ONNX FP32 (*.onnx)](#)
-### [Download TensorRT FP32 (*.engine)](#)
-### [Download TensorRT INT8 (*.engine)](#)
 
 ---
 
@@ -476,9 +474,6 @@ while reducing computational overhead.
 
 ### [Download PyTorch Weights (*.pth)](#)
 ### [Download ONNX FP32 (*.onnx)](#)
-### [Download TensorRT FP32 (*.engine)](#)
-### [Download TensorRT INT8 (*.engine)](#)
-
 ---
 
 # EgoLanesLite
@@ -526,8 +521,6 @@ To allow for a fair comparison against EgoLanes baseline, we report the metrics 
 
 ### [Download PyTorch Weights (*.pth)](#)
 ### [Download ONNX FP32 (*.onnx)](#)
-### [Download TensorRT FP32 (*.engine)](#)
-### [Download TensorRT INT8 (*.engine)](#)
 
 ---
 
