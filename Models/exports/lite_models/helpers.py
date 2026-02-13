@@ -1,16 +1,8 @@
 # evals/utils.py
-import torch
 import sys
-from network.awf.scene_seg_network import SceneSegNetwork
 import numpy as np
-from collections.abc import Mapping
 from pathlib import Path
-from training.lane_detection.egolanes_trainer import EgoLanesTrainer
-from training.segmentation.deeplabv3plus_trainer import DeepLabV3PlusTrainer as DeepLabV3PlusTrainer_seg
-from training.lane_detection.deeplabv3plus_trainer import DeepLabV3PlusTrainer as DeepLabV3PlusTrainer_lanes
 
-from evals.utils.trt_engine import TensorRTWrapper
-from utils.training import load_yaml, set_global_seed
 
 def fatal(msg):
     print(f"[ERROR] {msg}")
