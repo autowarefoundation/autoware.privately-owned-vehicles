@@ -515,14 +515,10 @@ To allow for a fair comparison against EgoLanes baseline, we report the metrics 
 |--------------|------|---------------|--------------|------|
 | EgoLanes     | 119  | FP32 ONNX     | 94.9         | 10.5 |
 | EgoLanes     | 119  | FP32 TensorRT | 48.8         | 20.5 |
-| EgoLanesLite (OS = 1/4) | 4.85 | FP32 ONNX     | 38.1         | 26.2 |
-| EgoLanesLite (OS = 1/4) | 4.85 | FP32 TensorRT | 21.5         | 46.6 |
-| EgoLanesLite (OS = 1/4) | 4.85 | INT8 TensorRT | 10.2         | 98.5 |
 | EgoLanesLite (OS = 1) | 6.10 | FP32 ONNX     | 26.7         | 37.4 |
 | EgoLanesLite (OS = 1) | 6.10 | FP32 TensorRT | 15.3         | 65.3 |
 | EgoLanesLite (OS = 1) | 6.10 | INT8 TensorRT | 9.6         | 104.3 |
 
-As shown, EgoLanesLite with OS = 1 doubles the number of operations with respect to the model trained with OS = 1/4, however, its inference time (on Jetson Orin Nano) remains almost unchanged.
 
 ---
 
