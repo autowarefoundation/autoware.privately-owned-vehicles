@@ -361,9 +361,11 @@ EgoLanes is a neural network that processes raw image frames and performs real-t
 
 All Lite models share the same architectural foundation:
 
-> **EfficientNet-B1 encoder + DeepLabV3+ decoder + lightweight heads**
+> **EfficientNet-B0/B1 encoder + DeepLabV3+ decoder + lightweight heads**
 
 The models are optimized with reduced decoder configurations and lightweight heads to significantly decrease computational cost while preserving spatial resolution and deployment flexibility (dynamic input resolution supported).
+
+SceneSegLite and Scene3DLite use an EfficientNet-B1 encoder, while EgoLanesLite uses an EfficientNet-B0 encoder to further reduce computational cost.
 
 ---
 
@@ -499,7 +501,7 @@ To allow for a fair comparison against EgoLanes baseline, we report the metrics 
 | Dataset     | Metric | EgoLanes | EgoLanesLite (OS = 1/4) | EgoLanesLite (OS = 1) |
 |------------|--------|----------|--------------|--------------|
 | CurveLanes | mIoU   | 46.9     | 44.6         |   24.6    |
-| TuSimple   | mIoU   | 43.6     | 51.4         |   24.2    |
+| TuSimple   | mIoU   | 43.6     | 51.4         |   24.0    |
 
 ---
 
@@ -516,9 +518,9 @@ To allow for a fair comparison against EgoLanes baseline, we report the metrics 
 | EgoLanesLite (OS = 1/4) | 4.85 | FP32 ONNX     | 38.1         | 26.2 |
 | EgoLanesLite (OS = 1/4) | 4.85 | FP32 TensorRT | 21.5         | 46.6 |
 | EgoLanesLite (OS = 1/4) | 4.85 | INT8 TensorRT | 10.2         | 98.5 |
-| EgoLanesLite (OS = 1) | 9.69 | FP32 ONNX     | 38.6         | 25.9 |
-| EgoLanesLite (OS = 1) | 9.69 | FP32 TensorRT | 21.6         | 46.4 |
-| EgoLanesLite (OS = 1) | 9.69 | INT8 TensorRT | 10.4         | 96.1 |
+| EgoLanesLite (OS = 1) | 6.10 | FP32 ONNX     | 26.7         | 37.4 |
+| EgoLanesLite (OS = 1) | 6.10 | FP32 TensorRT | 15.3         | 65.3 |
+| EgoLanesLite (OS = 1) | 6.10 | INT8 TensorRT | 9.6         | 104.3 |
 
 As shown, EgoLanesLite with OS = 1 doubles the number of operations with respect to the model trained with OS = 1/4, however, its inference time (on Jetson Orin Nano) remains almost unchanged.
 

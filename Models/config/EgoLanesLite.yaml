@@ -1,5 +1,5 @@
 experiment:
-  name: "EgoLanesLite"    # name of the experiment, used for logging and checkpointing
+  name: "EgoLanesLite"
   output_dir: "runs/training/EgoLanesLite/"
   seed: 42
   device: "cuda"    # "cuda", "cuda:0", or "cpu"
@@ -57,8 +57,8 @@ dataset:
 
 
 dataloader:
-  batch_size: 8            # how many samples per optimization step
-  num_workers: 2            # how many workers for data loading
+  batch_size: 8             # how many samples per optimization step
+  num_workers: 8            # how many workers for data loading
   pin_memory: true          # pin memory for dataloader
   persistent_workers: true  # keep workers alive between epochs
   drop_last: true           # drop last incomplete batch
@@ -114,7 +114,7 @@ network:
   pretrained_model_path:  #"/home/sergey/DEV/AI/AEI/runs/training/segmentation/dlv3plus_efficientnetb1_v2/checkpoints/best_mIoU.pth"     # path to a pretrained model to use as backbone (overrides 'pretrained' flag)
 
   backbone:
-    type: "efficientnet_b1"  # e.g., "resnet50", "efficientnet_b0", etc.
+    type: "efficientnet_b0"  # e.g., "resnet50", "efficientnet_b0", etc.
     pretrained: true         # whether to use ImageNet pre-trained weights
     encoder_depth: 5      #the encoder features that will be used in decoder (5 means the last stage before 1x1conv, 4 means the one before that, etc.)
 
@@ -144,7 +144,7 @@ network:
     head_activation: null
     head_depth: 1
     head_mid_channels: None
-    head_upsampling: 1
+    head_upsampling: 4
     head_kernel_size: 3
 
   output_channels: 3
