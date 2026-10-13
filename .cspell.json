@@ -2,9 +2,11 @@
   "ignorePaths": [],
   "ignoreRegExpList": [],
   "words": [
+    "argparser",
     "autospeed",
     "autoware",
     "buildx",
+    "cipo",
     "clearlooks",
     "cmapy",
     "cudnn",
@@ -51,6 +53,7 @@
     "visionpilot",
     "vncpasswd",
     "vncserver",
+    "waypt",
     "websockify",
     "xstartup"
   ]
