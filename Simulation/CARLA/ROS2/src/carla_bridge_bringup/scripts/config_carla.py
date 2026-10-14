@@ -45,6 +45,13 @@ def _setup_vehicle(world, config):
     bp.set_attribute("role_name", config.get("id"))
     bp.set_attribute("ros_name", config.get("id"))
 
+    wp_cfg = config.get("spawn_waypoint")
+    if wp_cfg:
+        wp = map_.get_waypoint_xodr(wp_cfg["road_id"], wp_cfg["lane_id"], wp_cfg["s"])
+        spawn_pt = wp.transform
+        spawn_pt.location.z += 0.5
+        return world.spawn_actor(bp, spawn_pt, attach_to=None)
+
     spawn_points = map_.get_spawn_points()
     for i in range(len(spawn_points)):
         waypt = map_.get_waypoint(spawn_points[i].location)
@@ -128,6 +135,38 @@ def _follow_vehicle(world, vehicle, spectator):
 
 import random
 
+def _setup_road_traffic(world, traffic_manager, cfg):
+    """Spawn cfg["count"] cars along an OpenDRIVE road, alternating cfg["lane_ids"]."""
+    bp_library = world.get_blueprint_library()
+    map_ = world.get_map()
+    lanes = cfg["lane_ids"]
+    blueprints = [
+        bp
+        for bp in bp_library.filter(cfg.get("type", "vehicle.*"))
+        if bp.get_attribute("number_of_wheels").as_int() == 4
+        and not any(x in bp.id for x in cfg.get("exclude", []))
+    ]
+    actors = []
+    for i in range(cfg["count"]):
+        lane = lanes[i % len(lanes)]
+        s = cfg["s_start"] + (i // len(lanes)) * cfg["spacing_m"] + (i % len(lanes)) * cfg["spacing_m"] / len(lanes)
+        wp = map_.get_waypoint_xodr(cfg["road_id"], lane, s)
+        if wp is None:
+            continue
+        tf = wp.transform
+        tf.location.z += 0.5
+        bp = random.choice(blueprints)
+        if bp.has_attribute("color"):
+            bp.set_attribute("color", random.choice(bp.get_attribute("color").recommended_values))
+        actor = world.try_spawn_actor(bp, tf)
+        if actor is None:
+            continue
+        actor.set_autopilot(True, traffic_manager.get_port())
+        traffic_manager.vehicle_percentage_speed_difference(actor, cfg.get("speed_diff_percent", 0.0))
+        actors.append(actor)
+    return actors
+
+
 def _setup_npc_traffic(world, traffic_manager, config, hero_spawn_index):
     bp_library = world.get_blueprint_library()
     map_ = world.get_map()
@@ -135,6 +174,9 @@ def _setup_npc_traffic(world, traffic_manager, config, hero_spawn_index):
 
     npc_vehicles = []
     for npc in config.get("npc_vehicles", []):
+        if "road_id" in npc:
+            npc_vehicles += _setup_road_traffic(world, traffic_manager, npc)
+            continue
         count = npc.get("count", 1)
         for _ in range(count):
             bp_filter = npc.get("type", "vehicle.*")
@@ -186,8 +228,7 @@ def main(args):
 
         # if args.map and "Town06" not in client.get_world().get_map().name:
         #     logging.info("Loading Town06 map")
-        client.load_world("Town04")
-        # client.load_world("Town06")
+        client.load_world(args.map)
 
         world = client.get_world()
 
@@ -207,6 +248,10 @@ def main(args):
 
         with open(args.file) as f:
             config = json.load(f)
+
+        if "seed" in config:
+            random.seed(config["seed"])
+            traffic_manager.set_random_device_seed(config["seed"])
 
         vehicle = _setup_vehicle(world, config)
         sensors = _setup_sensors(world, vehicle, config.get("sensors", []))
@@ -291,7 +336,7 @@ if __name__ == "__main__":
         dest="autopilot",
         help="turn on autopilot for the vehicle",
     )
-    argparser.add_argument("-m", "--map", action="store_true", dest="map", help="load Town06 map")
+    argparser.add_argument("-m", "--map", default="Town04", help="map to load (default: Town04)")
 
     args = argparser.parse_args()
 
