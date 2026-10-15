@@ -29,10 +29,16 @@ endif ()
 add_library(visualization
         ../common/include/common/types.hpp
         src/visual_interface.cpp
-        src/visualization.cpp
         src/local_display.cpp
+#        src/debug_draw.cpp
         ${VIS_SOURCES}
 )
+
+if(BUILD_TESTING)
+    target_sources(visualization PRIVATE
+            src/debug_display.cpp)
+    target_compile_definitions(visualization PUBLIC BUILD_TESTING)
+endif()
 
 if (ENABLE_OCCUPANCY)
     target_sources(visualization PRIVATE
