@@ -13,12 +13,12 @@ namespace visualization {
     class WebRTCStreamer : public VisualInterface {
 
         public:
-            
+
 
             /**
             * @brief Config options for the WebRTC streamer.
             * Provides parameters for WebRTC connection and streaming behavior.
-            * 
+            *
             * Includes:
             * - host: WebRTC signaling server host (default: "127.0.0.1")
             * - port: WebRTC signaling server port (default: 8080)
@@ -74,7 +74,7 @@ namespace visualization {
 
             // STREAM HANDLING FUNCS
 
-            
+
             /**
             * @brief Start the WebRTC streaming session.
             * Establishes connection to signaling server and prepares for streaming.
@@ -92,16 +92,23 @@ namespace visualization {
             */
             bool stop();
 
-            
-            /**
-            * @brief Push a new video frame to the WebRTC stream.
-            * Provides a thread-safe way to send frames to connected WebRTC clients.
-            * 
-            * @param frame The video frame to stream (as cv::Mat)
-            *
-            * @return true if frame was successfully pushed to the stream, false otherwise
-            */
-            bool render_frame(const cv::Mat& frame) override;
+
+            // /**
+            // * @brief Push a new video frame to the WebRTC stream.
+            // * Provides a thread-safe way to send frames to connected WebRTC clients.
+            // *
+            // * @param frame The video frame to stream (as cv::Mat)
+            // *
+            // * @return true if frame was successfully pushed to the stream, false otherwise
+            // */
+            // bool render_frame(const cv::Mat& frame) override;
+
+            bool visualize(cv::Mat& frame,
+                 const visionpilot::models::InferenceFrameResult& result,
+                 const Plan& plan,
+                 double ego_speed_ms,
+                 const cv::Mat& H_resized,
+                 double speed_limit_ms = 0.0) override;
 
 
             /**
@@ -140,7 +147,7 @@ namespace visualization {
 
             // Internal implementation details (WebRTC connection, encoding, etc.)
             std::unique_ptr<Impl> impl;
-    
+
 
         };
 

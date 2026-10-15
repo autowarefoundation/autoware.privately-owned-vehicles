@@ -949,10 +949,21 @@ namespace visualization
         return true;
     };
 
-    bool WebRTCStreamer::render_frame(
-        const cv::Mat& frame
-    )
+    // bool WebRTCStreamer::render_frame(
+    //     const cv::Mat& frame
+    // )
+    // {
+    //     return impl != nullptr && impl->push_frame(frame);
+    // };
+
+    bool WebRTCStreamer::visualize(cv::Mat& frame,
+                              const visionpilot::models::InferenceFrameResult& result,
+                              const Plan& plan,
+                              double ego_speed_ms,
+                              const cv::Mat& H_resized,
+                              double speed_limit_ms)
     {
+        build_frame(frame, result, plan, ego_speed_ms, H_resized, speed_limit_ms);
         return impl != nullptr && impl->push_frame(frame);
     };
 
