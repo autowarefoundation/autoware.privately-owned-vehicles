@@ -9,12 +9,13 @@
 #include <engine/onnx_engine.hpp>
 #include <vehicle_interface/vehicle_interface.hpp>
 #include <vehicle_interface/can_interface.hpp>
+#include <visualization/local_display.hpp>
+#include <visualization/webrtc_stream.hpp>
 #include <image_preprocessing/image_preprocessor.hpp>
 #include <logging/logger.hpp>
 #include <models/inference.hpp>
 #include <planning/planning.hpp>
-#include <visualization/visualization.hpp>
-#include <debug/debug_draw.hpp>
+#include <visualization/debug_display.hpp>
 
 #include "camera_interface/v4l2_camera_interface.hpp"
 #include "camera_interface/file_interface.hpp"
@@ -26,9 +27,13 @@
 #include <vehicle_ros2_interface/vehicle_ros2_interface.hpp>
 #endif
 
+#if BUILD_TESTING
+#include <visualization/debug_display.hpp>
+#endif
+
+
 namespace ve = visionpilot::engine;
 namespace vm = visionpilot::models;
-namespace vd = visionpilot::debug;
 
 int main(int argc, char** argv)
 {
@@ -41,17 +46,16 @@ int main(int argc, char** argv)
     }
 
     // ── CLI flags ─────────────────────────────────────────────────────────────
-    bool show_window = true;
     bool debug_viz = false;
     for (int i = 1; i < argc; ++i)
     {
         const std::string arg(argv[i]);
         if (arg == "--debug-viz") debug_viz = true;
-        else if (arg == "--no-window") show_window = false;
     }
 
     std::shared_ptr<CameraInterface> camera_interface;
     std::shared_ptr<VehicleInterface> vehicle_interface;
+    std::unique_ptr<VisualInterface> visual_interface;
 #if ENABLE_ROS2_INTERFACE
     rclcpp::init(argc, argv);
     camera_interface = std::make_unique<CameraRos2Interface>(cfg.source.input_camera_topic);
@@ -73,25 +77,27 @@ int main(int argc, char** argv)
         vehicle_interface = std::make_shared<CanInterface>();
     }
 #endif
+    if (cfg.webrtc_on) {
+        visual_interface = std::make_unique<visualization::WebRTCStreamer>();
+        static_cast<visualization::WebRTCStreamer *>(visual_interface.get())->init(cfg.webrtc_port);
+    } else {
+        // visual_interface = std::make_unique<visualization::LocalDisplay>(cfg.show_window);
+#if BUILD_TESTING
+        if (debug_viz)
+        {
+            visual_interface = std::make_unique<visualization::DebugDisplay>(cfg.visualization_on);
+        } else
+#endif
+        {
+            visual_interface = std::make_unique<visualization::LocalDisplay>(cfg.visualization_on);
+        }
+    }
 
     ImagePreprocessor preprocessor;
     ve::OnnxEngine engine(cfg.engine);
     vm::InferencePipeline pipeline(engine, cfg.inference);
     Planner planner(cfg.speed_limit, cfg.L);
     if (cfg.rrd_on) logging::Rerun::init(cfg.rrd_log);
-
-    // ── Init visualization assets once based on mode ──────────────────────────
-    if (debug_viz)
-    {
-        VP_INFO("[Viz] Debug mode — annotated telemetry overlay");
-        vd::init_wheel_assets(cfg.wheel_dir);
-        vd::init_homography();
-    }
-    else
-    {
-        VP_INFO("[Viz] Production mode — clean HUD");
-        visualization::init_production_assets();
-    }
 
     // ── Initialize camera interface ───────────────────────────────────────────
 
@@ -102,8 +108,6 @@ int main(int argc, char** argv)
     }
 
     // ── Initialize display ────────────────────────────────────────────────────
-    visualization::Visualization visualization({cfg.webrtc_on, cfg.webrtc_port, show_window});
-
     const cv::Size net_size(vm::AutoDrive::NET_W, vm::AutoDrive::NET_H);
     cv::Mat frame, warped, resized;
     bool h_resized_set = false;
@@ -167,33 +171,18 @@ int main(int argc, char** argv)
                 cipo_dist,
                 r->cipo.velocity_ms);
 
-            vehicle_interface->write(
-                plan.steering.empty() ? 0.0 : plan.steering[1],
-                plan.acceleration);
+            vehicle_interface->write(plan.steering.empty() ? 0.0 : plan.steering[1], plan.acceleration);
+
             cv::Mat viz;  // output visualization image (empty when viz is off)
             if (cfg.visualization_on)
             {
-                if (debug_viz)
-                {
-                    // annotate_frame() draws inplace
-                    viz = cfg.rrd_on ? resized.clone() : resized;
-                    vd::visualize(viz, *r, source_label(cfg.source), cfg.wheel_dir, pipeline.H_world2resized());
-                    display_frame = viz;
-                }
-                else
-                {
-                    display_frame = visualization.build_frame(resized, *r, plan, ego_v, pipeline.H_resized(), cfg.speed_limit);
-                    viz = display_frame;
-                }
+                visual_interface->visualize(resized, *r, plan, ego_v, pipeline.H_resized(), cfg.speed_limit);
+                viz = resized;
             }
 
             // Submit all required logging params to single logger func
             if (cfg.rrd_on)
                 logging::Rerun::log_frame(r->frame_id, frame, warped, resized, *r, plan, ego_v, viz);
-        }
-        if (cfg.visualization_on)
-        {
-            visualization.render_frame(display_frame);
         }
     }
 
@@ -202,5 +191,5 @@ int main(int argc, char** argv)
     // stop() returns true on a clean shutdown; translate that to a 0 exit code
     // so VisionPilot can be supervised as a batch/oneshot job (a successful run
     // must not exit non-zero).
-    return visualization.stop() ? 0 : 1;
+    return visual_interface->stop() ? 0 : 1;
 }

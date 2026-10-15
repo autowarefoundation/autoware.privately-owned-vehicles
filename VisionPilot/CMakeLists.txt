@@ -26,7 +26,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Testing (default OFF; users can override with -DBUILD_TESTING=ON)
-set(BUILD_TESTING OFF CACHE BOOL "Build the testing tree")
+#set(BUILD_TESTING OFF CACHE BOOL "Build the testing tree")
 
 # GPU support
 option(GPU "Enable GPU support" ON)
@@ -76,8 +76,6 @@ add_subdirectory(modules/sensing/vehicle_interface)
 add_subdirectory(modules/sensing/camera_interface)
 
 add_subdirectory(modules/visualization)
-
-add_subdirectory(modules/debug)
 
 # Tests
 if(BUILD_TESTING)
