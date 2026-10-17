@@ -24,11 +24,6 @@ if (ENABLE_ROS2_INTERFACE)
     target_compile_definitions(VisionPilot PRIVATE ENABLE_ROS2_INTERFACE)
 endif ()
 
-if(BUILD_TESTING)
-    target_link_libraries(VisionPilot PRIVATE vp_debug) # Debug annotate_frame
-    target_compile_definitions(VisionPilot PRIVATE BUILD_TESTING)
-endif ()
-
 target_link_libraries(VisionPilot
     PRIVATE
     config           # VisionPilotConfig, load_vision_pilot_config

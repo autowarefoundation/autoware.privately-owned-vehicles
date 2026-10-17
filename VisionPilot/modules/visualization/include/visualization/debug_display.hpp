@@ -40,6 +40,8 @@ namespace visualization
         visionpilot::fusion::CIPOFusionEstimate cipo;
         visionpilot::fusion::LateralFusionEstimate lateral;
 
+        float       ego_speed_ms = 0.f;  // published /vehicle/speed (m/s)
+
         VehicleParams vehicle;
         std::string wheel_dir;
     };

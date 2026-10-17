@@ -86,7 +86,6 @@ add_subdirectory(modules/visualization)
 
 # Tests
 if(BUILD_TESTING)
-    add_subdirectory(modules/debug)
     add_subdirectory(tests)
 endif()
 
